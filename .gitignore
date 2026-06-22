@@ -8,11 +8,12 @@ __pycache__/
 .venv-*/
 venv/
 
-# SQLite-Datenbank (Daten gehören in den Bind-Mount, nicht ins Repo)
+# SQLite-Datenbank + Uploads (gehören in den Bind-Mount, nicht ins Repo)
 *.db
 *.db-wal
 *.db-shm
 data/
+uploads/
 
 # Node / Frontend
 node_modules/

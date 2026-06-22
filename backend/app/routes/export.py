@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from ..auth.deps import get_current_user
 from ..db import get_db
 from ..services.export import (
+    BesteuerungNotSupportedError,
     MappingMissingError,
     build_summenblatt,
     journal_csv,
@@ -25,7 +26,7 @@ def _slug(name: str) -> str:
 def summenblatt(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
     try:
         return build_summenblatt(db, gewerbe_id, jahr)
-    except MappingMissingError as e:
+    except (MappingMissingError, BesteuerungNotSupportedError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -33,7 +34,7 @@ def summenblatt(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get
 def summenblatt_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
     try:
         data = summenblatt_csv(db, gewerbe_id, jahr)
-    except MappingMissingError as e:
+    except (MappingMissingError, BesteuerungNotSupportedError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     g = db.execute("SELECT name FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
     name = _slug(g["name"]) if g else "gewerbe"
@@ -48,7 +49,7 @@ def summenblatt_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = De
 def journal_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
     try:
         data = journal_csv(db, gewerbe_id, jahr)
-    except MappingMissingError as e:
+    except (MappingMissingError, BesteuerungNotSupportedError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     g = db.execute("SELECT name FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
     name = _slug(g["name"]) if g else "gewerbe"

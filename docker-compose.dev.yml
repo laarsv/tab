@@ -15,9 +15,11 @@ services:
     env_file: .env
     environment:
       DB_PATH: /app/data/tab.db
+      UPLOAD_ROOT: /app/uploads
     volumes:
       - ./backend/app:/app/app
       - ./data:/app/data
+      - ./uploads:/app/uploads
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "127.0.0.1:8000:8000"

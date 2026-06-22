@@ -99,6 +99,26 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_afa_gewerbe ON afa_buchung(gewerbe_id);
         """,
     ),
+    Migration(
+        version=2,
+        sql="""
+        -- Besteuerungsart je Gewerbe: 'kleinunternehmer' (§19) oder 'regelbesteuerung'.
+        -- Fundament für expliziten KU-Status + spätere Regelbesteuerung.
+        ALTER TABLE gewerbe ADD COLUMN besteuerung TEXT NOT NULL DEFAULT 'kleinunternehmer';
+
+        -- Beleg-Dateien (PDF/Bild) je Buchung.
+        CREATE TABLE beleg (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            buchung_id     INTEGER NOT NULL REFERENCES buchung(id) ON DELETE CASCADE,
+            original_name  TEXT    NOT NULL,
+            stored_name    TEXT    NOT NULL,
+            content_type   TEXT    NOT NULL,
+            size_bytes     INTEGER NOT NULL,
+            created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_beleg_buchung ON beleg(buchung_id);
+        """,
+    ),
 ]
 
 

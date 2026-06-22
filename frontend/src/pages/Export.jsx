@@ -95,7 +95,7 @@ export default function Export() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col sm:flex-row gap-2 no-print">
         <button
           className="btn-primary w-full sm:w-auto"
           onClick={() => download('summenblatt')}
@@ -109,6 +109,13 @@ export default function Export() {
           disabled={downloading !== ''}
         >
           {downloading === 'journal' ? 'Lädt…' : 'Beleg-Journal als CSV'}
+        </button>
+        <button
+          className="btn-outline w-full sm:w-auto"
+          onClick={() => window.print()}
+          disabled={!data || data.zeilen.length === 0}
+        >
+          Drucken / PDF
         </button>
       </div>
 
@@ -124,7 +131,17 @@ export default function Export() {
           Keine befüllten Zeilen für {jahr}. Erfasse zuerst Buchungen oder AfA.
         </div>
       ) : data ? (
-        <div className="card overflow-x-auto">
+        <div className="print-area space-y-3">
+          <div className="hidden print:block">
+            <h2 className="text-xl font-black">EÜR-Summenblatt {jahr}</h2>
+            <div className="text-sm text-ink/70">
+              {gewerbeName}
+              {data.gewerbe.steuernummer ? ` · St.-Nr. ${data.gewerbe.steuernummer}` : ''} ·
+              Kleinunternehmer §19 UStG
+              {data.vorlaeufig ? ' · vorläufiges Mapping' : ''}
+            </div>
+          </div>
+          <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-ink/60 text-xs uppercase tracking-wider">
               <tr className="border-b border-ink/10">
@@ -175,6 +192,7 @@ export default function Export() {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       ) : null}
     </div>

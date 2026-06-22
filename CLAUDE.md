@@ -36,9 +36,11 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 
 ## Datenmodell (SQLite)
 
-`gewerbe`, `kategorie` (stabile Stammdaten + Flags), `euer_jahr` (VZ-Meta inkl. `vorlaeufig`),
-`euer_zeile` (Zeilen-Labels je Jahr), `euer_mapping` (Kategorie→Zeile **je Jahr**),
-`buchung` (normale Einnahmen/Ausgaben), `afa_buchung` (Wirtschaftsgüter).
+`gewerbe` (inkl. `besteuerung`: `kleinunternehmer`|`regelbesteuerung`), `kategorie` (stabile
+Stammdaten + Flags), `euer_jahr` (VZ-Meta inkl. `vorlaeufig`), `euer_zeile` (Zeilen-Labels je
+Jahr), `euer_mapping` (Kategorie→Zeile **je Jahr**), `buchung` (normale Einnahmen/Ausgaben),
+`afa_buchung` (Wirtschaftsgüter), `beleg` (Datei-Uploads je Buchung). Migrationen: v1 = Grundschema,
+v2 = `besteuerung` + `beleg`.
 
 **Geld = Integer Cent** (`*_cent`), Beträge positiv, Richtung über `kategorie.typ`.
 **Buchung speichert die Kategorie, nie die Zeilennummer** — die Zeile wird beim Export aus
@@ -59,6 +61,13 @@ der Mapping-Version des Jahres aufgelöst.
   Mapping fürs Jahr → `MappingMissingError` → 400 mit klarer Meldung (kein Crash).
 - ⚠ Kategorien für laufende Kosten zeigen vorläufig auf **Zeile 60** (gewinnneutral) — finale
   Zeile (43–54) beim Vordruck-Abgleich in `seed.py` setzen, dann redeployen.
+- **Beleg-Upload:** PDF/JPG/PNG je Buchung (`app/routes/belege.py`), Dateien unter `UPLOAD_ROOT`
+  (Prod-Bind-Mount `/opt/appdata/tab/uploads`), max. `MAX_UPLOAD_MB`. Beim Löschen einer Buchung
+  werden die Dateien mitgeräumt. **Uploads zusätzlich ins Backup.**
+- **KU-Status:** `gewerbe.besteuerung`. Export ist **KU-only** — bei `regelbesteuerung` liefert er
+  bewusst 400 (`BesteuerungNotSupportedError`), kein falscher KU-Export.
+- **PDF:** kein Server-PDF, sondern Druck-Ansicht (`window.print()` + `@media print` /
+  `.print-area` in `index.css`) auf der Export-Seite.
 
 ## Tests / Validierung
 
@@ -73,7 +82,9 @@ Host-Ports, Bind-Mount `/opt/appdata/tab/data`), `caddy.snippet` (explizite Cont
 keine generischen Aliase), `scripts/deploy.sh`. Frontend baut mit getracktem
 `frontend/.env.production` (`VITE_API_BASE_URL=https://tab.vrwb.de`, same-origin).
 
-## Bewusst NICHT in Phase 1
+## Noch offen / nicht gebaut
 
-Beleg-Datei-Upload, Multi-User/Mandant, Regelbesteuerung, Bankabruf, ELSTER-Direktversand,
-USt-Voranmeldung, PDF-Export.
+- **Regelbesteuerung / USt** — Flag (`besteuerung`) existiert, aber USt-Aufschlüsselung,
+  Vorsteuer, Zeilen 15/17/57/58 und der Export dafür fehlen. Braucht eine eigene Mapping-Spec
+  (analog `EUER_KATEGORIEN.md`) bevor man Steuer-Zeilen festlegt — nicht raten.
+- Weiterhin außen vor: Multi-User/Mandant, Bankabruf, ELSTER-Direktversand, USt-Voranmeldung.

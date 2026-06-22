@@ -34,3 +34,12 @@
   }
   .label { @apply block font-bold text-ink/80 mb-1 text-sm; }
 }
+
+/* Druck / PDF: nur den .print-area-Block ausgeben (für EÜR-Summenblatt). */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+  .no-print { display: none !important; }
+  .card { box-shadow: none !important; border-color: #ccc !important; }
+}

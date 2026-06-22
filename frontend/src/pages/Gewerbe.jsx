@@ -32,6 +32,7 @@ export default function Gewerbe() {
     const body = {
       name: editing.name?.trim(),
       steuernummer: editing.steuernummer?.trim() || null,
+      besteuerung: editing.besteuerung || 'kleinunternehmer',
     };
     if (!body.name) return toast.error('Name ist Pflicht.');
     try {
@@ -72,7 +73,7 @@ export default function Gewerbe() {
         </div>
         <button
           className="btn-primary w-full sm:w-auto"
-          onClick={() => setEditing({ name: '', steuernummer: '' })}
+          onClick={() => setEditing({ name: '', steuernummer: '', besteuerung: 'kleinunternehmer' })}
         >
           + Gewerbe
         </button>
@@ -94,6 +95,15 @@ export default function Gewerbe() {
                       inaktiv
                     </span>
                   )}
+                  {g.besteuerung === 'regelbesteuerung' ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-900 text-[10px] font-bold uppercase tracking-wider">
+                      Regelbest.
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-mint-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
+                      §19 KU
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-ink/60 mt-0.5">
                   {g.steuernummer ? `St.-Nr. ${g.steuernummer}` : 'keine Steuernummer'}
@@ -102,7 +112,14 @@ export default function Gewerbe() {
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   className="btn-outline btn-sm"
-                  onClick={() => setEditing({ id: g.id, name: g.name, steuernummer: g.steuernummer || '' })}
+                  onClick={() =>
+                    setEditing({
+                      id: g.id,
+                      name: g.name,
+                      steuernummer: g.steuernummer || '',
+                      besteuerung: g.besteuerung || 'kleinunternehmer',
+                    })
+                  }
                 >
                   Bearbeiten
                 </button>
@@ -138,6 +155,28 @@ export default function Gewerbe() {
                 onChange={(e) => setEditing({ ...editing, steuernummer: e.target.value })}
               />
             </label>
+
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-ink/30 text-mint focus:ring-mint"
+                checked={(editing.besteuerung || 'kleinunternehmer') === 'kleinunternehmer'}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    besteuerung: e.target.checked ? 'kleinunternehmer' : 'regelbesteuerung',
+                  })
+                }
+              />
+              <span>
+                <span className="font-bold">Kleinunternehmer §19 UStG</span>
+                <span className="block text-xs text-ink/60">
+                  Aktiv = alles brutto, EÜR-Export verfügbar. Deaktiviert (Regelbesteuerung) wird
+                  der Export noch nicht unterstützt.
+                </span>
+              </span>
+            </label>
+
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
                 Abbrechen

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from '../components/Dropdown.jsx';
 import Modal from '../components/Modal.jsx';
+import BelegeSection from '../components/BelegeSection.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import {
   formatEuro,
@@ -135,6 +136,7 @@ export default function Buchungen() {
                       <span className={b.kategorie_typ === 'einnahme' ? 'text-mint font-bold' : ''}>
                         {b.kategorie_name}
                       </span>
+                      {b.beleg_count > 0 && <Paperclip count={b.beleg_count} />}
                     </td>
                     <td className="px-4 py-3 text-ink/70">{b.beschreibung}</td>
                     <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
@@ -166,7 +168,10 @@ export default function Buchungen() {
                     {formatEuro(b.betrag_cent)}
                   </span>
                 </div>
-                <div className="font-bold text-sm">{b.kategorie_name}</div>
+                <div className="font-bold text-sm flex items-center">
+                  {b.kategorie_name}
+                  {b.beleg_count > 0 && <Paperclip count={b.beleg_count} />}
+                </div>
                 {b.beschreibung && <div className="text-sm text-ink/70">{b.beschreibung}</div>}
                 <div className="flex gap-2 pt-1">
                   <button className="btn-outline btn-sm" onClick={() => setEditing(toEdit(b))}>
@@ -206,6 +211,20 @@ function toEdit(b) {
     beleg_details: b.beleg_details || '',
     km: '',
   };
+}
+
+function Paperclip({ count }) {
+  return (
+    <span
+      className="ml-2 inline-flex items-center gap-1 align-middle text-ink/50 text-xs"
+      title={`${count} Beleg(e)`}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+      </svg>
+      <span className="tabular-nums">{count}</span>
+    </span>
+  );
 }
 
 function Kennzahl({ label, cent }) {
@@ -407,9 +426,19 @@ function BuchungModal({ editing, setEditing, kategorien, katById, gewerbeId, onS
           </label>
         )}
 
+        {editing.id ? (
+          <div className="pt-2 border-t border-ink/10">
+            <BelegeSection buchungId={editing.id} onChange={onSaved} />
+          </div>
+        ) : (
+          <div className="rounded-lg bg-mint-soft/10 p-3 text-sm text-ink/60">
+            Belege (PDF/Foto) kannst du nach dem Speichern anhängen.
+          </div>
+        )}
+
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
           <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
-            Abbrechen
+            {editing.id ? 'Schließen' : 'Abbrechen'}
           </button>
           <button type="submit" className="btn-primary" disabled={busy}>
             Speichern

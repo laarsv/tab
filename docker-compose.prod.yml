@@ -8,8 +8,8 @@
 # Bring-up:
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# Bind-Mount muss vorher existieren:
-#   mkdir -p /opt/appdata/tab/data
+# Bind-Mounts müssen vorher existieren:
+#   mkdir -p /opt/appdata/tab/data /opt/appdata/tab/uploads
 
 name: tab-prod
 
@@ -22,6 +22,7 @@ services:
     env_file: .env
     volumes:
       - /opt/appdata/tab/data:/app/data
+      - /opt/appdata/tab/uploads:/app/uploads
     networks:
       - proxy
     healthcheck:

@@ -21,6 +21,10 @@ class MappingMissingError(Exception):
     """Für das angeforderte Jahr existiert kein EÜR-Mapping."""
 
 
+class BesteuerungNotSupportedError(Exception):
+    """Export ist aktuell nur für Kleinunternehmer (§19) verfügbar."""
+
+
 def format_cent_de(cent: int) -> str:
     """123456 -> '1234,56' (Komma-Dezimal, kein Tausendertrenner — re-importfreundlich)."""
     sign = "-" if cent < 0 else ""
@@ -42,6 +46,12 @@ def _gewerbe_or_404(conn: sqlite3.Connection, gewerbe_id: int) -> sqlite3.Row:
 
 def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> dict:
     gewerbe = _gewerbe_or_404(conn, gewerbe_id)
+
+    if gewerbe["besteuerung"] != "kleinunternehmer":
+        raise BesteuerungNotSupportedError(
+            "Der EÜR-Export ist aktuell nur für Kleinunternehmer (§19 UStG) verfügbar. "
+            "Dieses Gewerbe ist auf Regelbesteuerung gesetzt."
+        )
 
     jahr_meta = conn.execute("SELECT * FROM euer_jahr WHERE jahr = ?", (jahr,)).fetchone()
     mapping_rows = conn.execute(
@@ -124,7 +134,13 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
             summe_ausgaben += betrag
 
     return {
-        "gewerbe": {"id": gewerbe["id"], "name": gewerbe["name"]},
+        "gewerbe": {
+            "id": gewerbe["id"],
+            "name": gewerbe["name"],
+            "steuernummer": gewerbe["steuernummer"],
+            "besteuerung": gewerbe["besteuerung"],
+        },
+        "kleinunternehmer": True,
         "jahr": jahr,
         "vorlaeufig": bool(jahr_meta["vorlaeufig"]),
         "quelle": jahr_meta["quelle"],
@@ -147,6 +163,8 @@ def summenblatt_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> byt
     rows: list[list[str]] = [
         ["EÜR-Summenblatt"],
         ["Gewerbe", data["gewerbe"]["name"]],
+        ["Steuernummer", data["gewerbe"]["steuernummer"] or ""],
+        ["Kleinunternehmer §19 UStG", "ja"],
         ["Jahr", str(jahr)],
     ]
     if data["vorlaeufig"]:
@@ -168,6 +186,10 @@ def summenblatt_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> byt
 
 def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
     gewerbe = _gewerbe_or_404(conn, gewerbe_id)
+    if gewerbe["besteuerung"] != "kleinunternehmer":
+        raise BesteuerungNotSupportedError(
+            "Der Export ist aktuell nur für Kleinunternehmer (§19 UStG) verfügbar."
+        )
     jahr_meta = conn.execute("SELECT * FROM euer_jahr WHERE jahr = ?", (jahr,)).fetchone()
     mapping_rows = conn.execute(
         "SELECT kategorie_id, zeile_nummer FROM euer_mapping WHERE jahr = ?", (jahr,)

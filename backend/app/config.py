@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     # SQLite-Datei (im Prod-Bind-Mount /opt/appdata/tab/data → /app/data)
     DB_PATH: str = "/app/data/tab.db"
 
+    # Beleg-Datei-Uploads (im Prod-Bind-Mount /opt/appdata/tab/uploads → /app/uploads)
+    UPLOAD_ROOT: str = "/app/uploads"
+    MAX_UPLOAD_MB: int = 10
+
     # Single-User-Login
     ADMIN_USERNAME: str = "lars"
     # bcrypt-Hash des Passworts — erzeugen mit scripts/hash_password.py

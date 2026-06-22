@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import get_current_user
+from ..config import settings
 from ..db import get_db
 
 router = APIRouter(
@@ -68,7 +70,8 @@ def _row(db: sqlite3.Connection, buchung_id: int) -> dict:
     r = db.execute(
         """
         SELECT b.*, k.name AS kategorie_name, k.typ AS kategorie_typ,
-               k.belegpflicht_extra, k.abzug_quote
+               k.belegpflicht_extra, k.abzug_quote,
+               (SELECT COUNT(*) FROM beleg WHERE beleg.buchung_id = b.id) AS beleg_count
         FROM buchung b JOIN kategorie k ON k.id = b.kategorie_id
         WHERE b.id = ?
         """,
@@ -83,7 +86,8 @@ def list_buchungen(
 ):
     sql = (
         "SELECT b.*, k.name AS kategorie_name, k.typ AS kategorie_typ, "
-        "k.belegpflicht_extra, k.abzug_quote "
+        "k.belegpflicht_extra, k.abzug_quote, "
+        "(SELECT COUNT(*) FROM beleg WHERE beleg.buchung_id = b.id) AS beleg_count "
         "FROM buchung b JOIN kategorie k ON k.id = b.kategorie_id "
         "WHERE b.gewerbe_id = ?"
     )
@@ -150,5 +154,13 @@ def update_buchung(buchung_id: int, body: BuchungPatch, db: sqlite3.Connection =
 
 @router.delete("/{buchung_id}", status_code=204)
 def delete_buchung(buchung_id: int, db: sqlite3.Connection = Depends(get_db)):
+    # Beleg-Dateien auf der Platte miträumen (DB-Rows gehen per ON DELETE CASCADE).
+    for r in db.execute("SELECT stored_name FROM beleg WHERE buchung_id = ?", (buchung_id,)):
+        path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError:
+            pass
     db.execute("DELETE FROM buchung WHERE id = ?", (buchung_id,))
     db.commit()
