@@ -1,0 +1,201 @@
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { api, apiError } from '../api/client.js';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { PageSpinner } from './Spinner.jsx';
+import Dropdown from './Dropdown.jsx';
+
+const NAV = [
+  { to: '/buchungen', label: 'Buchungen' },
+  { to: '/afa', label: 'AfA' },
+  { to: '/export', label: 'Export' },
+  { to: '/gewerbe', label: 'Gewerbe' },
+];
+
+export default function Layout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [drawer, setDrawer] = useState(false);
+
+  const [gewerbe, setGewerbe] = useState([]);
+  const [jahre, setJahre] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [gewerbeId, setGewerbeId] = useState(
+    () => localStorage.getItem('tab_gewerbe') || '',
+  );
+  const [jahr, setJahr] = useState(
+    () => localStorage.getItem('tab_jahr') || String(new Date().getFullYear()),
+  );
+
+  const loadGewerbe = useCallback(async () => {
+    const res = await api.get('/api/gewerbe');
+    setGewerbe(res.data);
+    return res.data;
+  }, []);
+
+  useEffect(() => {
+    Promise.all([loadGewerbe(), api.get('/api/meta/jahre')])
+      .then(([g, jahreRes]) => {
+        setJahre(jahreRes.data);
+        if ((!gewerbeId || !g.find((x) => String(x.id) === String(gewerbeId))) && g[0]) {
+          setGewerbeId(String(g[0].id));
+        }
+      })
+      .catch((e) => toast.error(apiError(e, 'Laden fehlgeschlagen.')))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (gewerbeId) localStorage.setItem('tab_gewerbe', gewerbeId);
+  }, [gewerbeId]);
+  useEffect(() => {
+    if (jahr) localStorage.setItem('tab_jahr', jahr);
+  }, [jahr]);
+
+  const gewerbeOptions = useMemo(
+    () => gewerbe.map((g) => ({ value: String(g.id), label: g.name })),
+    [gewerbe],
+  );
+  const jahrOptions = useMemo(
+    () =>
+      jahre.map((j) => ({
+        value: String(j.jahr),
+        label: j.vorlaeufig ? `${j.jahr} (vorläufig)` : String(j.jahr),
+      })),
+    [jahre],
+  );
+
+  const ctx = {
+    gewerbeId,
+    jahr: Number(jahr),
+    gewerbe,
+    jahre,
+    reloadGewerbe: loadGewerbe,
+    setGewerbeId,
+  };
+
+  function doLogout() {
+    logout();
+    navigate('/login');
+  }
+
+  const linkBase = 'px-3 py-1.5 rounded-md text-sm font-bold transition';
+
+  return (
+    <div className="min-h-full flex flex-col">
+      <header className="bg-paper border-b border-mint-soft/30 sticky top-0 z-30">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center min-w-0">
+            <span className="text-2xl font-black tracking-wordmark">
+              Tab<span className="text-mint">.</span>
+            </span>
+            <span className="ml-2 sm:ml-3 text-sm sm:text-base font-light text-ink/60 truncate hidden sm:inline">
+              EÜR-Buchhaltung
+            </span>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-2">
+            {NAV.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                className={({ isActive }) =>
+                  `${linkBase} ${isActive ? 'text-mint' : 'text-ink/70 hover:text-ink'}`
+                }
+              >
+                {n.label}
+              </NavLink>
+            ))}
+            <button onClick={doLogout} className={`${linkBase} text-ink/70 hover:text-ink`}>
+              Abmelden
+            </button>
+          </nav>
+
+          <button
+            className="md:hidden p-2 -mr-2 rounded-md hover:bg-mint/10 text-ink/80"
+            onClick={() => setDrawer(true)}
+            aria-label="Menü öffnen"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Globale Filter: Gewerbe + Jahr */}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 pb-3 flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="sm:w-64">
+            <Dropdown
+              value={gewerbeId}
+              onChange={(v) => setGewerbeId(String(v))}
+              options={gewerbeOptions}
+              placeholder="Kein Gewerbe — zuerst anlegen"
+            />
+          </div>
+          <div className="sm:w-40">
+            <Dropdown value={jahr} onChange={(v) => setJahr(String(v))} options={jahrOptions} />
+          </div>
+        </div>
+      </header>
+
+      {drawer && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 md:hidden">
+          <button
+            className="absolute inset-0 bg-ink/60 backdrop-blur-sm"
+            onClick={() => setDrawer(false)}
+            aria-label="Menü schließen"
+          />
+          <aside className="absolute top-0 right-0 h-full w-[85%] max-w-xs bg-paper shadow-xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10">
+              <span className="font-black">Menü</span>
+              <button onClick={() => setDrawer(false)} className="p-2 rounded-md hover:bg-mint/10" aria-label="Schließen">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <nav className="flex-1 overflow-y-auto py-2">
+              {NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  onClick={() => setDrawer(false)}
+                  className={({ isActive }) =>
+                    `flex items-center px-4 py-3 text-sm font-bold transition ${
+                      isActive ? 'text-mint bg-mint-soft/10' : 'text-ink hover:bg-mint/10'
+                    }`
+                  }
+                >
+                  {n.label}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="border-t border-ink/10 p-2">
+              <button
+                onClick={doLogout}
+                className="w-full text-left px-4 py-3 text-sm font-bold rounded-md text-ink hover:bg-mint/10"
+              >
+                Abmelden
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <main className="flex-1">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
+          {loading ? <PageSpinner /> : <Outlet context={ctx} />}
+        </div>
+      </main>
+
+      <footer className="border-t border-ink/10">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 text-xs text-ink/50">
+          Tab · EÜR für Kleinunternehmer (§19 UStG) · keine Steuerberatung · angemeldet als{' '}
+          {user?.username}
+        </div>
+      </footer>
+    </div>
+  );
+}

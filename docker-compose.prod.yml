@@ -1,0 +1,52 @@
+# Production-Stack für Hetzner.
+#
+# Topologie:
+#   - Zentraler Caddy lebt in /opt/appdata/caddy/ als eigener Stack (nicht in diesem Repo)
+#   - Dieser Stack mappt KEINE Host-Ports — er hängt am externen `proxy`-Docker-Netz
+#   - SQLite ist eine Datei im Bind-Mount, KEIN DB-Container
+#
+# Bring-up:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Bind-Mount muss vorher existieren:
+#   mkdir -p /opt/appdata/tab/data
+
+name: tab-prod
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: tab-backend
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /opt/appdata/tab/data:/app/data
+    networks:
+      - proxy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tab-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+    external: true

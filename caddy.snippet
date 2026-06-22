@@ -1,0 +1,31 @@
+# Snippet für /opt/appdata/caddy/Caddyfile auf Hetzner.
+#
+# Unten an die zentrale Caddyfile anhängen und reloaden:
+#   docker compose -f /opt/appdata/caddy/docker-compose.yml exec caddy \
+#     caddy reload --config /etc/caddy/Caddyfile
+#
+# Voraussetzungen:
+#   - Caddy-Container am externen Docker-Netz `proxy`
+#   - DNS A-Record tab.vrwb.de -> Hetzner-Host
+#   - Upstreams sind die EXPLIZITEN container_name-Werte aus docker-compose.prod.yml
+#     (keine generischen Aliase — Routing-Bug-Falle im geteilten proxy-Netz!)
+
+tab.vrwb.de {
+    encode zstd gzip
+
+    # API ans Backend
+    @api path /api/* /api
+    handle @api {
+        reverse_proxy tab-backend:8000
+    }
+
+    # Alles andere -> SPA (statisches Nginx im Frontend-Container)
+    handle {
+        reverse_proxy tab-frontend:80
+    }
+
+    log {
+        output file /var/log/caddy/tab.vrwb.de.log
+        format json
+    }
+}
