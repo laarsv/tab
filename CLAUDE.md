@@ -38,9 +38,15 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 
 `gewerbe` (inkl. `besteuerung`: `kleinunternehmer`|`regelbesteuerung`), `kategorie` (stabile
 Stammdaten + Flags), `euer_jahr` (VZ-Meta inkl. `vorlaeufig`), `euer_zeile` (Zeilen-Labels je
-Jahr), `euer_mapping` (Kategorie→Zeile **je Jahr**), `buchung` (normale Einnahmen/Ausgaben),
-`afa_buchung` (Wirtschaftsgüter), `beleg` (Datei-Uploads je Buchung). Migrationen: v1 = Grundschema,
-v2 = `besteuerung` + `beleg`.
+Jahr), `euer_mapping` (Kategorie→Zeile **je Jahr**), `buchung` (**Beleg-Kopf**: gewerbe_id, datum,
+beschreibung), `buchung_position` (**je Position eine Kategorie + Betrag** — eine Rechnung kann
+mehrere Positionen haben), `afa_buchung` (Wirtschaftsgüter), `beleg` (Datei mit `gewerbe_id` +
+**nullable** `buchung_id` = Eingang/zugeordnet). Migrationen: v1 = Grundschema, v2 = `besteuerung` +
+`beleg`, v3 = `buchung_position` + Beleg-Eingang (buchung→Kopf, beleg→gewerbe-bezogen, nullable).
+
+Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
+danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
+create-new/copy/drop/rename (siehe v3).
 
 **Geld = Integer Cent** (`*_cent`), Beträge positiv, Richtung über `kategorie.typ`.
 **Buchung speichert die Kategorie, nie die Zeilennummer** — die Zeile wird beim Export aus
@@ -61,9 +67,13 @@ der Mapping-Version des Jahres aufgelöst.
   Mapping fürs Jahr → `MappingMissingError` → 400 mit klarer Meldung (kein Crash).
 - ⚠ Kategorien für laufende Kosten zeigen vorläufig auf **Zeile 60** (gewinnneutral) — finale
   Zeile (43–54) beim Vordruck-Abgleich in `seed.py` setzen, dann redeployen.
-- **Beleg-Upload:** PDF/JPG/PNG je Buchung (`app/routes/belege.py`), Dateien unter `UPLOAD_ROOT`
-  (Prod-Bind-Mount `/opt/appdata/tab/uploads`), max. `MAX_UPLOAD_MB`. Beim Löschen einer Buchung
-  werden die Dateien mitgeräumt. **Uploads zusätzlich ins Backup.**
+- **Beleg-Eingang (`app/routes/belege.py`):** PDF/JPG/PNG, Dateien unter `UPLOAD_ROOT`
+  (Prod-Bind-Mount `/opt/appdata/tab/uploads`), max. `MAX_UPLOAD_MB`. **Workflow:** erst in den
+  Eingang hochladen (buchung_id NULL = offen), später per Buchung zuordnen (`beleg_ids` beim
+  Anlegen oder PATCH `/belege/{id}`). Buchung löschen → Belege fallen via ON DELETE SET NULL zurück
+  in den Eingang (Dateien bleiben); nur DELETE `/belege/{id}` entfernt die Datei. **Uploads ins Backup.**
+- **Mehrere Positionen je Buchung:** Buchung = Beleg-Kopf, `buchung_position` = Kategorie-Splits.
+  Export/Kennzahlen aggregieren über Positionen. Kategorie-Dropdown ist durchsuchbar (`searchable`).
 - **KU-Status:** `gewerbe.besteuerung`. Export ist **KU-only** — bei `regelbesteuerung` liefert er
   bewusst 400 (`BesteuerungNotSupportedError`), kein falscher KU-Export.
 - **PDF:** kein Server-PDF, sondern Druck-Ansicht (`window.print()` + `@media print` /

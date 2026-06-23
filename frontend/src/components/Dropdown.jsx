@@ -1,25 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 // Custom-Dropdown gemäß DESIGN.md §5.8 — kein natives <select>.
-// options: [{ value, label, group? }]
+// options: [{ value, label }]; searchable: Tipp-Filter im Panel.
 export default function Dropdown({
   value,
   onChange,
   options,
   placeholder = 'Bitte wählen',
   disabled = false,
+  searchable = false,
   id,
 }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
+  const [query, setQuery] = useState('');
   const rootRef = useRef(null);
-  const listRef = useRef(null);
+  const searchRef = useRef(null);
 
   const selected = options.find((o) => String(o.value) === String(value));
 
+  const filtered = useMemo(() => {
+    if (!searchable || !query.trim()) return options;
+    const q = query.trim().toLowerCase();
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query, searchable]);
+
   useEffect(() => {
     function onDoc(e) {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(e.target)) close();
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -27,14 +35,24 @@ export default function Dropdown({
 
   useEffect(() => {
     if (open) {
-      const idx = options.findIndex((o) => String(o.value) === String(value));
+      const idx = filtered.findIndex((o) => String(o.value) === String(value));
       setHighlight(idx);
+      if (searchable) requestAnimationFrame(() => searchRef.current?.focus());
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    setHighlight(filtered.length ? 0 : -1);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function close() {
+    setOpen(false);
+    setQuery('');
+  }
+
   function choose(opt) {
     onChange(opt.value);
-    setOpen(false);
+    close();
   }
 
   function onKeyDown(e) {
@@ -46,16 +64,16 @@ export default function Dropdown({
     }
     if (!open) return;
     if (e.key === 'Escape') {
-      setOpen(false);
+      close();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlight((h) => Math.min(options.length - 1, h + 1));
+      setHighlight((h) => Math.min(filtered.length - 1, h + 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlight((h) => Math.max(0, h - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (highlight >= 0 && options[highlight]) choose(options[highlight]);
+      if (highlight >= 0 && filtered[highlight]) choose(filtered[highlight]);
     }
   }
 
@@ -67,7 +85,7 @@ export default function Dropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
-        onClick={() => !disabled && setOpen((o) => !o)}
+        onClick={() => !disabled && (open ? close() : setOpen(true))}
         onKeyDown={onKeyDown}
         className="w-full flex items-center justify-between gap-2 border border-ink/20 rounded-lg
                    px-3 py-2.5 text-base bg-paper text-left
@@ -89,44 +107,56 @@ export default function Dropdown({
       </button>
 
       {open && (
-        <ul
-          role="listbox"
-          ref={listRef}
-          className="absolute z-50 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-ink/10
-                     bg-paper shadow-lg py-1"
+        <div
+          className="absolute z-50 mt-1 w-full rounded-lg border border-ink/10 bg-paper shadow-lg"
         >
-          {options.length === 0 && (
-            <li className="px-3 py-2 text-sm text-ink/50">Keine Einträge</li>
+          {searchable && (
+            <div className="p-2 border-b border-ink/10">
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Suchen…"
+                className="w-full border border-ink/20 rounded-lg px-3 py-2 text-base
+                           focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none"
+              />
+            </div>
           )}
-          {options.map((opt, i) => {
-            const isSel = String(opt.value) === String(value);
-            const isHi = i === highlight;
-            return (
-              <li
-                key={`${opt.value}`}
-                role="option"
-                aria-selected={isSel}
-                onMouseEnter={() => setHighlight(i)}
-                onClick={() => choose(opt)}
-                className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between
-                  ${isSel ? 'bg-mint-soft/20 text-ink' : isHi ? 'bg-mint/10 text-ink' : 'text-ink'}`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {isSel && (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="h-4 w-4 text-mint shrink-0"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+          <ul role="listbox" className="max-h-60 overflow-auto py-1">
+            {filtered.length === 0 && (
+              <li className="px-3 py-2 text-sm text-ink/50">Kein Treffer</li>
+            )}
+            {filtered.map((opt, i) => {
+              const isSel = String(opt.value) === String(value);
+              const isHi = i === highlight;
+              return (
+                <li
+                  key={`${opt.value}`}
+                  role="option"
+                  aria-selected={isSel}
+                  onMouseEnter={() => setHighlight(i)}
+                  onClick={() => choose(opt)}
+                  className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between
+                    ${isSel ? 'bg-mint-soft/20 text-ink' : isHi ? 'bg-mint/10 text-ink' : 'text-ink'}`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSel && (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4 text-mint shrink-0"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );

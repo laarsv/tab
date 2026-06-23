@@ -78,8 +78,9 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
 
     roh_je_kat: dict[int, int] = {}
     for r in conn.execute(
-        "SELECT kategorie_id, betrag_cent FROM buchung "
-        "WHERE gewerbe_id = ? AND substr(datum,1,4) = ?",
+        "SELECT p.kategorie_id, p.betrag_cent FROM buchung_position p "
+        "JOIN buchung b ON b.id = p.buchung_id "
+        "WHERE b.gewerbe_id = ? AND substr(b.datum,1,4) = ?",
         (gewerbe_id, str(jahr)),
     ):
         roh_je_kat[r["kategorie_id"]] = roh_je_kat.get(r["kategorie_id"], 0) + r["betrag_cent"]
@@ -213,11 +214,13 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
 
     for r in conn.execute(
         """
-        SELECT b.datum, b.betrag_cent, b.beschreibung, b.beleg_details,
-               b.kategorie_id, k.name AS kat_name, k.abzug_quote
-        FROM buchung b JOIN kategorie k ON k.id = b.kategorie_id
+        SELECT b.datum, p.betrag_cent, b.beschreibung, p.beleg_details,
+               p.kategorie_id, k.name AS kat_name, k.abzug_quote
+        FROM buchung_position p
+        JOIN buchung b ON b.id = p.buchung_id
+        JOIN kategorie k ON k.id = p.kategorie_id
         WHERE b.gewerbe_id = ? AND substr(b.datum,1,4) = ?
-        ORDER BY b.datum, b.id
+        ORDER BY b.datum, b.id, p.id
         """,
         (gewerbe_id, str(jahr)),
     ):

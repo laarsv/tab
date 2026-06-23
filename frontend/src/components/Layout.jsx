@@ -6,7 +6,16 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
 
+function NavBadge({ n }) {
+  return (
+    <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-mint text-ink text-[11px] font-black tabular-nums">
+      {n}
+    </span>
+  );
+}
+
 const NAV = [
+  { to: '/eingang', label: 'Eingang' },
   { to: '/buchungen', label: 'Buchungen' },
   { to: '/afa', label: 'AfA' },
   { to: '/export', label: 'Export' },
@@ -21,6 +30,7 @@ export default function Layout() {
   const [gewerbe, setGewerbe] = useState([]);
   const [jahre, setJahre] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [eingangCount, setEingangCount] = useState(0);
 
   const [gewerbeId, setGewerbeId] = useState(
     () => localStorage.getItem('tab_gewerbe') || '',
@@ -46,6 +56,23 @@ export default function Layout() {
       .catch((e) => toast.error(apiError(e, 'Laden fehlgeschlagen.')))
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadEingangCount = useCallback(async (gid) => {
+    if (!gid) {
+      setEingangCount(0);
+      return;
+    }
+    try {
+      const res = await api.get('/api/belege/eingang/count', { params: { gewerbe_id: gid } });
+      setEingangCount(res.data.offen);
+    } catch {
+      setEingangCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadEingangCount(gewerbeId);
+  }, [gewerbeId, loadEingangCount]);
 
   useEffect(() => {
     if (gewerbeId) localStorage.setItem('tab_gewerbe', gewerbeId);
@@ -73,6 +100,7 @@ export default function Layout() {
     gewerbe,
     jahre,
     reloadGewerbe: loadGewerbe,
+    reloadEingang: () => loadEingangCount(gewerbeId),
     setGewerbeId,
   };
 
@@ -102,10 +130,11 @@ export default function Layout() {
                 key={n.to}
                 to={n.to}
                 className={({ isActive }) =>
-                  `${linkBase} ${isActive ? 'text-mint' : 'text-ink/70 hover:text-ink'}`
+                  `${linkBase} inline-flex items-center ${isActive ? 'text-mint' : 'text-ink/70 hover:text-ink'}`
                 }
               >
                 {n.label}
+                {n.to === '/eingang' && eingangCount > 0 && <NavBadge n={eingangCount} />}
               </NavLink>
             ))}
             <button onClick={doLogout} className={`${linkBase} text-ink/70 hover:text-ink`}>
@@ -163,12 +192,13 @@ export default function Layout() {
                   to={n.to}
                   onClick={() => setDrawer(false)}
                   className={({ isActive }) =>
-                    `flex items-center px-4 py-3 text-sm font-bold transition ${
+                    `flex items-center justify-between px-4 py-3 text-sm font-bold transition ${
                       isActive ? 'text-mint bg-mint-soft/10' : 'text-ink hover:bg-mint/10'
                     }`
                   }
                 >
-                  {n.label}
+                  <span>{n.label}</span>
+                  {n.to === '/eingang' && eingangCount > 0 && <NavBadge n={eingangCount} />}
                 </NavLink>
               ))}
             </nav>

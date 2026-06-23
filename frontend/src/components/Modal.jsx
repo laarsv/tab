@@ -23,11 +23,11 @@ export default function Modal({ title, eyebrow, onClose, children, maxWidth = 'm
       role="dialog"
       aria-modal="true"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-      className={`fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4
-                  bg-ink/60 transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-50 backdrop-blur-sm flex items-start justify-center p-4
+                  overflow-y-auto bg-ink/60 transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'}`}
     >
       <div
-        className={`card ${maxWidth} w-full p-6 space-y-4 transform transition-all duration-200
+        className={`card ${maxWidth} w-full p-6 space-y-4 my-8 transform transition-all duration-200
                     ${shown ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       >
         {eyebrow && (

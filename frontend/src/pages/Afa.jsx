@@ -285,6 +285,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
               value={editing.kategorie_id}
               onChange={(v) => setEditing({ ...editing, kategorie_id: String(v) })}
               options={options}
+              searchable
             />
           </div>
         )}

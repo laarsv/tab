@@ -119,17 +119,84 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_beleg_buchung ON beleg(buchung_id);
         """,
     ),
+    Migration(
+        version=3,
+        sql="""
+        -- v3: Belege als EINGANG (erst hochladen, später zuordnen) +
+        --     Buchung als Beleg-Kopf mit mehreren POSITIONEN (Kategorie-Splits).
+
+        -- 1) Positionen-Tabelle + bestehende Buchungszeilen übernehmen
+        CREATE TABLE buchung_position (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            buchung_id    INTEGER NOT NULL REFERENCES buchung(id) ON DELETE CASCADE,
+            kategorie_id  INTEGER NOT NULL REFERENCES kategorie(id),
+            betrag_cent   INTEGER NOT NULL,
+            beleg_details TEXT
+        );
+        INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details)
+            SELECT id, kategorie_id, betrag_cent, beleg_details FROM buchung;
+        CREATE INDEX idx_position_buchung ON buchung_position(buchung_id);
+
+        -- 2) buchung -> reiner Kopf (ohne kategorie_id/betrag_cent/beleg_details)
+        CREATE TABLE buchung_new (
+            id           INTEGER PRIMARY KEY,
+            gewerbe_id   INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            datum        TEXT    NOT NULL,
+            beschreibung TEXT,
+            created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO buchung_new (id, gewerbe_id, datum, beschreibung, created_at, updated_at)
+            SELECT id, gewerbe_id, datum, beschreibung, created_at, updated_at FROM buchung;
+        DROP TABLE buchung;
+        ALTER TABLE buchung_new RENAME TO buchung;
+        CREATE INDEX idx_buchung_gewerbe_datum ON buchung(gewerbe_id, datum);
+
+        -- 3) beleg -> Eingang: gewerbe_id NOT NULL, buchung_id NULLABLE (NULL = offen/Eingang),
+        --    beim Löschen einer Buchung fallen Belege zurück in den Eingang (SET NULL)
+        CREATE TABLE beleg_new (
+            id            INTEGER PRIMARY KEY,
+            gewerbe_id    INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            buchung_id    INTEGER REFERENCES buchung(id) ON DELETE SET NULL,
+            original_name TEXT    NOT NULL,
+            stored_name   TEXT    NOT NULL,
+            content_type  TEXT    NOT NULL,
+            size_bytes    INTEGER NOT NULL,
+            created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO beleg_new
+            (id, gewerbe_id, buchung_id, original_name, stored_name, content_type, size_bytes, created_at)
+            SELECT b.id,
+                   (SELECT gewerbe_id FROM buchung WHERE buchung.id = b.buchung_id),
+                   b.buchung_id, b.original_name, b.stored_name, b.content_type, b.size_bytes, b.created_at
+            FROM beleg b;
+        DROP TABLE beleg;
+        ALTER TABLE beleg_new RENAME TO beleg;
+        CREATE INDEX idx_beleg_buchung ON beleg(buchung_id);
+        CREATE INDEX idx_beleg_gewerbe ON beleg(gewerbe_id);
+        """,
+    ),
 ]
 
 
 def run_migrations(conn: sqlite3.Connection) -> int:
-    """Wendet ausstehende Migrationen an. Gibt die neue Schema-Version zurück."""
+    """Wendet ausstehende Migrationen an. Gibt die neue Schema-Version zurück.
+
+    Foreign-Keys werden während der Migration deaktiviert (für Tabellen-Rebuilds nötig)
+    und danach wieder aktiviert — Standardvorgehen bei SQLite-Schemaänderungen.
+    """
     current = conn.execute("PRAGMA user_version;").fetchone()[0]
+    pending = [m for m in sorted(MIGRATIONS, key=lambda m: m.version) if m.version > current]
+    if not pending:
+        return current
+
+    conn.execute("PRAGMA foreign_keys = OFF;")
     applied = current
-    for mig in sorted(MIGRATIONS, key=lambda m: m.version):
-        if mig.version <= current:
-            continue
-        conn.executescript("BEGIN;\n" + mig.sql + "\nCOMMIT;")
-        conn.execute(f"PRAGMA user_version = {mig.version};")
-        applied = mig.version
+    try:
+        for mig in pending:
+            conn.executescript("BEGIN;\n" + mig.sql + "\nCOMMIT;")
+            conn.execute(f"PRAGMA user_version = {mig.version};")
+            applied = mig.version
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")
     return applied

@@ -25,9 +25,11 @@ def kennzahlen(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_
     row = db.execute(
         """
         SELECT
-          COALESCE(SUM(CASE WHEN k.typ='einnahme' THEN b.betrag_cent ELSE 0 END), 0) AS einnahmen,
-          COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN b.betrag_cent ELSE 0 END), 0) AS ausgaben
-        FROM buchung b JOIN kategorie k ON k.id = b.kategorie_id
+          COALESCE(SUM(CASE WHEN k.typ='einnahme' THEN p.betrag_cent ELSE 0 END), 0) AS einnahmen,
+          COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN p.betrag_cent ELSE 0 END), 0) AS ausgaben
+        FROM buchung_position p
+        JOIN buchung b ON b.id = p.buchung_id
+        JOIN kategorie k ON k.id = p.kategorie_id
         WHERE b.gewerbe_id = ? AND substr(b.datum,1,4) = ?
         """,
         (gewerbe_id, str(jahr)),
