@@ -153,19 +153,21 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* Globale Filter: Gewerbe + Jahr */}
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 pb-3 flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <div className="sm:w-64">
-            <Dropdown
-              value={gewerbeId}
-              onChange={(v) => setGewerbeId(String(v))}
-              options={gewerbeOptions}
-              placeholder="Kein Gewerbe — zuerst anlegen"
-            />
-          </div>
-          <div className="sm:w-40">
-            <Dropdown value={jahr} onChange={(v) => setJahr(String(v))} options={jahrOptions} />
-          </div>
+        {/* Globale Filter: Gewerbe + Jahr — Ghost-Inline-Werte (DESIGN.shared.md §5.8) */}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 pb-3 flex flex-wrap items-center gap-2">
+          <Dropdown
+            value={gewerbeId}
+            onChange={(v) => setGewerbeId(String(v))}
+            options={gewerbeOptions}
+            placeholder="Kein Gewerbe — zuerst anlegen"
+            variant="ghost"
+          />
+          <Dropdown
+            value={jahr}
+            onChange={(v) => setJahr(String(v))}
+            options={jahrOptions}
+            variant="ghost"
+          />
         </div>
       </header>
 

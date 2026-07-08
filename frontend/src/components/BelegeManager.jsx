@@ -78,7 +78,7 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="label mb-0">Belege</span>
+        <span className="field-label mb-0">Belege</span>
         <div className="flex items-center gap-2">
           {inbox.length > 0 && (
             <button type="button" className="btn-ghost btn-sm" onClick={() => setShowInbox((s) => !s)}>

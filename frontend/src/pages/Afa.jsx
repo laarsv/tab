@@ -246,7 +246,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
     >
       <form onSubmit={save} className="space-y-4">
         <label className="block">
-          <span className="label">Bezeichnung</span>
+          <span className="field-label">Bezeichnung</span>
           <input
             className="input"
             value={editing.bezeichnung}
@@ -256,9 +256,9 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
           />
         </label>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
-            <span className="label">Anschaffungskosten brutto (€)</span>
+            <span className="field-label">Anschaffungskosten brutto (€)</span>
             <input
               className="input tabular-nums"
               inputMode="decimal"
@@ -268,7 +268,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
             />
           </label>
           <label className="block">
-            <span className="label">Anschaffungsdatum</span>
+            <span className="field-label">Anschaffungsdatum</span>
             <input
               type="date"
               className="input"
@@ -280,7 +280,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
 
         {afaKategorien.length > 1 && (
           <div className="block">
-            <span className="label">Kategorie</span>
+            <span className="field-label">Kategorie</span>
             <Dropdown
               value={editing.kategorie_id}
               onChange={(v) => setEditing({ ...editing, kategorie_id: String(v) })}
@@ -302,7 +302,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
 
         {!editing.sofort && (
           <label className="block">
-            <span className="label">Nutzungsdauer (Jahre)</span>
+            <span className="field-label">Nutzungsdauer (Jahre)</span>
             <input
               type="number"
               min="1"
@@ -318,7 +318,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
         )}
 
         <label className="block">
-          <span className="label">Notiz (optional)</span>
+          <span className="field-label">Notiz (optional)</span>
           <input
             className="input"
             value={editing.beschreibung}

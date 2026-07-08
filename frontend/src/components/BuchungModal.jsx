@@ -122,13 +122,13 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
       maxWidth="max-w-2xl"
     >
       <form onSubmit={save} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
-            <span className="label">Datum (Zahlung)</span>
+            <span className="field-label">Datum (Zahlung)</span>
             <input type="date" className="input" value={datum} onChange={(e) => setDatum(e.target.value)} />
           </label>
           <label className="block">
-            <span className="label">Beschreibung / Beleg (optional)</span>
+            <span className="field-label">Beschreibung / Beleg (optional)</span>
             <input
               className="input"
               value={beschreibung}
@@ -140,7 +140,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="label mb-0">Positionen</span>
+            <span className="field-label mb-0">Positionen</span>
             <span className="text-sm text-ink/60 tabular-nums">Summe {formatEuro(total)}</span>
           </div>
 
@@ -181,7 +181,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
                 {isKm ? (
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block">
-                      <span className="label">Kilometer</span>
+                      <span className="field-label">Kilometer</span>
                       <input
                         className="input"
                         inputMode="decimal"
@@ -192,7 +192,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
                       <span className="block text-xs text-ink/60 mt-1">× 0,30 €/km</span>
                     </label>
                     <div className="block">
-                      <span className="label">Betrag</span>
+                      <span className="field-label">Betrag</span>
                       <div className="input bg-ink/5 tabular-nums">
                         {kmCent !== null ? formatEuro(kmCent) : '—'}
                       </div>
@@ -200,7 +200,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
                   </div>
                 ) : (
                   <label className="block">
-                    <span className="label">Betrag brutto (€)</span>
+                    <span className="field-label">Betrag brutto (€)</span>
                     <input
                       className="input tabular-nums"
                       inputMode="decimal"
@@ -224,7 +224,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
                 )}
                 {needsBeleg && (
                   <label className="block">
-                    <span className="label">Beleg-Details (Pflicht)</span>
+                    <span className="field-label">Beleg-Details (Pflicht)</span>
                     <textarea
                       className="input min-h-[64px]"
                       value={p.beleg_details}

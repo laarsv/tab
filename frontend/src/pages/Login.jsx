@@ -45,7 +45,7 @@ export default function Login() {
 
         <form onSubmit={onSubmit} className="card p-6 space-y-4">
           <label className="block">
-            <span className="label">Benutzername</span>
+            <span className="field-label">Benutzername</span>
             <input
               className="input"
               value={username}
@@ -55,7 +55,7 @@ export default function Login() {
             />
           </label>
           <label className="block">
-            <span className="label">Passwort</span>
+            <span className="field-label">Passwort</span>
             <input
               type="password"
               className="input"

@@ -139,7 +139,7 @@ export default function Gewerbe() {
         >
           <form onSubmit={save} className="space-y-4">
             <label className="block">
-              <span className="label">Name</span>
+              <span className="field-label">Name</span>
               <input
                 className="input"
                 value={editing.name}
@@ -148,7 +148,7 @@ export default function Gewerbe() {
               />
             </label>
             <label className="block">
-              <span className="label">Steuernummer (optional)</span>
+              <span className="field-label">Steuernummer (optional)</span>
               <input
                 className="input"
                 value={editing.steuernummer}

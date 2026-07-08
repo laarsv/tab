@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-// Custom-Dropdown gemäß DESIGN.md §5.8 — kein natives <select>.
-// options: [{ value, label }]; searchable: Tipp-Filter im Panel.
+// Custom-Dropdown gemäß DESIGN.shared.md §5.8 — kein natives <select>.
+// options: [{ value, label }]; searchable: Tipp-Filter im Panel;
+// variant: 'standard' (Feld-Optik, Formular) | 'ghost' (Inline-Wert in Zeile).
 export default function Dropdown({
   value,
   onChange,
@@ -9,8 +10,10 @@ export default function Dropdown({
   placeholder = 'Bitte wählen',
   disabled = false,
   searchable = false,
+  variant = 'standard',
   id,
 }) {
+  const ghost = variant === 'ghost';
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
   const [query, setQuery] = useState('');
@@ -78,7 +81,7 @@ export default function Dropdown({
   }
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className={ghost ? 'relative inline-block' : 'relative'} ref={rootRef}>
       <button
         type="button"
         id={id}
@@ -87,10 +90,18 @@ export default function Dropdown({
         disabled={disabled}
         onClick={() => !disabled && (open ? close() : setOpen(true))}
         onKeyDown={onKeyDown}
-        className="w-full flex items-center justify-between gap-2 border border-ink/20 rounded-lg
-                   px-3 py-2.5 text-base bg-paper text-left
-                   focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none
-                   disabled:opacity-50 disabled:cursor-not-allowed"
+        className={
+          ghost
+            ? `relative flex items-center justify-between gap-1.5 border border-transparent rounded-lg
+               px-2 py-1 text-[13px] font-medium bg-ink/[0.04] hover:bg-ink/[0.07] text-left
+               before:absolute before:-inset-y-2 before:inset-x-0 before:content-['']
+               focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none
+               disabled:opacity-50 disabled:cursor-not-allowed`
+            : `w-full flex items-center justify-between gap-2 border border-ink/20 rounded-lg
+               px-3 py-2.5 text-base sm:py-1.5 sm:text-sm bg-paper text-left
+               focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none
+               disabled:opacity-50 disabled:cursor-not-allowed`
+        }
       >
         <span className={`truncate ${selected ? '' : 'text-ink/50'}`}>
           {selected ? selected.label : placeholder}
@@ -100,7 +111,7 @@ export default function Dropdown({
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className="h-4 w-4 shrink-0 text-ink/60"
+          className={`${ghost ? 'h-3.5 w-3.5' : 'h-4 w-4'} shrink-0 text-ink/60`}
         >
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -108,7 +119,7 @@ export default function Dropdown({
 
       {open && (
         <div
-          className="absolute z-50 mt-1 w-full rounded-lg border border-ink/10 bg-paper shadow-lg"
+          className="absolute z-50 mt-1 w-full min-w-[176px] rounded-lg border border-ink/10 bg-paper shadow-lg"
         >
           {searchable && (
             <div className="p-2 border-b border-ink/10">
@@ -119,6 +130,7 @@ export default function Dropdown({
                 onKeyDown={onKeyDown}
                 placeholder="Suchen…"
                 className="w-full border border-ink/20 rounded-lg px-3 py-2 text-base
+                           sm:py-1.5 sm:text-sm
                            focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none"
               />
             </div>

@@ -12,9 +12,13 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 
 ## Verbindliche Quellen
 
-- **`DESIGN.md`** — UI strikt danach (Fin.Co Design System: Mint/Ink/Paper, Roboto
-  self-hosted via `@fontsource`, Custom-Dropdowns statt `<select>`, Touch-Targets ≥ 44 px,
-  Cards `rounded-2xl`). Nicht abweichen.
+- **`DESIGN.shared.md`** — **verbindliche UI-Norm (Fin.Co Dichte v2)**. Mint/Ink/Paper, Roboto
+  self-hosted via `@fontsource`, Custom-Dropdowns statt `<select>`. **Dichte v2:** 44 px Touch-Fläche
+  **mobil**, Desktop kompakt (~32–36 px) — Tipp-Felder `py-2.5 text-base` auf Base, ab `sm:` `py-1.5
+  text-sm` (iOS-Zoom-Schutz auf Base nie brechen). Feld-Labels `.field-label` (dezent), `.eyebrow`,
+  Formular-Grids `gap-x-5 gap-y-2`, Ghost-Select für Inline-Werte in Zeilen. Zentrale Klassen in
+  `src/index.css` (`.btn/.btn-sm/.input/.field-label/.eyebrow/.card`), Select in `components/Dropdown.jsx`
+  (`variant="ghost"`). Nicht abweichen. (`DESIGN.md` = alter v1-Stand, abgelöst.)
 - **`EUER_KATEGORIEN.md`** — fachliche Quelle für Kategorien, Kategorie→Zeile-Mapping,
   KU-Regeln, Sonderfälle (AfA, GWG, Bewirtung 70 %, Geschenke). Bei Mapping-Fragen zuerst hier lesen.
 

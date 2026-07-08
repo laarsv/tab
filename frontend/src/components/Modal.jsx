@@ -31,7 +31,7 @@ export default function Modal({ title, eyebrow, onClose, children, maxWidth = 'm
                     ${shown ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       >
         {eyebrow && (
-          <p className="text-mint font-bold tracking-tagline text-xs uppercase">{eyebrow}</p>
+          <p className="eyebrow">{eyebrow}</p>
         )}
         <h2 className="text-xl font-black">{title}</h2>
         {children}
