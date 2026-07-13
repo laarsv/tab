@@ -18,7 +18,12 @@ MUTED = (110, 115, 125)
 ROYAL = (41, 71, 201)    # royal
 LINE = (225, 228, 235)
 
-P19_HINWEIS = "Kein Ausweis von Umsatzsteuer, da Kleinunternehmer gemäß § 19 UStG."
+# Steuer-Hinweis (Pflichtangabe, warum keine USt ausgewiesen wird) — je Rechnung wählbar.
+STEUERHINWEISE = {
+    "ku19": "Kein Ausweis von Umsatzsteuer, da Kleinunternehmer gemäß § 19 UStG.",
+    "vers4nr11": "Kein Ausweis von Umsatzsteuer: steuerfreie Leistung aus der Tätigkeit "
+                 "als Versicherungsvertreter/-makler gemäß § 4 Nr. 11 UStG.",
+}
 
 
 def _menge_de(menge: float) -> str:
@@ -120,11 +125,12 @@ def build_rechnung_pdf(
     pdf.cell(w_summe, 7, format_cent_de(summe) + " EUR", align="R", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*INK)
 
-    # §19-Hinweis (Pflicht)
+    # Steuer-Hinweis (Pflicht: warum keine USt)
     pdf.ln(3)
     pdf.set_font("helvetica", "", 9)
     pdf.set_text_color(*MUTED)
-    pdf.cell(0, 5, P19_HINWEIS, new_x="LMARGIN", new_y="NEXT")
+    hinweis = STEUERHINWEISE.get(rechnung["steuerhinweis"], STEUERHINWEISE["ku19"])
+    pdf.multi_cell(0, 5, hinweis)
 
     # Zahlungsinfo
     pdf.ln(6)

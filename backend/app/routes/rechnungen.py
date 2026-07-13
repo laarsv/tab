@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth.deps import get_current_user
 from ..db import get_db
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
-from ..services.rechnung_pdf import build_rechnung_pdf
+from ..services.rechnung_pdf import STEUERHINWEISE, build_rechnung_pdf
 
 router = APIRouter(prefix="/api/rechnungen", tags=["rechnungen"])
 
@@ -42,12 +42,20 @@ class RechnungIn(BaseModel):
     empfaenger_anschrift: str | None = None
     empfaenger_email: str | None = None
     notiz: str | None = None
+    steuerhinweis: str = "ku19"
     positionen: list[RPositionIn] = Field(min_length=1)
 
     @field_validator("datum")
     @classmethod
     def _v_date(cls, v: str) -> str:
         return _valid_date(v)
+
+    @field_validator("steuerhinweis")
+    @classmethod
+    def _v_hinweis(cls, v: str) -> str:
+        if v not in STEUERHINWEISE:
+            raise ValueError(f"steuerhinweis muss einer von {sorted(STEUERHINWEISE)} sein.")
+        return v
 
 
 class RechnungPatch(BaseModel):
@@ -57,12 +65,20 @@ class RechnungPatch(BaseModel):
     empfaenger_anschrift: str | None = None
     empfaenger_email: str | None = None
     notiz: str | None = None
+    steuerhinweis: str | None = None
     positionen: list[RPositionIn] | None = None
 
     @field_validator("datum")
     @classmethod
     def _v_date(cls, v: str | None) -> str | None:
         return _valid_date(v) if v is not None else v
+
+    @field_validator("steuerhinweis")
+    @classmethod
+    def _v_hinweis(cls, v: str | None) -> str | None:
+        if v is not None and v not in STEUERHINWEISE:
+            raise ValueError(f"steuerhinweis muss einer von {sorted(STEUERHINWEISE)} sein.")
+        return v
 
 
 def _positionen(db: sqlite3.Connection, rechnung_id: int) -> list[dict]:
@@ -112,8 +128,9 @@ def create_rechnung(body: RechnungIn, db: sqlite3.Connection = Depends(get_db)):
     cur = db.execute(
         """
         INSERT INTO rechnung (gewerbe_id, jahr, laufnummer, nummer, datum, leistungsdatum,
-                              empfaenger_name, empfaenger_anschrift, empfaenger_email, notiz)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              empfaenger_name, empfaenger_anschrift, empfaenger_email, notiz,
+                              steuerhinweis)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.gewerbe_id,
@@ -126,6 +143,7 @@ def create_rechnung(body: RechnungIn, db: sqlite3.Connection = Depends(get_db)):
             (body.empfaenger_anschrift or "").strip() or None,
             (body.empfaenger_email or "").strip() or None,
             (body.notiz or "").strip() or None,
+            body.steuerhinweis,
         ),
     )
     rid = cur.lastrowid
@@ -147,7 +165,7 @@ def update_rechnung(rechnung_id: int, body: RechnungPatch, db: sqlite3.Connectio
     inhalt_geaendert = any(
         v is not None
         for v in (body.datum, body.leistungsdatum, body.empfaenger_name,
-                  body.empfaenger_anschrift, body.positionen)
+                  body.empfaenger_anschrift, body.steuerhinweis, body.positionen)
     )
     if inhalt_geaendert and cur["status"] != "entwurf":
         raise HTTPException(
@@ -160,6 +178,7 @@ def update_rechnung(rechnung_id: int, body: RechnungPatch, db: sqlite3.Connectio
     for col, val in [
         ("datum", body.datum),
         ("empfaenger_name", body.empfaenger_name.strip() if body.empfaenger_name else None),
+        ("steuerhinweis", body.steuerhinweis),
     ]:
         if val is not None:
             fields.append(f"{col} = ?"); values.append(val)

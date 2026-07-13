@@ -145,12 +145,14 @@ der Mapping-Version des Jahres aufgelöst.
   Archivpflicht gilt seit 2025 auch für KU. Kein Parsing/Viewer, keine E-Rechnungs-
   *Erstellung* (KU sind von der Ausstellungspflicht dauerhaft befreit, JStG 2024).
 - **Rechnungsmodul (`/rechnungen`, `routes/rechnungen.py`):** KU-Rechnungen mit allen
-  Pflichtangaben; §19-Hinweis kommt automatisch aufs PDF (`services/rechnung_pdf.py`, fpdf2,
-  Beträge als „EUR" — € nicht im Core-Font). Nummer = `{jahr}-{lauf:04d}` fortlaufend je
-  Gewerbe+Jahr, vergeben beim Anlegen; **Löschen nur letzte Nummer + nie nach Versand/
-  Bezahlung** (sonst stornieren, keine Nummernlücken); Inhalt editierbar nur im Status
-  `entwurf`. „Als Einnahme buchen" öffnet das BuchungModal vorbefüllt (einnahme_ku) —
-  bewusst keine automatische Buchung.
+  Pflichtangaben; **Steuer-Hinweis je Rechnung wählbar** (`steuerhinweis`, v7): `ku19`
+  (§19-Satz, Default) oder `vers4nr11` (steuerfreie Versicherungsvermittlung §4 Nr. 11) —
+  Texte in `STEUERHINWEISE` (`services/rechnung_pdf.py`, fpdf2, Beträge als „EUR" — € nicht
+  im Core-Font). Nummer = `{jahr}-{lauf:04d}` fortlaufend je Gewerbe+Jahr, vergeben beim
+  Anlegen; **Löschen nur letzte Nummer + nie nach Versand/Bezahlung** (sonst stornieren,
+  keine Nummernlücken); Inhalt editierbar nur im Status `entwurf`. „Als Einnahme buchen"
+  öffnet das BuchungModal vorbefüllt — `vers4nr11` → Kategorie `einnahme_steuerfrei`
+  (Zeile 16), sonst `einnahme_ku` (Zeile 12); bewusst keine automatische Buchung.
 - **Mail-Versand individuell je Login (`routes/einstellungen.py`, `services/mailer.py`):**
   jeder Nutzer hinterlegt SEIN Gmail-App-Passwort (Profil-Menü „E-Mail-Versand") —
   Fernet-verschlüsselt in `user_mail` (Schlüssel aus JWT_SECRET), NICHT in der .env.

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
+import Dropdown from '../components/Dropdown.jsx';
 import Modal from '../components/Modal.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
@@ -23,6 +24,12 @@ const STATUS_CHIP = {
   storniert: 'bg-red-100 text-red-900 line-through',
 };
 const STATUS_LABEL = { entwurf: 'Entwurf', versendet: 'Versendet', bezahlt: 'Bezahlt', storniert: 'Storniert' };
+
+// Warum keine USt auf der Rechnung steht — je Rechnung wählbar.
+const STEUERHINWEIS_OPTIONS = [
+  { value: 'ku19', label: 'Kleinunternehmer § 19 UStG (Standard)' },
+  { value: 'vers4nr11', label: 'Steuerfrei § 4 Nr. 11 UStG (Versicherungsprovision)' },
+];
 
 function emptyRPos() {
   return { beschreibung: '', menge: '1', preisInput: '' };
@@ -100,6 +107,9 @@ export default function Rechnungen() {
   }
 
   const einnahmeKat = kategorien.find((k) => k.key === 'einnahme_ku');
+  const courtageKat = kategorien.find((k) => k.key === 'einnahme_steuerfrei');
+  // §4-Nr.11-Rechnungen (Courtage) landen als Einnahme in Zeile 16, sonst Zeile 12.
+  const einnahmeKatFuer = (r) => (r.steuerhinweis === 'vers4nr11' && courtageKat) || einnahmeKat;
 
   if (!gewerbeId) return <NoGewerbe />;
   if (loading) return <PageSpinner />;
@@ -148,6 +158,11 @@ export default function Rechnungen() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUS_CHIP[r.status]}`}>
                       {STATUS_LABEL[r.status]}
                     </span>
+                    {r.steuerhinweis === 'vers4nr11' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
+                        §4 Nr. 11
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-ink/70 mt-0.5 truncate">
                     {r.empfaenger_name} · {formatDateDE(r.datum)}
@@ -178,6 +193,7 @@ export default function Rechnungen() {
                     empfaenger_anschrift: r.empfaenger_anschrift || '',
                     empfaenger_email: r.empfaenger_email || '',
                     notiz: r.notiz || '',
+                    steuerhinweis: r.steuerhinweis || 'ku19',
                     positionen: r.positionen.map((p) => ({
                       beschreibung: p.beschreibung,
                       menge: String(p.menge).replace('.', ','),
@@ -232,7 +248,7 @@ export default function Rechnungen() {
           gewerbeId={gewerbeId}
           jahr={jahr}
           kategorien={kategorien}
-          presetKategorieId={einnahmeKat?.id}
+          presetKategorieId={einnahmeKatFuer(einnahme)?.id}
           presetBetragCent={einnahme.summe_cent}
           presetBeschreibung={`Rechnung ${einnahme.nummer} – ${einnahme.empfaenger_name}`}
           onClose={() => setEinnahme(null)}
@@ -256,6 +272,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, onSaved }) {
     empfaenger_anschrift: editing.empfaenger_anschrift || '',
     empfaenger_email: editing.empfaenger_email || '',
     notiz: editing.notiz || '',
+    steuerhinweis: editing.steuerhinweis || 'ku19',
     positionen: editing.positionen?.length ? editing.positionen : [emptyRPos()],
   }));
 
@@ -295,6 +312,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, onSaved }) {
       empfaenger_anschrift: form.empfaenger_anschrift.trim() || null,
       empfaenger_email: form.empfaenger_email.trim() || null,
       notiz: form.notiz.trim() || null,
+      steuerhinweis: form.steuerhinweis,
       positionen: payloadPos,
     };
     setBusy(true);
@@ -398,6 +416,15 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, onSaved }) {
           </div>
         </div>
 
+        <div className="block">
+          <span className="field-label">Steuer-Hinweis (warum keine USt)</span>
+          <Dropdown
+            value={form.steuerhinweis}
+            onChange={(v) => setForm({ ...form, steuerhinweis: String(v) })}
+            options={STEUERHINWEIS_OPTIONS}
+          />
+        </div>
+
         <label className="block">
           <span className="field-label">Notiz auf der Rechnung (optional)</span>
           <input className="input" value={form.notiz}
@@ -406,8 +433,9 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, onSaved }) {
         </label>
 
         <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/70">
-          Der §19-Hinweis („Kein Ausweis von Umsatzsteuer…") und Absender/IBAN aus den
-          Gewerbe-Stammdaten kommen automatisch aufs PDF.
+          Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen
+          automatisch aufs PDF. §4-Nr.-11-Rechnungen werden bei „Als Einnahme buchen" der
+          Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">

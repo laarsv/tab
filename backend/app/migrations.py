@@ -250,6 +250,14 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=7,
+        sql="""
+        -- v7: Steuer-Hinweis je Rechnung wählbar: 'ku19' (§19 Kleinunternehmer, Default)
+        --     oder 'vers4nr11' (steuerfreie Versicherungsvermittlung §4 Nr. 11 UStG).
+        ALTER TABLE rechnung ADD COLUMN steuerhinweis TEXT NOT NULL DEFAULT 'ku19';
+        """,
+    ),
 ]
 
 
