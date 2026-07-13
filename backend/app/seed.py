@@ -22,6 +22,7 @@ KATEGORIEN: list[tuple] = [
     ("einnahme_ku",        "Einnahme Kleinunternehmer (z. B. App-/IAP-Erlöse)", "einnahme", 1.0, 0, 0, 10),
     ("einnahme_steuerfrei","Umsatzsteuerfreie Einnahme §4 Nr. 11 (Courtage)",   "einnahme", 1.0, 0, 0, 11),
     ("veraeusserung_av",   "Veräußerung/Entnahme Anlagevermögen",               "einnahme", 1.0, 0, 0, 12),
+    ("kfz_privatnutzung",  "Private Kfz-Nutzung (1 %-Regelung, Betriebs-Kfz)",  "einnahme", 1.0, 0, 0, 13),
     # --- Ausgaben: Wareneinsatz/Fremdleistungen ---
     ("waren",              "Waren / Roh- und Hilfsstoffe",                       "ausgabe", 1.0, 0, 0, 20),
     ("fremdleistungen",    "Bezogene Leistungen / Fremdleistungen / Provisionen","ausgabe", 1.0, 0, 0, 21),
@@ -52,6 +53,7 @@ KATEGORIEN: list[tuple] = [
     # --- Ausgaben: Kfz / Fahrtkosten ---
     ("fahrtkosten_kfz",    "Fahrtkosten privates Kfz (0,30 €/km)",               "ausgabe", 1.0, 0, 0, 42),
     ("wege_wohnung_betrieb","Wege Wohnung–Betriebsstätte (Entfernungspauschale)","ausgabe", 1.0, 0, 0, 43),
+    ("kfz_kosten",         "Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing)", "ausgabe", 1.0, 0, 0, 44),
 ]
 
 # (nummer, bezeichnung) — Zeilen-Stammdaten (Basis, gilt für 2025 und vorläufig 2026)
@@ -59,6 +61,7 @@ ZEILEN: list[tuple[int, str]] = [
     (12, "Betriebseinnahmen als umsatzsteuerlicher Kleinunternehmer (brutto)"),
     (16, "Umsatzsteuerfreie Betriebseinnahmen (§4 UStG)"),
     (19, "Veräußerung/Entnahme von Anlagevermögen"),
+    (20, "Private Kfz-Nutzung / Nutzungsentnahmen (1 %-Regelung)"),
     (27, "Waren, Roh- und Hilfsstoffe"),
     (29, "Bezogene Leistungen / Fremdleistungen"),
     (33, "Abschreibungen auf bewegliche Wirtschaftsgüter (AfA)"),
@@ -82,6 +85,7 @@ MAPPING: dict[str, int] = {
     "einnahme_ku": 12,
     "einnahme_steuerfrei": 16,
     "veraeusserung_av": 19,
+    "kfz_privatnutzung": 20,            # ⚠ Vordruck-Abgleich (lt. EUER_KATEGORIEN.md §4.6)
     "waren": 27,
     "fremdleistungen": 29,
     "afa_beweglich": 33,
@@ -99,6 +103,7 @@ MAPPING: dict[str, int] = {
     "rechts_steuer_buchfuehrung": 60,   # ⚠
     "fortbildung": 60,                  # ⚠
     "werbung_repraesentation": 60,      # ⚠
+    "kfz_kosten": 60,                   # ⚠ final Zeile 68–70 (Kfz-Block) beim Vordruck-Abgleich
     "geschenke": 62,
     "bewirtung": 63,
     "verpflegungsmehraufwand": 64,

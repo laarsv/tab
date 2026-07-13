@@ -64,6 +64,7 @@ Jede Kategorie trägt:
 | Einnahme Kleinunternehmer (z. B. App-/IAP-Erlöse) | **12** | Brutto, „vollständige Betriebseinnahmen" | ✅ |
 | Umsatzsteuerfreie Einnahme §4 Nr. 11 (Versicherungs-Courtage) | **16** | nach §4 UStG steuerfrei | ✅ |
 | Veräußerung/Entnahme Anlagevermögen (z. B. Hardware-Verkauf) | **19** | Erlös, bei KU brutto | ✅ |
+| Private Kfz-Nutzung (1 %-Regelung, Betriebs-Kfz) | **20** | Nutzungsentnahme = Betriebseinnahme; Rechner im UI (1 % × Monate) | ⚠️ |
 | *(berechnet)* Summe Betriebseinnahmen | **23** | Tool errechnet | ✅ |
 
 **Hinweis Courtage (Z12 vs. Z16):** §4-Nr.11-Umsätze gehören sachlich in Zeile 16. Ob ein
@@ -132,9 +133,16 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 |---|---|---|---|
 | Fahrtkosten privates Kfz (betrieblich) | **71** | 0,30 €/km **oder** tatsächliche Kosten | ✅ |
 | Wege Wohnung↔Betriebsstätte (Entfernungspauschale) | **73** | 0,30 €/km (ab km 21: 0,38 €), Z72 = Kürzung | ✅ |
+| Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing) | 68–70, vorläufig **60** | Gegenstück zur 1 %-Regelung (Z20) | ⚠️ |
 
-> Eigenes Betriebs-Kfz (1 %-Regelung, Zeilen 20/68–70) ist für deinen Fall vorerst nicht
-> nötig — privates Kfz mit km-Pauschale (Z71) reicht. Falls später relevant: eigener Task.
+> **Betriebs-Kfz mit 1 %-Regelung (integriert, bewusst schlank):** Laufende Kfz-Kosten als
+> „Kfz-Kosten Betriebs-Kfz" buchen (⚠ vorläufig Zeile 60, final 68–70 — gewinnneutral), die
+> private Nutzung monatlich/jährlich als Nutzungsentnahme über die Einnahme-Kategorie
+> „Private Kfz-Nutzung (1 %-Regelung)" (Zeile 20). Der UI-Rechner nimmt 1 % vom auf volle
+> 100 € **abgerundeten Bruttolistenpreis** je Monat. **Nicht abgedeckt** (Steuerberater/ELSTER):
+> 0,03 %-Kürzung für Wege Wohnung–Betrieb (Z72), Kostendeckelung, Fahrtenbuch-Methode,
+> USt auf die Wertabgabe. Vereinfachung: Die 1 %-Entnahme zählt im Tool **nicht** zur
+> KU-Grenze (`ku_umsatz` bleibt nur `einnahme_ku`).
 
 ---
 

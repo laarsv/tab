@@ -51,6 +51,20 @@ const CALCULATORS = {
       return tage !== null && tage > 0 ? Math.round(tage * 600) : null;
     },
   },
+  kfz_privatnutzung: {
+    fields: [
+      { key: 'listenpreis', label: 'Bruttolistenpreis (€)', placeholder: 'z. B. 42.300' },
+      { key: 'monate', label: 'Monate', placeholder: '12' },
+    ],
+    hint: '1 % vom auf volle 100 € abgerundeten Listenpreis, je Monat',
+    compute: (c) => {
+      const lpCent = parseEuroToCent(c.listenpreis);
+      const monate = num(c.monate);
+      if (!lpCent || lpCent <= 0 || monate === null || monate <= 0) return null;
+      const monatlichCent = Math.floor(lpCent / 100_00) * 100; // volle 100 € abrunden, davon 1 %
+      return Math.round(monatlichCent * monate);
+    },
+  },
   verpflegungsmehraufwand: {
     fields: [
       { key: 'voll', label: 'Volle Tage (24 h)', placeholder: '0' },
@@ -211,6 +225,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr,
             const calcDef = CALCULATORS[kat?.key];
             const isGwg = kat?.key === 'gwg';
             const isBewirtung = kat?.key === 'bewirtung';
+            const isKfz1Prozent = kat?.key === 'kfz_privatnutzung';
             const needsBeleg = Boolean(kat?.belegpflicht_extra);
             const betragCent = parseEuroToCent(p.betragInput);
             const warnGeschenke = kat?.key === 'geschenke' && betragCent > GESCHENKE_GRENZE_CENT;
@@ -284,6 +299,14 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr,
                 {isBewirtung && (
                   <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
                     100 % erfassen — der Export rechnet automatisch 70 % in Zeile 63.
+                  </div>
+                )}
+                {isKfz1Prozent && (
+                  <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
+                    Voraussetzung: Kfz zu <strong>&gt; 50 %</strong> betrieblich genutzt (Betriebsvermögen).
+                    Die laufenden Kfz-Kosten separat als „Kfz-Kosten Betriebs-Kfz" buchen. Nicht abgedeckt:
+                    0,03 %-Kürzung für Wege Wohnung–Betrieb (Zeile 72), Kostendeckelung, Fahrtenbuch —
+                    im Zweifel Steuerberater.
                   </div>
                 )}
                 {warnGeschenke && (
