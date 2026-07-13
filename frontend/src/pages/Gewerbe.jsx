@@ -91,7 +91,7 @@ export default function Gewerbe() {
                 <div className="font-bold flex items-center gap-2">
                   <span className="truncate">{g.name}</span>
                   {!g.aktiv && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-mint-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
                       inaktiv
                     </span>
                   )}
@@ -100,7 +100,7 @@ export default function Gewerbe() {
                       Regelbest.
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-mint-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
                       §19 KU
                     </span>
                   )}
@@ -159,7 +159,7 @@ export default function Gewerbe() {
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
-                className="mt-0.5 rounded border-ink/30 text-mint focus:ring-mint"
+                className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
                 checked={(editing.besteuerung || 'kleinunternehmer') === 'kleinunternehmer'}
                 onChange={(e) =>
                   setEditing({

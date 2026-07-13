@@ -157,7 +157,7 @@ export default function Export() {
                   <td className="px-4 py-3">
                     {z.bezeichnung}
                     {z.typ === 'einnahme' && (
-                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-mint-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
                         Einnahme
                       </span>
                     )}
@@ -183,7 +183,7 @@ export default function Export() {
                   {formatEuro(data.summe_ausgaben_cent)}
                 </td>
               </tr>
-              <tr className="bg-mint-soft/10">
+              <tr className="bg-royal-soft/10">
                 <td className="px-4 py-3" />
                 <td className="px-4 py-3 font-black">Gewinn / Verlust</td>
                 <td className="px-4 py-3 text-right tabular-nums font-black">

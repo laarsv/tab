@@ -212,13 +212,13 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
                 )}
 
                 {isGwg && (
-                  <div className="rounded-lg bg-mint-soft/15 border-l-4 border-mint-soft p-2.5 text-xs text-ink/80">
+                  <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
                     GWG-Grenze ist <strong>netto</strong>: 800 € netto ≈ 952 € brutto (19 %). Darüber →
                     AfA-Erfassung.
                   </div>
                 )}
                 {isBewirtung && (
-                  <div className="rounded-lg bg-mint-soft/15 border-l-4 border-mint-soft p-2.5 text-xs text-ink/80">
+                  <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
                     100 % erfassen — der Export rechnet automatisch 70 % in Zeile 63.
                   </div>
                 )}
@@ -247,11 +247,11 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, kateg
             <BelegeManager buchungId={buchung.id} gewerbeId={gewerbeId} onChange={onSaved} />
           </div>
         ) : preBelege.length > 0 ? (
-          <div className="rounded-lg bg-mint-soft/10 p-3 text-sm text-ink/70">
+          <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
             Wird angehängt: {preBelege.map((b) => b.original_name).join(', ')}
           </div>
         ) : (
-          <div className="rounded-lg bg-mint-soft/10 p-3 text-sm text-ink/60">
+          <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/60">
             Belege kannst du nach dem Speichern anhängen — oder vorab im Eingang hochladen.
           </div>
         )}

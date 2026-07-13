@@ -28,17 +28,17 @@ export default function Login() {
   return (
     <div className="relative min-h-screen bg-ink overflow-hidden flex items-center justify-center">
       <div
-        className="pointer-events-none absolute -top-32 -left-32 h-[520px] w-[820px] rounded-[50%] bg-mint-soft/25 blur-2xl"
+        className="pointer-events-none absolute -top-32 -left-32 h-[520px] w-[820px] rounded-[50%] bg-royal-soft/25 blur-2xl"
         style={{ transform: 'rotate(-40deg)' }}
       />
       <div
-        className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[680px] rounded-[50%] bg-mint/15 blur-3xl"
+        className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[680px] rounded-[50%] bg-royal/15 blur-3xl"
         style={{ transform: 'rotate(-40deg)' }}
       />
       <div className="relative z-10 w-full max-w-md px-4 sm:px-8 py-12">
         <div className="text-center mb-8">
           <span className="text-4xl font-black tracking-wordmark text-paper">
-            Tab<span className="text-mint">.</span>
+            Tab<span className="text-royal-soft">_</span>
           </span>
           <p className="mt-2 text-sm text-paper/70">EÜR-Buchhaltung für Kleinunternehmer</p>
         </div>

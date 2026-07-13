@@ -110,10 +110,10 @@ export default function Buchungen() {
                 </div>
               </div>
 
-              <ul className="divide-y divide-ink/5 rounded-lg bg-mint-soft/5">
+              <ul className="divide-y divide-ink/5 rounded-lg bg-royal-soft/5">
                 {b.positionen.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                    <span className={p.kategorie_typ === 'einnahme' ? 'text-mint font-bold' : ''}>
+                    <span className={p.kategorie_typ === 'einnahme' ? 'text-royal font-bold' : ''}>
                       {p.kategorie_name}
                     </span>
                     <span className="tabular-nums whitespace-nowrap">

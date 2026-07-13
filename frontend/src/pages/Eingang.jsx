@@ -112,7 +112,7 @@ export default function Eingang() {
                 className="min-w-0 text-left"
                 title={b.original_name}
               >
-                <div className="font-bold text-mint hover:underline truncate">{b.original_name}</div>
+                <div className="font-bold text-royal hover:underline truncate">{b.original_name}</div>
                 <div className="text-xs text-ink/50 mt-0.5">
                   {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
                 </div>

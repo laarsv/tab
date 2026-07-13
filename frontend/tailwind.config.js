@@ -4,11 +4,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        mint: {
-          DEFAULT: '#00a984',
-          soft: '#86c8af',
+        royal: {
+          DEFAULT: '#2947c9',
+          soft: '#aeb9ee',
         },
-        ink: '#1d1d1b',
+        ink: '#161a24',
         paper: '#ffffff',
       },
       fontFamily: {

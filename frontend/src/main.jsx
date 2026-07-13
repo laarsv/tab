@@ -24,14 +24,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#1d1d1b',
+              background: '#161a24',
               color: '#ffffff',
               fontFamily: 'Roboto, sans-serif',
               borderRadius: '12px',
               padding: '12px 16px',
               fontSize: '14px',
             },
-            success: { iconTheme: { primary: '#00a984', secondary: '#1d1d1b' } },
+            success: { iconTheme: { primary: '#2947c9', secondary: '#ffffff' } },
             error: {
               style: {
                 background: '#dc2626',

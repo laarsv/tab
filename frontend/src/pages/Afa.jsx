@@ -293,7 +293,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            className="rounded border-ink/30 text-mint focus:ring-mint"
+            className="rounded border-ink/30 text-royal focus:ring-royal"
             checked={editing.sofort}
             onChange={(e) => setEditing({ ...editing, sofort: e.target.checked })}
           />

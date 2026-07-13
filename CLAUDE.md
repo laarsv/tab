@@ -12,13 +12,18 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 
 ## Verbindliche Quellen
 
-- **`DESIGN.shared.md`** — **verbindliche UI-Norm (Fin.Co Dichte v2)**. Mint/Ink/Paper, Roboto
-  self-hosted via `@fontsource`, Custom-Dropdowns statt `<select>`. **Dichte v2:** 44 px Touch-Fläche
-  **mobil**, Desktop kompakt (~32–36 px) — Tipp-Felder `py-2.5 text-base` auf Base, ab `sm:` `py-1.5
-  text-sm` (iOS-Zoom-Schutz auf Base nie brechen). Feld-Labels `.field-label` (dezent), `.eyebrow`,
-  Formular-Grids `gap-x-5 gap-y-2`, Ghost-Select für Inline-Werte in Zeilen. Zentrale Klassen in
-  `src/index.css` (`.btn/.btn-sm/.input/.field-label/.eyebrow/.card`), Select in `components/Dropdown.jsx`
-  (`variant="ghost"`). Nicht abweichen. (`DESIGN.md` = alter v1-Stand, abgelöst.)
+- **`DESIGN.md`** — **verbindliche Marken-/Farbnorm: VRWB „Sync", Royal Blue.** Tokens
+  `royal` (`#2947c9`/soft `#aeb9ee`), `ink` `#161a24`, `paper`. **Kontrastregel (wichtig, anders
+  als bei Mint):** Royal ist ein *dunkler* Akzent → Text auf **gefüllten** Royal-Flächen ist
+  **weiß (`paper`)** (`.btn-primary`, Badges); Royal als *Textfarbe* auf Weiß ist ok (Nav aktiv,
+  Eyebrow, Links). Wortmarke **„Tab_"** (Unterstrich-Akzent, `text-royal`; auf dunklem Login-Hero
+  `text-royal-soft`). Roboto self-hosted, kein Google-CDN. `theme-color = #2947c9`.
+- **`DESIGN.shared.md`** — Dichte-/Komponenten-Konventionen (Dichte v2): 44 px Touch **mobil**,
+  Desktop kompakt (~32–36 px) — Tipp-Felder `py-2.5 text-base` auf Base, ab `sm:` `py-1.5 text-sm`
+  (iOS-Zoom-Schutz nie brechen). `.field-label` (dezent), `.eyebrow`, Formular-Grids `gap-x-5 gap-y-2`,
+  Ghost-Select für Inline-Werte. Zentrale Klassen in `src/index.css`
+  (`.btn/.btn-sm/.input/.field-label/.eyebrow/.card`), Select in `components/Dropdown.jsx`
+  (`variant="ghost"`). **Diese Muster gelten weiter — nur die Palette ist Royal statt Mint** (DESIGN.md gewinnt bei Farbe/Kontrast).
 - **`EUER_KATEGORIEN.md`** — fachliche Quelle für Kategorien, Kategorie→Zeile-Mapping,
   KU-Regeln, Sonderfälle (AfA, GWG, Bewirtung 70 %, Geschenke). Bei Mapping-Fragen zuerst hier lesen.
 

@@ -8,7 +8,7 @@ export default function Spinner({ size = 'md', className = '' }) {
     <span
       role="status"
       aria-label="Lädt…"
-      className={`inline-block animate-spin rounded-full border-mint/30 border-t-mint ${sizes[size]} ${className}`}
+      className={`inline-block animate-spin rounded-full border-royal/30 border-t-royal ${sizes[size]} ${className}`}
     />
   );
 }

@@ -8,7 +8,7 @@ import Dropdown from './Dropdown.jsx';
 
 function NavBadge({ n }) {
   return (
-    <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-mint text-ink text-[11px] font-black tabular-nums">
+    <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-royal text-paper text-[11px] font-black tabular-nums">
       {n}
     </span>
   );
@@ -113,11 +113,11 @@ export default function Layout() {
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="bg-paper border-b border-mint-soft/30 sticky top-0 z-30">
+      <header className="bg-paper border-b border-royal-soft/30 sticky top-0 z-30">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center min-w-0">
             <span className="text-2xl font-black tracking-wordmark">
-              Tab<span className="text-mint">.</span>
+              Tab<span className="text-royal">_</span>
             </span>
             <span className="ml-2 sm:ml-3 text-sm sm:text-base font-light text-ink/60 truncate hidden sm:inline">
               EÜR-Buchhaltung
@@ -130,7 +130,7 @@ export default function Layout() {
                 key={n.to}
                 to={n.to}
                 className={({ isActive }) =>
-                  `${linkBase} inline-flex items-center ${isActive ? 'text-mint' : 'text-ink/70 hover:text-ink'}`
+                  `${linkBase} inline-flex items-center ${isActive ? 'text-royal' : 'text-ink/70 hover:text-ink'}`
                 }
               >
                 {n.label}
@@ -143,7 +143,7 @@ export default function Layout() {
           </nav>
 
           <button
-            className="md:hidden p-2 -mr-2 rounded-md hover:bg-mint/10 text-ink/80"
+            className="md:hidden p-2 -mr-2 rounded-md hover:bg-royal/10 text-ink/80"
             onClick={() => setDrawer(true)}
             aria-label="Menü öffnen"
           >
@@ -181,7 +181,7 @@ export default function Layout() {
           <aside className="absolute top-0 right-0 h-full w-[85%] max-w-xs bg-paper shadow-xl flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10">
               <span className="font-black">Menü</span>
-              <button onClick={() => setDrawer(false)} className="p-2 rounded-md hover:bg-mint/10" aria-label="Schließen">
+              <button onClick={() => setDrawer(false)} className="p-2 rounded-md hover:bg-royal/10" aria-label="Schließen">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
@@ -195,7 +195,7 @@ export default function Layout() {
                   onClick={() => setDrawer(false)}
                   className={({ isActive }) =>
                     `flex items-center justify-between px-4 py-3 text-sm font-bold transition ${
-                      isActive ? 'text-mint bg-mint-soft/10' : 'text-ink hover:bg-mint/10'
+                      isActive ? 'text-royal bg-royal-soft/10' : 'text-ink hover:bg-royal/10'
                     }`
                   }
                 >
@@ -207,7 +207,7 @@ export default function Layout() {
             <div className="border-t border-ink/10 p-2">
               <button
                 onClick={doLogout}
-                className="w-full text-left px-4 py-3 text-sm font-bold rounded-md text-ink hover:bg-mint/10"
+                className="w-full text-left px-4 py-3 text-sm font-bold rounded-md text-ink hover:bg-royal/10"
               >
                 Abmelden
               </button>

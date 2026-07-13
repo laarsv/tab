@@ -102,7 +102,7 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
           {inbox.map((b) => (
             <li key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
               <span className="truncate">{b.original_name}</span>
-              <button type="button" className="text-mint font-bold text-xs hover:underline" onClick={() => attach(b)}>
+              <button type="button" className="text-royal font-bold text-xs hover:underline" onClick={() => attach(b)}>
                 Anhängen
               </button>
             </li>
@@ -111,7 +111,7 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
       )}
 
       {attached.length === 0 ? (
-        <div className="rounded-lg bg-mint-soft/10 p-3 text-sm text-ink/60">Kein Beleg angehängt.</div>
+        <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/60">Kein Beleg angehängt.</div>
       ) : (
         <ul className="divide-y divide-ink/5 rounded-lg border border-ink/10">
           {attached.map((b) => (
@@ -119,7 +119,7 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
               <button
                 type="button"
                 onClick={() => openBeleg(b.id)}
-                className="truncate text-left text-mint font-bold hover:underline"
+                className="truncate text-left text-royal font-bold hover:underline"
                 title={b.original_name}
               >
                 {b.original_name}

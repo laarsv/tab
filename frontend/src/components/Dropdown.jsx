@@ -95,11 +95,11 @@ export default function Dropdown({
             ? `relative flex items-center justify-between gap-1.5 border border-transparent rounded-lg
                px-2 py-1 text-[13px] font-medium bg-ink/[0.04] hover:bg-ink/[0.07] text-left
                before:absolute before:-inset-y-2 before:inset-x-0 before:content-['']
-               focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none
+               focus:border-royal focus:ring-2 focus:ring-royal/30 outline-none
                disabled:opacity-50 disabled:cursor-not-allowed`
             : `w-full flex items-center justify-between gap-2 border border-ink/20 rounded-lg
                px-3 py-2.5 text-base sm:py-1.5 sm:text-sm bg-paper text-left
-               focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none
+               focus:border-royal focus:ring-2 focus:ring-royal/30 outline-none
                disabled:opacity-50 disabled:cursor-not-allowed`
         }
       >
@@ -131,7 +131,7 @@ export default function Dropdown({
                 placeholder="Suchen…"
                 className="w-full border border-ink/20 rounded-lg px-3 py-2 text-base
                            sm:py-1.5 sm:text-sm
-                           focus:border-mint focus:ring-2 focus:ring-mint/30 outline-none"
+                           focus:border-royal focus:ring-2 focus:ring-royal/30 outline-none"
               />
             </div>
           )}
@@ -150,7 +150,7 @@ export default function Dropdown({
                   onMouseEnter={() => setHighlight(i)}
                   onClick={() => choose(opt)}
                   className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between
-                    ${isSel ? 'bg-mint-soft/20 text-ink' : isHi ? 'bg-mint/10 text-ink' : 'text-ink'}`}
+                    ${isSel ? 'bg-royal-soft/20 text-ink' : isHi ? 'bg-royal/10 text-ink' : 'text-ink'}`}
                 >
                   <span className="truncate">{opt.label}</span>
                   {isSel && (
@@ -159,7 +159,7 @@ export default function Dropdown({
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
-                      className="h-4 w-4 text-mint shrink-0"
+                      className="h-4 w-4 text-royal shrink-0"
                     >
                       <path d="M20 6L9 17l-5-5" />
                     </svg>
