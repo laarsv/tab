@@ -100,6 +100,11 @@ export default function Export() {
               Der amtliche Vordruck {jahr} liegt noch nicht final vor — die Zeilen sind eine Kopie
               von 2025. Vor Abgabe gegen den aktuellen Vordruck abgleichen. ({data.quelle})
             </div>
+            <div className="text-sm mt-1.5 font-medium">
+              {new Date() >= new Date(jahr, 9, 1)
+                ? `Die amtliche Anleitung ${jahr} sollte inzwischen veröffentlicht sein (BMF/ELSTER, üblicherweise ab Herbst) — jetzt Mapping abgleichen und scharfstellen.`
+                : `Die amtliche Anleitung ${jahr} erscheint erfahrungsgemäß im Herbst ${jahr}; abgeben musst du erst ${jahr + 1} — bis dahin ist das vorläufige Mapping okay.`}
+            </div>
           </div>
         </div>
       )}
