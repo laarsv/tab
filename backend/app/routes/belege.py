@@ -20,6 +20,10 @@ ALLOWED = {
     "application/pdf": ".pdf",
     "image/jpeg": ".jpg",
     "image/png": ".png",
+    # E-Rechnungen (XRechnung/ZUGFeRD-XML): empfangen + archivieren können ist
+    # seit 2025 auch für Kleinunternehmer Pflicht — Anzeige/Parsing bewusst nicht.
+    "application/xml": ".xml",
+    "text/xml": ".xml",
 }
 
 
@@ -53,8 +57,10 @@ def upload_beleg(
             raise HTTPException(400, "Buchung gehört zu einem anderen Gewerbe.")
 
     ext = ALLOWED.get(file.content_type or "")
+    if ext is None and (file.filename or "").lower().endswith(".xml"):
+        ext = ".xml"  # Browser melden XML-Dateien teils ohne brauchbaren MIME-Typ
     if ext is None:
-        raise HTTPException(400, "Nur PDF, JPG oder PNG erlaubt.")
+        raise HTTPException(400, "Nur PDF, JPG, PNG oder XML (E-Rechnung) erlaubt.")
 
     data = file.file.read()
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024

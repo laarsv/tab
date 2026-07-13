@@ -5,7 +5,7 @@ import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro } from '../lib/format.js';
-import { TOPICS, loadNichtRelevant, saveNichtRelevant } from '../lib/jahresCheck.js';
+import { TOPICS, NICHT_ABSETZBAR, loadCheckState, saveCheckState } from '../lib/jahresCheck.js';
 
 function NoGewerbe() {
   return (
@@ -21,7 +21,7 @@ export default function JahresCheck() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // { presetKategorieId }
-  const [nichtRelevant, setNichtRelevant] = useState(new Set());
+  const [check, setCheck] = useState({ nichtRelevant: new Set(), erledigt: new Set() });
 
   async function load() {
     if (!gewerbeId) {
@@ -46,7 +46,7 @@ export default function JahresCheck() {
 
   useEffect(() => {
     load();
-    setNichtRelevant(loadNichtRelevant(gewerbeId, jahr));
+    setCheck(loadCheckState(gewerbeId, jahr));
   }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const katByKey = useMemo(() => Object.fromEntries(kategorien.map((k) => [k.key, k])), [kategorien]);
@@ -84,20 +84,23 @@ export default function JahresCheck() {
     return { cent, anzahl };
   }
 
-  function toggleNichtRelevant(key) {
-    const next = new Set(nichtRelevant);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    setNichtRelevant(next);
-    saveNichtRelevant(gewerbeId, jahr, next);
+  function toggle(set, key) {
+    const next = {
+      nichtRelevant: new Set(check.nichtRelevant),
+      erledigt: new Set(check.erledigt),
+    };
+    if (next[set].has(key)) next[set].delete(key);
+    else next[set].add(key);
+    setCheck(next);
+    saveCheckState(gewerbeId, jahr, next);
     reloadBadges?.();
   }
 
   if (!gewerbeId) return <NoGewerbe />;
   if (loading) return <PageSpinner />;
 
-  const erledigt = TOPICS.filter(
-    (t) => topicStats(t).anzahl > 0 || nichtRelevant.has(t.key),
+  const erledigtCount = TOPICS.filter(
+    (t) => topicStats(t).anzahl > 0 || check.erledigt.has(t.key) || check.nichtRelevant.has(t.key),
   ).length;
 
   return (
@@ -114,16 +117,16 @@ export default function JahresCheck() {
         <div className="flex items-baseline justify-between gap-3">
           <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">Fortschritt</div>
           <div className="text-sm tabular-nums text-ink/70">
-            {erledigt} von {TOPICS.length} Themen erledigt
+            {erledigtCount} von {TOPICS.length} Themen erledigt
           </div>
         </div>
         <div className="h-2 rounded-full bg-ink/5 mt-2">
           <div
             className="h-2 rounded-full bg-royal transition-all"
-            style={{ width: `${(erledigt / TOPICS.length) * 100}%` }}
+            style={{ width: `${(erledigtCount / TOPICS.length) * 100}%` }}
           />
         </div>
-        {erledigt === TOPICS.length && (
+        {erledigtCount === TOPICS.length && (
           <div className="text-sm text-ink/70 mt-2">
             Alles durch! 🎉 Weiter geht's beim <Link to="/export" className="text-royal font-medium hover:underline">Export</Link>.
           </div>
@@ -133,15 +136,20 @@ export default function JahresCheck() {
       <div className="space-y-3">
         {TOPICS.map((t) => {
           const { cent, anzahl } = topicStats(t);
-          const isNichtRelevant = nichtRelevant.has(t.key);
-          const done = anzahl > 0;
+          const isNichtRelevant = check.nichtRelevant.has(t.key);
+          const isErledigt = check.erledigt.has(t.key);
+          const done = anzahl > 0 || isErledigt;
           return (
             <div key={t.key} className={`card p-4 space-y-2 ${isNichtRelevant && !done ? 'opacity-60' : ''}`}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="font-bold">{t.frage}</div>
-                {done ? (
+                {anzahl > 0 ? (
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-royal text-paper text-[11px] font-bold tabular-nums shrink-0">
                     ✓ {anzahl} {anzahl === 1 ? 'Buchung' : 'Buchungen'} · {formatEuro(cent)}
+                  </span>
+                ) : isErledigt ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal text-paper text-[11px] font-bold shrink-0">
+                    ✓ Erledigt
                   </span>
                 ) : isNichtRelevant ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-ink/10 text-ink/60 text-[11px] font-bold shrink-0">
@@ -166,13 +174,18 @@ export default function JahresCheck() {
                     </button>
                   ) : null,
                 )}
-                {t.afaLink && (
-                  <Link to="/afa" className="btn-outline btn-sm">
-                    AfA-Erfassung öffnen
+                {(t.links || []).map((l) => (
+                  <Link key={l.to} to={l.to} className="btn-outline btn-sm">
+                    {l.label}
                   </Link>
+                ))}
+                {t.info && (
+                  <button className="btn-outline btn-sm" onClick={() => toggle('erledigt', t.key)}>
+                    {isErledigt ? '✓ Erledigt — zurücknehmen' : 'Erledigt'}
+                  </button>
                 )}
                 {!done && (
-                  <button className="btn-ghost btn-sm" onClick={() => toggleNichtRelevant(t.key)}>
+                  <button className="btn-ghost btn-sm" onClick={() => toggle('nichtRelevant', t.key)}>
                     {isNichtRelevant ? 'Doch relevant' : 'Nicht relevant'}
                   </button>
                 )}
@@ -180,6 +193,20 @@ export default function JahresCheck() {
             </div>
           );
         })}
+      </div>
+
+      <div className="rounded-lg bg-red-50 border-l-4 border-red-400 p-4 space-y-2">
+        <div className="font-bold text-red-900">Gehört NICHT in die Buchhaltung</div>
+        <p className="text-sm text-red-900/80">
+          Die häufigsten Anfängerfehler — diese Dinge sind keine Betriebsausgaben:
+        </p>
+        <ul className="text-sm text-red-900/80 space-y-1">
+          {NICHT_ABSETZBAR.map(([titel, erklaerung]) => (
+            <li key={titel}>
+              <strong>{titel}</strong> — {erklaerung}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {modal && (

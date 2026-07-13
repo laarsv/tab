@@ -44,16 +44,17 @@ KATEGORIEN: list[tuple] = [
     ("reise_nebenkosten",  "Reisekosten (Übernachtung/Nebenkosten)",             "ausgabe", 1.0, 0, 0, 34),
     ("software_hosting",   "Software / Hosting / SaaS / Domains",                 "ausgabe", 1.0, 0, 0, 35),
     ("buerobedarf",        "Bürobedarf / Porto / sonstige laufende Kosten",      "ausgabe", 1.0, 0, 0, 36),
+    ("kontogebuehren",     "Kontoführung & Zahlungsgebühren (Bank, PayPal, Stripe)", "ausgabe", 1.0, 0, 0, 37),
     # --- Ausgaben: beschränkt abziehbar ---
-    ("geschenke",          "Geschenke an Geschäftspartner (≤ 50 €/Empfänger)",   "ausgabe", 1.0, 0, 1, 37),
-    ("bewirtung",          "Bewirtung (geschäftlich, 70 % abziehbar)",           "ausgabe", 0.7, 0, 1, 38),
-    ("verpflegungsmehraufwand","Verpflegungsmehraufwand (Reise, Pauschbeträge)", "ausgabe", 1.0, 0, 0, 39),
-    ("arbeitszimmer",      "Häusliches Arbeitszimmer",                           "ausgabe", 1.0, 0, 0, 40),
-    ("homeoffice_pauschale","Homeoffice-Tagespauschale (6 €/Tag)",               "ausgabe", 1.0, 0, 0, 41),
+    ("geschenke",          "Geschenke an Geschäftspartner (≤ 50 €/Empfänger)",   "ausgabe", 1.0, 0, 1, 38),
+    ("bewirtung",          "Bewirtung (geschäftlich, 70 % abziehbar)",           "ausgabe", 0.7, 0, 1, 39),
+    ("verpflegungsmehraufwand","Verpflegungsmehraufwand (Reise, Pauschbeträge)", "ausgabe", 1.0, 0, 0, 40),
+    ("arbeitszimmer",      "Häusliches Arbeitszimmer",                           "ausgabe", 1.0, 0, 0, 41),
+    ("homeoffice_pauschale","Homeoffice-Tagespauschale (6 €/Tag)",               "ausgabe", 1.0, 0, 0, 42),
     # --- Ausgaben: Kfz / Fahrtkosten ---
-    ("fahrtkosten_kfz",    "Fahrtkosten privates Kfz (0,30 €/km)",               "ausgabe", 1.0, 0, 0, 42),
-    ("wege_wohnung_betrieb","Wege Wohnung–Betriebsstätte (Entfernungspauschale)","ausgabe", 1.0, 0, 0, 43),
-    ("kfz_kosten",         "Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing)", "ausgabe", 1.0, 0, 0, 44),
+    ("fahrtkosten_kfz",    "Fahrtkosten privates Kfz (0,30 €/km)",               "ausgabe", 1.0, 0, 0, 43),
+    ("wege_wohnung_betrieb","Wege Wohnung–Betriebsstätte (Entfernungspauschale)","ausgabe", 1.0, 0, 0, 44),
+    ("kfz_kosten",         "Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing)", "ausgabe", 1.0, 0, 0, 45),
 ]
 
 # (nummer, bezeichnung) — Zeilen-Stammdaten (Basis, gilt für 2025 und vorläufig 2026)
@@ -103,6 +104,7 @@ MAPPING: dict[str, int] = {
     "rechts_steuer_buchfuehrung": 60,   # ⚠
     "fortbildung": 60,                  # ⚠
     "werbung_repraesentation": 60,      # ⚠
+    "kontogebuehren": 60,               # ✅ „übrige" (wie buerobedarf/software)
     "kfz_kosten": 60,                   # ⚠ final Zeile 68–70 (Kfz-Block) beim Vordruck-Abgleich
     "geschenke": 62,
     "bewirtung": 63,

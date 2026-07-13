@@ -228,7 +228,7 @@ export default function Buchungen() {
             <div className="text-sm text-ink/70 mt-0.5">
               {belege.length > 0
                 ? `Noch ${belege.length} ${belege.length === 1 ? 'Beleg' : 'Belege'} zu verbuchen.`
-                : 'Leer. Belege (PDF/JPG/PNG) hochladen und später in Ruhe verbuchen.'}
+                : 'Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen und später in Ruhe verbuchen.'}
             </div>
           </div>
           <div className="flex gap-2">

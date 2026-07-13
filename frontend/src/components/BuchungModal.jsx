@@ -44,6 +44,14 @@ const CALCULATORS = {
       return Math.round(tage * proTag);
     },
   },
+  arbeitszimmer: {
+    fields: [{ key: 'monate', label: 'Monate mit Arbeitszimmer', placeholder: '12' }],
+    hint: 'Jahrespauschale: 105 €/Monat (max. 1.260 €/Jahr). Tatsächliche Kosten? Betrag direkt eintragen.',
+    compute: (c) => {
+      const monate = num(c.monate);
+      return monate !== null && monate > 0 ? Math.round(Math.min(monate, 12) * 105_00) : null;
+    },
+  },
   homeoffice_pauschale: {
     fields: [{ key: 'tage', label: 'Homeoffice-Tage', placeholder: 'z. B. 180' }],
     hint: 'Tage × 6 € (max. 210 Tage = 1.260 €/Jahr)',
@@ -104,8 +112,8 @@ function emptyPos() {
 
 // Gemeinsames Modal für Buchungen (Beleg-Kopf + 1..n Positionen).
 // preBelege: Eingangs-Belege, die beim Anlegen verknüpft werden.
-// presetKategorieId: startet die erste Position mit dieser Kategorie (Jahres-Check).
-// wizard: { pos, total, onSkip } — Eingang-Abarbeiten-Modus (Titel + Überspringen).
+// presetKategorieId/-BetragCent/-Beschreibung: starten die neue Buchung vorausgefüllt
+// (Jahres-Check, Fahrten-Liste). wizard: { pos, total, onSkip } — Eingang-Abarbeiten-Modus.
 export default function BuchungModal({
   buchung,
   preBelege = [],
@@ -113,6 +121,8 @@ export default function BuchungModal({
   jahr,
   kategorien,
   presetKategorieId,
+  presetBetragCent,
+  presetBeschreibung,
   wizard,
   onClose,
   onSaved,
@@ -131,7 +141,7 @@ export default function BuchungModal({
   );
 
   const [datum, setDatum] = useState(buchung?.datum || todayISO());
-  const [beschreibung, setBeschreibung] = useState(buchung?.beschreibung || '');
+  const [beschreibung, setBeschreibung] = useState(buchung?.beschreibung || presetBeschreibung || '');
   const [positionen, setPositionen] = useState(() =>
     buchung?.positionen?.length
       ? buchung.positionen.map((p) => ({
@@ -140,7 +150,13 @@ export default function BuchungModal({
           calc: {},
           beleg_details: p.beleg_details || '',
         }))
-      : [presetKategorieId ? { ...emptyPos(), kategorie_id: String(presetKategorieId) } : emptyPos()],
+      : [
+          {
+            ...emptyPos(),
+            ...(presetKategorieId ? { kategorie_id: String(presetKategorieId) } : {}),
+            ...(presetBetragCent ? { betragInput: centToInput(presetBetragCent) } : {}),
+          },
+        ],
   );
   const [busy, setBusy] = useState(false);
 

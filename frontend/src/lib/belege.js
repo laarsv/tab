@@ -19,4 +19,4 @@ export function fileSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export const ACCEPT = 'application/pdf,image/jpeg,image/png';
+export const ACCEPT = 'application/pdf,image/jpeg,image/png,application/xml,text/xml,.xml';

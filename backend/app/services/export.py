@@ -301,6 +301,22 @@ def belege_zip(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f"euer-summenblatt-{jahr}.csv", summenblatt_csv(conn, gewerbe_id, jahr))
         zf.writestr(f"beleg-journal-{jahr}.csv", journal_csv(conn, gewerbe_id, jahr))
+        # Fahrten-Liste (Nachweis für die km-Pauschale), falls vorhanden.
+        fahrten = conn.execute(
+            "SELECT datum, ziel, anlass, km FROM fahrt "
+            "WHERE gewerbe_id = ? AND substr(datum,1,4) = ? ORDER BY datum, id",
+            (gewerbe_id, str(jahr)),
+        ).fetchall()
+        if fahrten:
+            rows = [["Datum", "Ziel/Strecke", "Anlass", "km"]]
+            summe_km = 0.0
+            for f in fahrten:
+                rows.append([_date_de(f["datum"]), f["ziel"], f["anlass"] or "", str(f["km"]).replace(".", ",")])
+                summe_km += f["km"]
+            rows.append([])
+            rows.append(["", "", "Summe km", str(round(summe_km, 1)).replace(".", ",")])
+            rows.append(["", "", "× 0,30 €/km", format_cent_de(round(summe_km * 30))])
+            zf.writestr(f"fahrten-{jahr}.csv", _csv_to_bytes(rows))
         for r in conn.execute(
             """
             SELECT bel.*, b.datum FROM beleg bel

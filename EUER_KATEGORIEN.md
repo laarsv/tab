@@ -111,6 +111,7 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 | Übernachtungs-/Reisenebenkosten (Geschäftsreise) | **44** | Verpflegung separat (Z64) | ✅ |
 | Software/Hosting/SaaS (Hetzner, Brevo, Apple Developer 99 €, Domains) | **60** | „übrige unbeschränkt abziehbar" | ✅ |
 | Bürobedarf / Porto / sonstige laufende Kosten | **60** | Catch-all | ✅ |
+| Kontoführung & Zahlungsgebühren (Bank, PayPal, Stripe) | **60** | häufigster Kleinposten | ✅ |
 
 > **Zu den ⚠️-Zeilen (43–54):** Die exakte Formularzeile setze ich beim finalen Abgleich gegen
 > den Vordruck 2025. Bis dahin sicherer Default: **Zeile 60** (übrige unbeschränkt abziehbare BA).

@@ -58,7 +58,8 @@ beschreibung), `buchung_position` (**je Position eine Kategorie + Betrag** — e
 mehrere Positionen haben), `afa_buchung` (Wirtschaftsgüter, inkl. **nullable `abgang_datum`**),
 `beleg` (Datei mit `gewerbe_id` + **nullable** `buchung_id` = Eingang/zugeordnet). Migrationen:
 v1 = Grundschema, v2 = `besteuerung` + `beleg`, v3 = `buchung_position` + Beleg-Eingang
-(buchung→Kopf, beleg→gewerbe-bezogen, nullable), v4 = `afa_buchung.abgang_datum`.
+(buchung→Kopf, beleg→gewerbe-bezogen, nullable), v4 = `afa_buchung.abgang_datum`,
+v5 = `fahrt` (Fahrten-Liste für die km-Pauschale).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -126,9 +127,21 @@ der Mapping-Version des Jahres aufgelöst.
   `key={beleg.id}` remountet das Modal je Beleg.
 - **Jahres-Check (`/check`, `pages/JahresCheck.jsx` + `lib/jahresCheck.js`):** geführte
   Themenliste für Einsteiger (Auto, Handy, Homeoffice, Bewirtung …). Status kommt automatisch
-  aus den Buchungen des Jahres (Summe je Kategorie-Key); „Nicht relevant" liegt in
-  localStorage (`tab_check_{gewerbe}_{jahr}`). Aktionen öffnen das BuchungModal mit
-  `presetKategorieId`. Themen ändern = nur `TOPICS` in `lib/jahresCheck.js` pflegen.
+  aus den Buchungen des Jahres (Summe je Kategorie-Key); **Info-Themen** (`info: true`, z. B.
+  §19-Hinweis, Steuer-Rücklage, Gründungskosten) werden per Erledigt-Haken abgehakt.
+  „Nicht relevant"/„Erledigt" liegen in localStorage (`tab_check_{gewerbe}_{jahr}`,
+  `loadCheckState`). Aktionen öffnen das BuchungModal mit `presetKategorieId` (+ optional
+  `presetBetragCent`/`presetBeschreibung`); `links` verlinken Seiten. Dazu die statische
+  „Gehört NICHT hierher"-Karte (`NICHT_ABSETZBAR`). Themen ändern = `lib/jahresCheck.js`.
+- **Fahrten-Liste (`/fahrten`, `routes/fahrten.py`, Tabelle `fahrt`):** Nachweis-Liste für die
+  km-Pauschale (Privatwagen, Zeile 71) — Datum/Ziel/Anlass/km, Summe × 0,30 € per Klick als
+  Buchung (fahrtkosten_kfz) übernehmen. **Bewusst KEIN Fahrtenbuch** i. S. d. 1 %-Alternative
+  (Unveränderbarkeits-Anforderungen kann Tab nicht erfüllen — nicht versprechen!). Die Liste
+  landet als `fahrten-{jahr}.csv` im Jahres-ZIP. Nicht in der Nav — verlinkt aus dem
+  Jahres-Check (Auto-Thema).
+- **E-Rechnung:** Beleg-Eingang akzeptiert auch **XML** (XRechnung/ZUGFeRD) — Empfangs-/
+  Archivpflicht gilt seit 2025 auch für KU. Kein Parsing/Viewer, keine E-Rechnungs-
+  *Erstellung* (KU sind von der Ausstellungspflicht dauerhaft befreit, JStG 2024).
 
 ## Tests / Validierung
 

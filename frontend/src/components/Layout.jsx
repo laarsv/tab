@@ -5,7 +5,7 @@ import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
-import { countOffeneTopics, loadNichtRelevant } from '../lib/jahresCheck.js';
+import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
 
 function NavBadge({ n }) {
   return (
@@ -134,7 +134,7 @@ export default function Layout() {
         api.get('/api/kategorien', { params: { jahr: j } }),
         api.get('/api/buchungen', { params: { gewerbe_id: gid, jahr: j } }),
       ]);
-      setCheckOffen(countOffeneTopics(kat.data, buch.data, loadNichtRelevant(gid, j)));
+      setCheckOffen(countOffeneTopics(kat.data, buch.data, loadCheckState(gid, j)));
     } catch {
       setCheckOffen(0);
     }

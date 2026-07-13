@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .config import settings
 from .db import _connect, init_pragmas
 from .migrations import run_migrations
-from .routes import afa, belege, buchungen, export, gewerbe, kategorien, meta
+from .routes import afa, belege, buchungen, export, fahrten, gewerbe, kategorien, meta
 from .seed import seed
 from .auth.router import router as auth_router
 
@@ -63,5 +63,6 @@ app.include_router(kategorien.router)
 app.include_router(buchungen.router)
 app.include_router(belege.router)
 app.include_router(afa.router)
+app.include_router(fahrten.router)
 app.include_router(export.router)
 app.include_router(meta.router)

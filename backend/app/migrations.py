@@ -184,6 +184,24 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE afa_buchung ADD COLUMN abgang_datum TEXT;
         """,
     ),
+    Migration(
+        version=5,
+        sql="""
+        -- v5: Fahrten-Liste für die km-Pauschale (Privatwagen, Zeile 71).
+        --     KEIN Fahrtenbuch i. S. d. 1 %-Alternative — nur Nachweis-Liste
+        --     („glaubhaft machen"): Datum, Ziel, Anlass, km.
+        CREATE TABLE fahrt (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            datum       TEXT    NOT NULL,
+            ziel        TEXT    NOT NULL,
+            anlass      TEXT,
+            km          REAL    NOT NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_fahrt_gewerbe_datum ON fahrt(gewerbe_id, datum);
+        """,
+    ),
 ]
 
 
