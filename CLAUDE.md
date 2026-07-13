@@ -116,6 +116,14 @@ der Mapping-Version des Jahres aufgelöst.
   deutsch, Kategorie = Key oder Name. **Alles-oder-nichts** — bei Fehlern 400 mit Zeilenliste.
 - **Datum≠Jahr-Hinweis:** BuchungModal warnt (weich), wenn das Buchungsdatum nicht im global
   gewählten Jahr liegt — sonst „verschwindet" die Buchung hinter dem Jahresfilter.
+- **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
+  (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
+  `key={beleg.id}` remountet das Modal je Beleg.
+- **Jahres-Check (`/check`, `pages/JahresCheck.jsx` + `lib/jahresCheck.js`):** geführte
+  Themenliste für Einsteiger (Auto, Handy, Homeoffice, Bewirtung …). Status kommt automatisch
+  aus den Buchungen des Jahres (Summe je Kategorie-Key); „Nicht relevant" liegt in
+  localStorage (`tab_check_{gewerbe}_{jahr}`). Aktionen öffnen das BuchungModal mit
+  `presetKategorieId`. Themen ändern = nur `TOPICS` in `lib/jahresCheck.js` pflegen.
 
 ## Tests / Validierung
 

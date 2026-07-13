@@ -22,6 +22,7 @@ export default function Eingang() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [verbuchen, setVerbuchen] = useState(null); // beleg objekt
+  const [wizard, setWizard] = useState(null); // { queue: beleg[], i } — Abarbeiten-Modus
   const inputRef = useRef(null);
 
   async function load() {
@@ -80,21 +81,47 @@ export default function Eingang() {
     }
   }
 
+  // Wizard: einen Beleg nach dem anderen verbuchen (Warteschlange = Snapshot beim Start).
+  function startWizard() {
+    setWizard({ queue: items, i: 0 });
+  }
+  function advanceWizard(queue, i) {
+    if (i + 1 < queue.length) {
+      setWizard({ queue, i: i + 1 });
+    } else {
+      setWizard(null);
+      toast.success('Alle Belege abgearbeitet. 🎉');
+    }
+  }
+
   if (!gewerbeId) return <NoGewerbe />;
   if (loading) return <PageSpinner />;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Eingang</h1>
           <p className="text-xs text-ink/60 mt-0.5">
-            Belege sammeln und später (z. B. monatlich) verbuchen. PDF/JPG/PNG.
+            {items.length > 0
+              ? `Noch ${items.length} ${items.length === 1 ? 'Beleg' : 'Belege'} zu bearbeiten.`
+              : 'Belege sammeln und später (z. B. monatlich) verbuchen. PDF/JPG/PNG.'}
           </p>
         </div>
-        <button className="btn-primary w-full sm:w-auto" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? 'Lädt…' : '+ Belege hochladen'}
-        </button>
+        <div className="flex gap-2">
+          {items.length > 0 && (
+            <button className="btn-primary" onClick={startWizard}>
+              Jetzt abarbeiten ({items.length})
+            </button>
+          )}
+          <button
+            className={items.length > 0 ? 'btn-outline' : 'btn-primary'}
+            onClick={() => inputRef.current?.click()}
+            disabled={busy}
+          >
+            {busy ? 'Lädt…' : '+ Belege hochladen'}
+          </button>
+        </div>
         <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={upload} />
       </div>
 
@@ -138,6 +165,28 @@ export default function Eingang() {
           kategorien={kategorien}
           onClose={() => setVerbuchen(null)}
           onSaved={load}
+        />
+      )}
+
+      {wizard && (
+        <BuchungModal
+          key={wizard.queue[wizard.i].id}
+          preBelege={[wizard.queue[wizard.i]]}
+          gewerbeId={gewerbeId}
+          jahr={jahr}
+          kategorien={kategorien}
+          wizard={{
+            pos: wizard.i + 1,
+            total: wizard.queue.length,
+            onSkip: () => advanceWizard(wizard.queue, wizard.i),
+          }}
+          onClose={() => setWizard(null)}
+          onSaved={async () => {
+            // onClose läuft im Modal vor onSaved (setzt wizard=null) — hier mit den
+            // eingefangenen Werten weiterschalten, damit der Wizard nicht abbricht.
+            await load();
+            advanceWizard(wizard.queue, wizard.i);
+          }}
         />
       )}
     </div>

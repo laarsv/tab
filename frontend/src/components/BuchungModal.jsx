@@ -4,6 +4,7 @@ import { api, apiError } from '../api/client.js';
 import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
+import { openBeleg } from '../lib/belege.js';
 import { formatEuro, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 
 const BELEG_PLACEHOLDER = {
@@ -89,7 +90,19 @@ function emptyPos() {
 
 // Gemeinsames Modal für Buchungen (Beleg-Kopf + 1..n Positionen).
 // preBelege: Eingangs-Belege, die beim Anlegen verknüpft werden.
-export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr, kategorien, onClose, onSaved }) {
+// presetKategorieId: startet die erste Position mit dieser Kategorie (Jahres-Check).
+// wizard: { pos, total, onSkip } — Eingang-Abarbeiten-Modus (Titel + Überspringen).
+export default function BuchungModal({
+  buchung,
+  preBelege = [],
+  gewerbeId,
+  jahr,
+  kategorien,
+  presetKategorieId,
+  wizard,
+  onClose,
+  onSaved,
+}) {
   const isEdit = Boolean(buchung?.id);
   const katById = useMemo(() => Object.fromEntries(kategorien.map((k) => [String(k.id), k])), [kategorien]);
   const options = useMemo(
@@ -113,7 +126,7 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr,
           calc: {},
           beleg_details: p.beleg_details || '',
         }))
-      : [emptyPos()],
+      : [presetKategorieId ? { ...emptyPos(), kategorie_id: String(presetKategorieId) } : emptyPos()],
   );
   const [busy, setBusy] = useState(false);
 
@@ -186,7 +199,13 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr,
 
   return (
     <Modal
-      title={isEdit ? 'Buchung bearbeiten' : 'Neue Buchung'}
+      title={
+        wizard
+          ? `Beleg ${wizard.pos} von ${wizard.total} verbuchen`
+          : isEdit
+            ? 'Buchung bearbeiten'
+            : 'Neue Buchung'
+      }
       onClose={onClose}
       maxWidth="max-w-2xl"
     >
@@ -347,7 +366,20 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr,
           </div>
         ) : preBelege.length > 0 ? (
           <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
-            Wird angehängt: {preBelege.map((b) => b.original_name).join(', ')}
+            Wird angehängt:{' '}
+            {preBelege.map((b, i) => (
+              <span key={b.id}>
+                {i > 0 && ', '}
+                <button
+                  type="button"
+                  className="text-royal font-medium hover:underline"
+                  onClick={() => openBeleg(b.id)}
+                  title="Beleg ansehen"
+                >
+                  {b.original_name}
+                </button>
+              </span>
+            ))}
           </div>
         ) : (
           <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/60">
@@ -359,6 +391,11 @@ export default function BuchungModal({ buchung, preBelege = [], gewerbeId, jahr,
           <button type="button" className="btn-ghost" onClick={onClose}>
             {isEdit ? 'Schließen' : 'Abbrechen'}
           </button>
+          {wizard && (
+            <button type="button" className="btn-outline" onClick={wizard.onSkip}>
+              Überspringen
+            </button>
+          )}
           <button type="submit" className="btn-primary" disabled={busy}>
             Speichern
           </button>

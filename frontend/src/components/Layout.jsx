@@ -17,6 +17,7 @@ function NavBadge({ n }) {
 const NAV = [
   { to: '/eingang', label: 'Eingang' },
   { to: '/buchungen', label: 'Buchungen' },
+  { to: '/check', label: 'Jahres-Check' },
   { to: '/afa', label: 'AfA' },
   { to: '/export', label: 'Export' },
   { to: '/gewerbe', label: 'Gewerbe' },
