@@ -1,19 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { api, TOKEN_KEY } from '../api/client.js';
+import { api } from '../api/client.js';
 
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(localStorage.getItem(TOKEN_KEY)));
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
     let active = true;
     api
       .get('/api/auth/me')
@@ -23,25 +17,19 @@ export function AuthProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, []);
 
-  async function login(username, password) {
-    const res = await api.post('/api/auth/login', { username, password });
-    localStorage.setItem(TOKEN_KEY, res.data.access_token);
-    setToken(res.data.access_token);
-  }
-
-  function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+  async function logout() {
+    try {
+      await api.post('/api/auth/logout');
+    } catch {
+      /* egal — Cookie wird serverseitig gelöscht, Client leitet trotzdem um */
+    }
     setUser(null);
+    window.location.href = '/login';
   }
 
-  return (
-    <AuthCtx.Provider value={{ token, user, loading, login, logout }}>
-      {children}
-    </AuthCtx.Provider>
-  );
+  return <AuthCtx.Provider value={{ user, loading, logout }}>{children}</AuthCtx.Provider>;
 }
 
 export function useAuth() {

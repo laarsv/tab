@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
 from .db import _connect, init_pragmas
@@ -32,6 +33,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tab", lifespan=lifespan)
+
+# OAuth-State (Authlib) läuft über die Starlette-Session (signiertes Cookie).
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SESSION_SECRET,
+    https_only=settings.COOKIE_SECURE,
+    same_site="lax",
+)
 
 if settings.cors_origins_list:
     app.add_middleware(

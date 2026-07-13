@@ -42,13 +42,16 @@ DB_PATH=./tab.db uvicorn app.main:app --reload
 cd frontend && npm install && npm run dev
 ```
 
-## Passwort-Hash erzeugen
+## Auth (Google OAuth)
 
-```bash
-python3 scripts/hash_password.py            # fragt interaktiv (verdeckt)
-python3 scripts/hash_password.py 'pw'       # direkt
-```
-Gibt eine Zeile `ADMIN_PASSWORD_HASH=...` aus → in die `.env` übernehmen.
+Login läuft über **Google OAuth** (wie die anderen Tools); Session als HttpOnly-Cookie.
+Single-User über E-Mail-Allowlist — nur `ALLOWED_EMAILS` dürfen rein.
+
+Einmalig einrichten:
+1. **Google Cloud Console** → OAuth-2.0-Client, Typ „Web application".
+2. **Autorisierte Redirect-URI:** `https://tab.vrwb.de/api/auth/callback`.
+3. Client-ID/-Secret in die `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
+4. `ALLOWED_EMAILS=verwiebelars@gmail.com`, `JWT_SECRET` + `SESSION_SECRET` (`openssl rand -hex 32`).
 
 ## Deployment (Hetzner, Docker-Compose)
 
@@ -56,9 +59,9 @@ Siehe `scripts/deploy.sh` und `caddy.snippet`.
 
 ```bash
 # auf dem Server, einmalig:
-mkdir -p /opt/appdata/tab/data
+mkdir -p /opt/appdata/tab/data /opt/appdata/tab/uploads
 git clone <repo> tab && cd tab
-cp .env.example .env && nano .env           # Hash + JWT_SECRET setzen
+cp .env.example .env && nano .env           # Google-OAuth + Secrets setzen
 
 ./scripts/deploy.sh                          # build + up -d + Healthcheck
 # caddy.snippet an /opt/appdata/caddy/Caddyfile anhängen und Caddy reloaden
@@ -89,7 +92,7 @@ unberührt (sie speichern die Kategorie, nicht die Zeile).
 
 | Methode | Pfad | Zweck |
 |---|---|---|
-| POST | `/api/auth/login` | Login → Bearer-Token |
+| GET | `/api/auth/login` · `/callback` · `/me` · POST `/logout` | Google-OAuth-Login (Cookie-Session) |
 | GET | `/api/gewerbe` · POST · PATCH `/{id}` | Gewerbe-Verwaltung |
 | GET | `/api/kategorien?jahr=` | Kategorien inkl. aufgelöster Zeile |
 | GET/POST/PATCH/DELETE | `/api/buchungen` | Buchungen CRUD |

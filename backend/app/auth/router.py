@@ -1,42 +1,53 @@
-"""Login-Endpunkte: POST /api/auth/login, GET /api/auth/me."""
+"""Google-OAuth-Login (wie die anderen Tools): Redirect → Callback → Session-Cookie."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Depends, Request, Response
+from fastapi.responses import RedirectResponse
 
 from ..config import settings
+from .cookies import clear_session_cookie, set_session_cookie
 from .deps import get_current_user
-from .security import create_token, verify_password
+from .google import oauth
+from .session import encode_session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-class LoginIn(BaseModel):
-    username: str
-    password: str
+@router.get("/login")
+async def login(request: Request):
+    return await oauth.google.authorize_redirect(request, settings.OAUTH_REDIRECT_URI)
 
 
-class TokenOut(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+@router.get("/callback")
+async def callback(request: Request):
+    frontend = settings.FRONTEND_URL.rstrip("/") or ""
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception:
+        return RedirectResponse(f"{frontend}/login?{urlencode({'error': 'oauth_failed'})}")
+
+    userinfo = token.get("userinfo") or await oauth.google.userinfo(token=token)
+    email = (userinfo.get("email") or "").lower()
+    name = userinfo.get("name") or email
+    picture = userinfo.get("picture")
+
+    if not email or email not in settings.allowed_emails_list:
+        return RedirectResponse(f"{frontend}/login?{urlencode({'error': 'not_allowed'})}")
+
+    response = RedirectResponse(settings.FRONTEND_URL or "/")
+    set_session_cookie(response, encode_session(email, name=name, picture=picture))
+    return response
 
 
-class MeOut(BaseModel):
-    username: str
+@router.post("/logout", status_code=204)
+async def logout():
+    response = Response(status_code=204)
+    clear_session_cookie(response)
+    return response
 
 
-@router.post("/login", response_model=TokenOut)
-def login(body: LoginIn) -> TokenOut:
-    ok = body.username == settings.ADMIN_USERNAME and verify_password(
-        body.password, settings.ADMIN_PASSWORD_HASH
-    )
-    if not ok:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Benutzername oder Passwort falsch."
-        )
-    return TokenOut(access_token=create_token(settings.ADMIN_USERNAME))
-
-
-@router.get("/me", response_model=MeOut)
-def me(user: str = Depends(get_current_user)) -> MeOut:
-    return MeOut(username=user)
+@router.get("/me")
+def me(user: dict = Depends(get_current_user)):
+    return user

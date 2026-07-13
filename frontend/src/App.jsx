@@ -10,9 +10,9 @@ import Export from './pages/Export.jsx';
 import Gewerbe from './pages/Gewerbe.jsx';
 
 function Protected({ children }) {
-  const { token, user, loading } = useAuth();
+  const { user, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (!token || !user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 

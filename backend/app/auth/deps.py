@@ -1,21 +1,24 @@
-"""Auth-Dependency: schützt Routen via Authorization: Bearer <token>."""
+"""Auth-Dependency: Session aus HttpOnly-Cookie, gegen E-Mail-Allowlist geprüft."""
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import HTTPException, Request, status
 
 from ..config import settings
-from .security import decode_token
-
-_bearer = HTTPBearer(auto_error=False)
+from .session import decode_session
 
 
-def get_current_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
-) -> str:
-    if creds is None or not creds.credentials:
+def get_current_user(request: Request) -> dict:
+    token = request.cookies.get(settings.COOKIE_NAME)
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not_authenticated")
-    payload = decode_token(creds.credentials)
-    if not payload or payload.get("sub") != settings.ADMIN_USERNAME:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_token")
-    return payload["sub"]
+
+    payload = decode_session(token)
+    email = (payload or {}).get("email", "").lower()
+    if not email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_session")
+
+    # Allowlist bei jedem Request prüfen → Entzug wirkt sofort.
+    if email not in settings.allowed_emails_list:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not_allowed")
+
+    return {"email": email, "name": payload.get("name"), "picture": payload.get("picture")}

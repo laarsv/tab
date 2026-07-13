@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -24,7 +24,6 @@ const NAV = [
 
 export default function Layout() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [drawer, setDrawer] = useState(false);
 
   const [gewerbe, setGewerbe] = useState([]);
@@ -105,8 +104,7 @@ export default function Layout() {
   };
 
   function doLogout() {
-    logout();
-    navigate('/login');
+    logout(); // POST /logout + Redirect nach /login übernimmt der AuthContext
   }
 
   const linkBase = 'px-3 py-1.5 rounded-md text-sm font-bold transition';
@@ -225,7 +223,7 @@ export default function Layout() {
       <footer className="border-t border-ink/10">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 text-xs text-ink/50">
           Tab · EÜR für Kleinunternehmer (§19 UStG) · keine Steuerberatung · angemeldet als{' '}
-          {user?.username}
+          {user?.name || user?.email}
         </div>
       </footer>
     </div>

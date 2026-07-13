@@ -37,9 +37,15 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 - **Seed:** `app/seed.py`, **idempotent per ON CONFLICT DO UPDATE**. Läuft bei jedem Start
   (FastAPI-`lifespan` in `app/main.py`). Stammdaten (kategorie, euer_jahr, euer_zeile,
   euer_mapping) werden geseedet/aktualisiert; Nutzerdaten nie angefasst.
-- **Auth:** Single-User aus `.env` (`ADMIN_USERNAME` + bcrypt `ADMIN_PASSWORD_HASH`),
-  JWT-**Bearer** im `Authorization`-Header (`app/auth/`). Kein User-Table, keine Cookies.
-  Frontend hält den Token in `localStorage` (`src/api/client.js`).
+- **Auth:** **Google OAuth** (Authlib, wie die anderen Tools) — `app/auth/` (`google.py`,
+  `router.py` login/callback/logout/me, `session.py` JWT, `cookies.py`, `deps.py`). Session als
+  **HttpOnly-JWT-Cookie** (`COOKIE_NAME`), OAuth-State via Starlette-`SessionMiddleware`
+  (`SESSION_SECRET`). Single-User über **E-Mail-Allowlist** (`ALLOWED_EMAILS`, kein User-Table,
+  da Gmail keine Domain-Allowlist erlaubt); `get_current_user` prüft die Allowlist bei jedem
+  Request. Frontend nutzt **Cookies** (`withCredentials`, kein localStorage/Bearer), Login = Full-Page
+  auf `/api/auth/login`. Setup: OAuth-Client in Google Cloud, Redirect-URI
+  `https://tab.vrwb.de/api/auth/callback`, `.env` (GOOGLE_CLIENT_ID/SECRET, ALLOWED_EMAILS,
+  JWT_SECRET, SESSION_SECRET).
 - **Frontend:** React 18 + Vite + Tailwind (JS, kein TS). Globale Filter (Gewerbe + Jahr)
   leben im `Layout` und werden via `useOutletContext()` an die Pages gereicht.
 

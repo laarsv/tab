@@ -1,29 +1,20 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { apiError } from '../api/client.js';
-import Spinner from '../components/Spinner.jsx';
+import { loginUrl } from '../api/client.js';
+import { PageSpinner } from '../components/Spinner.jsx';
+
+const ERRORS = {
+  not_allowed: 'Diese Google-Adresse ist nicht freigeschaltet.',
+  oauth_failed: 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.',
+};
 
 export default function Login() {
-  const { token, user, login } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { user, loading } = useAuth();
+  const [params] = useSearchParams();
+  const error = params.get('error');
 
-  if (token && user) return <Navigate to="/buchungen" replace />;
-
-  async function onSubmit(e) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await login(username.trim(), password);
-      window.location.href = '/buchungen';
-    } catch (err) {
-      toast.error(apiError(err, 'Anmeldung fehlgeschlagen.'));
-      setBusy(false);
-    }
-  }
+  if (loading) return <PageSpinner />;
+  if (user) return <Navigate to="/buchungen" replace />;
 
   return (
     <div className="relative min-h-screen bg-ink overflow-hidden flex items-center justify-center">
@@ -43,31 +34,23 @@ export default function Login() {
           <p className="mt-2 text-sm text-paper/70">EÜR-Buchhaltung für Kleinunternehmer</p>
         </div>
 
-        <form onSubmit={onSubmit} className="card p-6 space-y-4">
-          <label className="block">
-            <span className="field-label">Benutzername</span>
-            <input
-              className="input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoFocus
-            />
-          </label>
-          <label className="block">
-            <span className="field-label">Passwort</span>
-            <input
-              type="password"
-              className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          <button type="submit" disabled={busy} className="btn-primary w-full shadow-lg">
-            {busy ? <Spinner size="sm" /> : 'Anmelden'}
-          </button>
-        </form>
+        <div className="card p-6 space-y-4">
+          {error && (
+            <div className="p-3 rounded bg-red-50 border-l-4 border-red-500 text-red-900 text-sm">
+              {ERRORS[error] || 'Anmeldung fehlgeschlagen.'}
+            </div>
+          )}
+          <p className="text-sm text-ink/60">Melde dich mit deinem freigeschalteten Google-Konto an.</p>
+          <a href={loginUrl} className="btn-primary w-full shadow-lg gap-2">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M21.35 11.1H12v2.98h5.35c-.23 1.4-1.63 4.1-5.35 4.1a5.16 5.16 0 1 1 0-10.32c1.47 0 2.46.63 3.02 1.17l2.06-1.99A8.03 8.03 0 0 0 12 4.5 8.5 8.5 0 1 0 12 21.5c4.91 0 8.15-3.45 8.15-8.3 0-.56-.06-.99-.14-1.42z"
+              />
+            </svg>
+            Mit Google anmelden
+          </a>
+        </div>
       </div>
     </div>
   );

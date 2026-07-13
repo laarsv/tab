@@ -2,23 +2,18 @@ import axios from 'axios';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '';
 
-export const TOKEN_KEY = 'tab_token';
+// Session läuft über ein HttpOnly-Cookie (Google-OAuth) → withCredentials.
+export const api = axios.create({ baseURL, withCredentials: true });
 
-export const api = axios.create({ baseURL });
+// URL zum Start des Google-Logins (Full-Page-Navigation zum Backend).
+export const loginUrl = `${baseURL}/api/auth/login`;
 
-// Bearer-Token aus localStorage an jeden Request hängen.
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-// Bei 401 Token verwerfen und auf Login leiten.
+// Bei 401 (außer beim /me-Probe) auf Login leiten — /me handhabt der AuthContext.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
+    const url = err.config?.url || '';
+    if (err.response?.status === 401 && !url.includes('/api/auth/me')) {
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }
