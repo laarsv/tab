@@ -26,8 +26,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     OAUTH_REDIRECT_URI: str = "https://tab.vrwb.de/api/auth/callback"
-    # Nur diese E-Mails dürfen sich anmelden (Komma-getrennt). Single-User.
+    # Anmeldung erlaubt für: diese exakten E-Mails (Komma-getrennt) ODER ...
     ALLOWED_EMAILS: str = ""
+    # ... jede Adresse dieser Domains (Komma-getrennt, z. B. "koenigswege.com").
+    ALLOWED_EMAIL_DOMAINS: str = ""
     # Wohin nach Login/Logout zurück (Frontend-Origin).
     FRONTEND_URL: str = "https://tab.vrwb.de"
 
@@ -49,6 +51,22 @@ class Settings(BaseSettings):
     @property
     def allowed_emails_list(self) -> list[str]:
         return [e.strip().lower() for e in self.ALLOWED_EMAILS.split(",") if e.strip()]
+
+    @property
+    def allowed_email_domains_list(self) -> list[str]:
+        return [
+            d.strip().lower().lstrip("@")
+            for d in self.ALLOWED_EMAIL_DOMAINS.split(",")
+            if d.strip()
+        ]
+
+    def is_email_allowed(self, email: str) -> bool:
+        e = (email or "").strip().lower()
+        if not e or "@" not in e:
+            return False
+        if e in self.allowed_emails_list:
+            return True
+        return e.split("@")[-1] in self.allowed_email_domains_list
 
 
 settings = Settings()

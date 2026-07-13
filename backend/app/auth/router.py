@@ -33,7 +33,7 @@ async def callback(request: Request):
     name = userinfo.get("name") or email
     picture = userinfo.get("picture")
 
-    if not email or email not in settings.allowed_emails_list:
+    if not settings.is_email_allowed(email):
         return RedirectResponse(f"{frontend}/login?{urlencode({'error': 'not_allowed'})}")
 
     response = RedirectResponse(settings.FRONTEND_URL or "/")

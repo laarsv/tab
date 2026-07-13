@@ -17,8 +17,8 @@ def get_current_user(request: Request) -> dict:
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_session")
 
-    # Allowlist bei jedem Request prüfen → Entzug wirkt sofort.
-    if email not in settings.allowed_emails_list:
+    # Allowlist (E-Mail oder Domain) bei jedem Request prüfen → Entzug wirkt sofort.
+    if not settings.is_email_allowed(email):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not_allowed")
 
     return {"email": email, "name": payload.get("name"), "picture": payload.get("picture")}
