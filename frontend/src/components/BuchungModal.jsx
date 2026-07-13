@@ -55,15 +55,29 @@ const CALCULATORS = {
   kfz_privatnutzung: {
     fields: [
       { key: 'listenpreis', label: 'Bruttolistenpreis (€)', placeholder: 'z. B. 42.300' },
+      {
+        key: 'satz',
+        label: 'Antrieb',
+        type: 'select',
+        default: '1',
+        options: [
+          { value: '1', label: 'Verbrenner — 1 %' },
+          { value: '0.5', label: 'Plug-in-Hybrid — 0,5 %' },
+          { value: '0.25', label: 'E-Auto — 0,25 %' },
+        ],
+      },
       { key: 'monate', label: 'Monate', placeholder: '12' },
     ],
-    hint: '1 % vom auf volle 100 € abgerundeten Listenpreis, je Monat',
+    hint: 'Satz × Listenpreis (auf volle 100 € abgerundet), je Monat',
     compute: (c) => {
       const lpCent = parseEuroToCent(c.listenpreis);
       const monate = num(c.monate);
+      const satz = Number(c.satz || '1');
       if (!lpCent || lpCent <= 0 || monate === null || monate <= 0) return null;
-      const monatlichCent = Math.floor(lpCent / 100_00) * 100; // volle 100 € abrunden, davon 1 %
-      return Math.round(monatlichCent * monate);
+      // Bemessungsgrundlage: ggf. hälftiger/viertel Listenpreis, auf volle 100 € abgerundet;
+      // davon 1 % je Monat.
+      const basisCent = Math.floor((lpCent * satz) / 100_00) * 100_00;
+      return Math.round((basisCent / 100) * monate);
     },
   },
   verpflegungsmehraufwand: {
@@ -278,19 +292,38 @@ export default function BuchungModal({
 
                 {calcDef && (
                   <div className="rounded-lg bg-royal-soft/10 p-2.5 space-y-2">
-                    <div className={calcDef.fields.length > 1 ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3'}>
-                      {calcDef.fields.map((f) => (
-                        <label key={f.key} className="block">
-                          <span className="field-label">{f.label}</span>
-                          <input
-                            className="input tabular-nums"
-                            inputMode="decimal"
-                            value={p.calc[f.key] || ''}
-                            onChange={(e) => setCalcField(i, p, calcDef, f.key, e.target.value)}
-                            placeholder={f.placeholder}
-                          />
-                        </label>
-                      ))}
+                    <div
+                      className={
+                        calcDef.fields.length > 2
+                          ? 'grid grid-cols-1 sm:grid-cols-3 gap-3'
+                          : calcDef.fields.length > 1
+                            ? 'grid grid-cols-2 gap-3'
+                            : 'grid grid-cols-1 gap-3'
+                      }
+                    >
+                      {calcDef.fields.map((f) =>
+                        f.type === 'select' ? (
+                          <div key={f.key} className="block">
+                            <span className="field-label">{f.label}</span>
+                            <Dropdown
+                              value={p.calc[f.key] ?? f.default}
+                              onChange={(v) => setCalcField(i, p, calcDef, f.key, String(v))}
+                              options={f.options}
+                            />
+                          </div>
+                        ) : (
+                          <label key={f.key} className="block">
+                            <span className="field-label">{f.label}</span>
+                            <input
+                              className="input tabular-nums"
+                              inputMode="decimal"
+                              value={p.calc[f.key] || ''}
+                              onChange={(e) => setCalcField(i, p, calcDef, f.key, e.target.value)}
+                              placeholder={f.placeholder}
+                            />
+                          </label>
+                        ),
+                      )}
                     </div>
                     <span className="block text-xs text-ink/60">
                       Rechner: {calcDef.hint} — Ergebnis landet im Betragsfeld.
@@ -323,9 +356,11 @@ export default function BuchungModal({
                 {isKfz1Prozent && (
                   <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
                     Voraussetzung: Kfz zu <strong>&gt; 50 %</strong> betrieblich genutzt (Betriebsvermögen).
-                    Die laufenden Kfz-Kosten separat als „Kfz-Kosten Betriebs-Kfz" buchen. Nicht abgedeckt:
-                    0,03 %-Kürzung für Wege Wohnung–Betrieb (Zeile 72), Kostendeckelung, Fahrtenbuch —
-                    im Zweifel Steuerberater.
+                    <strong> E-Auto (0,25 %)</strong> gilt bis 70.000 € Listenpreis (Anschaffung ab
+                    07/2025: 100.000 €), darüber 0,5 %; <strong>Plug-in-Hybrid (0,5 %)</strong> nur mit
+                    ausreichender E-Reichweite. Die laufenden Kfz-Kosten separat als „Kfz-Kosten
+                    Betriebs-Kfz" buchen. Nicht abgedeckt: 0,03 %-Kürzung für Wege Wohnung–Betrieb
+                    (Zeile 72), Kostendeckelung, Fahrtenbuch — im Zweifel Steuerberater.
                   </div>
                 )}
                 {warnGeschenke && (

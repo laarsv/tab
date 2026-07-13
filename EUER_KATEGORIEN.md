@@ -138,8 +138,11 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 > **Betriebs-Kfz mit 1 %-Regelung (integriert, bewusst schlank):** Laufende Kfz-Kosten als
 > „Kfz-Kosten Betriebs-Kfz" buchen (⚠ vorläufig Zeile 60, final 68–70 — gewinnneutral), die
 > private Nutzung monatlich/jährlich als Nutzungsentnahme über die Einnahme-Kategorie
-> „Private Kfz-Nutzung (1 %-Regelung)" (Zeile 20). Der UI-Rechner nimmt 1 % vom auf volle
-> 100 € **abgerundeten Bruttolistenpreis** je Monat. **Nicht abgedeckt** (Steuerberater/ELSTER):
+> „Private Kfz-Nutzung (1 %-Regelung)" (Zeile 20). Der UI-Rechner nimmt je Monat 1 % der
+> **Bemessungsgrundlage** = Bruttolistenpreis × Antriebs-Satz (Verbrenner 1,0 · Plug-in-Hybrid
+> 0,5 · E-Auto 0,25), auf volle 100 € abgerundet. Grenzen (weicher Hinweis, keine harte
+> Prüfung): 0,25 % nur bis 70.000 € Listenpreis (Anschaffung ab 07/2025: 100.000 €), Hybrid
+> nur mit Mindest-E-Reichweite. **Nicht abgedeckt** (Steuerberater/ELSTER):
 > 0,03 %-Kürzung für Wege Wohnung–Betrieb (Z72), Kostendeckelung, Fahrtenbuch-Methode,
 > USt auf die Wertabgabe. Vereinfachung: Die 1 %-Entnahme zählt im Tool **nicht** zur
 > KU-Grenze (`ku_umsatz` bleibt nur `einnahme_ku`).

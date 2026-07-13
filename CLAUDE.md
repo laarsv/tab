@@ -82,8 +82,9 @@ der Mapping-Version des Jahres aufgelöst.
   Soft-Hinweise: Geschenke > 50 € (Freigrenze), Homeoffice > 1.260 €/Jahr.
 - **Rechner-Helfer (`BuchungModal.jsx`, `CALCULATORS`):** Fahrtkosten (km × 0,30 €),
   Entfernungspauschale (Tage × km, 0,30/0,38 ab km 21), Homeoffice (Tage × 6 €),
-  Verpflegungsmehraufwand (28/14 €), 1 %-Regelung (1 % vom auf 100 € abgerundeten
-  Listenpreis × Monate). Sie **füllen nur das Betragsfeld** — das Betragsfeld bleibt
+  Verpflegungsmehraufwand (28/14 €), 1 %-Regelung (Listenpreis × Antriebs-Satz 1/0,5/0,25
+  für Verbrenner/Hybrid/E-Auto, auf 100 € abgerundet, × Monate; Select-Feldtyp im
+  CALCULATORS-Framework). Sie **füllen nur das Betragsfeld** — das Betragsfeld bleibt
   Quelle der Wahrheit, Backend speichert nur den Betrag (Edit-sicher).
 - **1 %-Regelung (Betriebs-Kfz), bewusst schlank:** Entnahme = Einnahme-Kategorie
   `kfz_privatnutzung` (Zeile 20, ⚠), Kosten = `kfz_kosten` (vorläufig Zeile 60, final 68–70).
