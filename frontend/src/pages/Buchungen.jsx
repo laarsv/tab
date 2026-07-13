@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
+import Dropdown from '../components/Dropdown.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE } from '../lib/format.js';
+
+const MONATE = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
 
 function NoGewerbe() {
   return (
@@ -21,6 +27,11 @@ export default function Buchungen() {
   const [kennzahlen, setKennzahlen] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // { buchung? } | null
+  const [query, setQuery] = useState('');
+  const [filterKat, setFilterKat] = useState('');
+  const [filterMonat, setFilterMonat] = useState('');
+  const [importing, setImporting] = useState(false);
+  const importRef = useRef(null);
 
   async function load() {
     if (!gewerbeId) {
@@ -61,6 +72,74 @@ export default function Buchungen() {
     }
   }
 
+  function duplicate(b) {
+    // Kopie ohne id/datum: Modal startet als „Neue Buchung" mit heutigem Datum.
+    setModal({
+      buchung: {
+        beschreibung: b.beschreibung,
+        positionen: b.positionen.map((p) => ({
+          kategorie_id: p.kategorie_id,
+          betrag_cent: p.betrag_cent,
+          beleg_details: p.beleg_details,
+        })),
+      },
+    });
+  }
+
+  async function importCsv(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('gewerbe_id', gewerbeId);
+      const res = await api.post('/api/buchungen/import', form);
+      toast.success(`${res.data.angelegt} Buchungen importiert.`);
+      await load();
+    } catch (err) {
+      toast.error(apiError(err, 'Import fehlgeschlagen.'), { duration: 10000 });
+    } finally {
+      setImporting(false);
+      if (importRef.current) importRef.current.value = '';
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return items.filter((b) => {
+      if (filterMonat && b.datum.slice(5, 7) !== filterMonat) return false;
+      if (filterKat && !b.positionen.some((p) => String(p.kategorie_id) === filterKat)) return false;
+      if (!q) return true;
+      const haystack = [
+        b.beschreibung,
+        formatDateDE(b.datum),
+        ...b.positionen.flatMap((p) => [p.kategorie_name, p.beleg_details, formatEuro(p.betrag_cent)]),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [items, query, filterKat, filterMonat]);
+
+  const hasFilter = query.trim() || filterKat || filterMonat;
+
+  const katOptions = useMemo(
+    () => [
+      { value: '', label: 'Alle Kategorien' },
+      ...kategorien.filter((k) => !k.ist_afa).map((k) => ({ value: String(k.id), label: k.name })),
+    ],
+    [kategorien],
+  );
+  const monatOptions = useMemo(
+    () => [
+      { value: '', label: 'Alle Monate' },
+      ...MONATE.map((m, i) => ({ value: String(i + 1).padStart(2, '0'), label: m })),
+    ],
+    [],
+  );
+
   if (!gewerbeId) return <NoGewerbe />;
   if (loading) return <PageSpinner />;
 
@@ -73,9 +152,20 @@ export default function Buchungen() {
             Eine Buchung = ein Beleg/Vorgang mit einer oder mehreren Positionen.
           </p>
         </div>
-        <button className="btn-primary w-full sm:w-auto" onClick={() => setModal({})}>
-          + Buchung
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button
+            className="btn-outline btn-sm hidden sm:inline-flex"
+            onClick={() => importRef.current?.click()}
+            disabled={importing}
+            title="Semikolon-CSV: Datum;Betrag;Kategorie;Beschreibung;Beleg-Details — Datum TT.MM.JJJJ, Betrag 12,34, Kategorie als Name oder Key."
+          >
+            {importing ? 'Importiert…' : 'CSV-Import'}
+          </button>
+          <input ref={importRef} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
+          <button className="btn-primary" onClick={() => setModal({})}>
+            + Buchung
+          </button>
+        </div>
       </div>
 
       {kennzahlen && <KuGuard k={kennzahlen} />}
@@ -84,15 +174,50 @@ export default function Buchungen() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Kennzahl label="Einnahmen" cent={kennzahlen.einnahmen_cent} />
           <Kennzahl label="Ausgaben" cent={kennzahlen.ausgaben_cent} />
-          <Kennzahl label="Saldo (ohne AfA)" cent={kennzahlen.einnahmen_cent - kennzahlen.ausgaben_cent} />
+          <Kennzahl
+            label="Saldo (vor AfA & Abzugsquoten)"
+            cent={kennzahlen.einnahmen_cent - kennzahlen.ausgaben_cent}
+            hint="Gewinn laut EÜR: siehe Export"
+          />
+        </div>
+      )}
+
+      {items.length > 0 && <KategorieSummen items={items} jahr={jahr} />}
+
+      {items.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            className="input sm:max-w-xs"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Suchen (Beschreibung, Kategorie, Betrag)…"
+          />
+          <Dropdown value={filterKat} onChange={(v) => setFilterKat(String(v))} options={katOptions} variant="ghost" />
+          <Dropdown value={filterMonat} onChange={(v) => setFilterMonat(String(v))} options={monatOptions} variant="ghost" />
+          {hasFilter && (
+            <button
+              className="btn-ghost btn-sm self-start sm:self-center"
+              onClick={() => {
+                setQuery('');
+                setFilterKat('');
+                setFilterMonat('');
+              }}
+            >
+              Zurücksetzen ({filtered.length}/{items.length})
+            </button>
+          )}
         </div>
       )}
 
       {items.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">Keine Buchungen für {jahr}.</div>
+        <div className="card p-12 text-center text-ink/60">
+          Keine Buchungen für {jahr}. Tipp: Altdaten aus der Excel-Liste per CSV-Import übernehmen.
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-12 text-center text-ink/60">Keine Treffer für die aktuelle Suche/Filter.</div>
       ) : (
         <div className="space-y-3">
-          {items.map((b) => (
+          {filtered.map((b) => (
             <div key={b.id} className="card p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -128,6 +253,9 @@ export default function Buchungen() {
                 <button className="btn-outline btn-sm" onClick={() => setModal({ buchung: b })}>
                   Bearbeiten
                 </button>
+                <button className="btn-ghost btn-sm" onClick={() => duplicate(b)}>
+                  Duplizieren
+                </button>
                 <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(b.id)}>
                   Löschen
                 </button>
@@ -141,6 +269,7 @@ export default function Buchungen() {
         <BuchungModal
           buchung={modal.buchung}
           gewerbeId={gewerbeId}
+          jahr={jahr}
           kategorien={kategorien}
           onClose={() => setModal(null)}
           onSaved={load}
@@ -161,11 +290,90 @@ function Paperclip({ count }) {
   );
 }
 
-function Kennzahl({ label, cent }) {
+function Kennzahl({ label, cent, hint }) {
   return (
     <div className="card p-4">
       <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">{label}</div>
       <div className="text-xl font-black tabular-nums mt-1">{formatEuro(cent)}</div>
+      {hint && <div className="text-[11px] text-ink/50 mt-0.5">{hint}</div>}
+    </div>
+  );
+}
+
+// „Wohin ging das Geld" — Summen je Kategorie (das Pivot der Excel-Liste).
+function KategorieSummen({ items, jahr }) {
+  const [open, setOpen] = useState(false);
+  const summen = useMemo(() => {
+    const map = new Map();
+    for (const b of items) {
+      for (const p of b.positionen) {
+        const cur = map.get(p.kategorie_name) || { name: p.kategorie_name, typ: p.kategorie_typ, cent: 0, anzahl: 0 };
+        cur.cent += p.betrag_cent;
+        cur.anzahl += 1;
+        map.set(p.kategorie_name, cur);
+      }
+    }
+    const list = [...map.values()].sort((a, b) => b.cent - a.cent);
+    return {
+      einnahmen: list.filter((s) => s.typ === 'einnahme'),
+      ausgaben: list.filter((s) => s.typ === 'ausgabe'),
+    };
+  }, [items]);
+
+  const maxCent = Math.max(1, ...summen.einnahmen.map((s) => s.cent), ...summen.ausgaben.map((s) => s.cent));
+
+  return (
+    <div className="card">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
+          Summen je Kategorie {jahr}
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className={`h-4 w-4 text-ink/50 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+          {[
+            ['Einnahmen', summen.einnahmen],
+            ['Ausgaben', summen.ausgaben],
+          ].map(([label, list]) => (
+            <div key={label}>
+              <div className="text-xs font-bold text-ink/50 uppercase tracking-wider py-1">{label}</div>
+              {list.length === 0 ? (
+                <div className="text-sm text-ink/40 py-1">—</div>
+              ) : (
+                list.map((s) => (
+                  <div key={s.name} className="py-1.5">
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="truncate">
+                        {s.name} <span className="text-ink/40 text-xs">× {s.anzahl}</span>
+                      </span>
+                      <span className="tabular-nums whitespace-nowrap font-medium">{formatEuro(s.cent)}</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-ink/5 mt-1">
+                      <div
+                        className={`h-1 rounded-full ${s.typ === 'einnahme' ? 'bg-royal' : 'bg-royal-soft'}`}
+                        style={{ width: `${Math.max(2, (s.cent / maxCent) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -177,7 +385,8 @@ function KuGuard({ k }) {
         <div>
           <div className="font-bold">Kleinunternehmer-Grenze gerissen</div>
           <div className="text-sm mt-0.5">
-            Einnahmen {formatEuro(k.einnahmen_cent)} überschreiten die laufende Grenze von{' '}
+            Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
+            Anlagenverkäufe, §19 Abs. 2 UStG) überschreiten die laufende Grenze von{' '}
             {formatEuro(k.ku_grenze_laufend_cent)}. Der KU-Status entfällt — bitte Steuerberater
             kontaktieren. Tab deckt die Regelbesteuerung nicht ab.
           </div>
@@ -191,8 +400,9 @@ function KuGuard({ k }) {
         <div>
           <div className="font-bold">Vorjahresgrenze überschritten</div>
           <div className="text-sm mt-0.5">
-            Einnahmen {formatEuro(k.einnahmen_cent)} liegen über {formatEuro(k.ku_grenze_vorjahr_cent)}.
-            Für das Folgejahr ggf. kein KU mehr — im Blick behalten, im Zweifel Steuerberater fragen.
+            Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
+            Anlagenverkäufe) liegen über {formatEuro(k.ku_grenze_vorjahr_cent)}. Für das Folgejahr ggf.
+            kein KU mehr — im Blick behalten, im Zweifel Steuerberater fragen.
           </div>
         </div>
       </div>

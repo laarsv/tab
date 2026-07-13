@@ -34,9 +34,12 @@
    Jahreswechsel — Edge-Case, nicht in Phase 1.)
 4. **Eine EÜR pro Gewerbe.** Jedes Gewerbe (z. B. Makler, App) erzeugt eine eigene Anlage EÜR.
    Das Mapping ist pro Gewerbe identisch; getrennt wird nur die Datenmenge.
-5. **KU-Grenz-Guard:** Überschreiten die Jahres-Einnahmen eines Gewerbes 25.000 € (Vorjahr)
+5. **KU-Grenz-Guard:** Überschreitet der Gesamtumsatz eines Gewerbes 25.000 € (Vorjahr)
    bzw. 100.000 € (laufend), ist der KU-Status weg. Das Tool deckt das **nicht** ab →
-   Warnhinweis ausgeben, Verweis auf Steuerberater.
+   Warnhinweis ausgeben, Verweis auf Steuerberater. **Wichtig (§19 Abs. 2 UStG):** Beim
+   Gesamtumsatz bleiben steuerfreie Umsätze nach §4 Nr. 11 (Courtage!) und Umsätze von
+   Wirtschaftsgütern des Anlagevermögens **außer Ansatz** — der Guard vergleicht daher nur
+   die Kategorie „Einnahme Kleinunternehmer" (`einnahme_ku`) gegen die Grenzen.
 
 ---
 

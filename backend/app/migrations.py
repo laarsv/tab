@@ -176,6 +176,14 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_beleg_gewerbe ON beleg(gewerbe_id);
         """,
     ),
+    Migration(
+        version=4,
+        sql="""
+        -- v4: Abgang (Verkauf/Entnahme/Verschrottung) eines AfA-Wirtschaftsguts.
+        --     AfA endet mit dem Abgangsmonat; Restbuchwert wird berechnet, nicht gespeichert.
+        ALTER TABLE afa_buchung ADD COLUMN abgang_datum TEXT;
+        """,
+    ),
 ]
 
 

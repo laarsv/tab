@@ -10,6 +10,8 @@ from ..db import get_db
 from ..services.export import (
     BesteuerungNotSupportedError,
     MappingMissingError,
+    backup_zip,
+    belege_zip,
     build_summenblatt,
     journal_csv,
     summenblatt_csv,
@@ -57,4 +59,30 @@ def journal_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depend
         content=data,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="beleg-journal-{name}-{jahr}.csv"'},
+    )
+
+
+@router.get("/belege.zip")
+def belege_zip_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+    """Jahres-Archiv (Summenblatt + Journal + Beleg-Dateien) — z. B. fürs Finanzamt-Archiv."""
+    try:
+        data = belege_zip(db, gewerbe_id, jahr)
+    except (MappingMissingError, BesteuerungNotSupportedError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    g = db.execute("SELECT name FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
+    name = _slug(g["name"]) if g else "gewerbe"
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="euer-archiv-{name}-{jahr}.zip"'},
+    )
+
+
+@router.get("/backup.zip")
+def backup_download(db: sqlite3.Connection = Depends(get_db)):
+    """Komplett-Backup: SQLite-Snapshot + alle Beleg-Dateien."""
+    return Response(
+        content=backup_zip(db),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="tab-backup.zip"'},
     )

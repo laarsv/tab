@@ -36,5 +36,3 @@ export function todayISO() {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
-
-export const KM_SATZ_CENT = 30; // 0,30 €/km

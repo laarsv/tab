@@ -71,6 +71,8 @@ export default function Afa() {
       anschaffungsdatum: todayISO(),
       nutzungsdauer_jahre: 3,
       sofort: false,
+      abgang: false,
+      abgang_datum: '',
       beschreibung: '',
     });
   }
@@ -118,7 +120,17 @@ export default function Afa() {
               <tbody>
                 {items.map((a) => (
                   <tr key={a.id} className="border-b border-ink/5 last:border-b-0">
-                    <td className="px-4 py-3 font-medium">{a.bezeichnung}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {a.bezeichnung}
+                      {a.abgang_datum && (
+                        <div className="text-xs text-ink/50 font-normal mt-0.5">
+                          Abgang {formatDateDE(a.abgang_datum)}
+                          {a.restbuchwert_cent > 0 && (
+                            <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → als Buchung Zeile 38 erfassen</>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-ink/70 whitespace-nowrap">
                       {formatDateDE(a.anschaffungsdatum)}
                     </td>
@@ -156,6 +168,14 @@ export default function Afa() {
                   {formatDateDE(a.anschaffungsdatum)} · {formatEuro(a.anschaffungskosten_cent)} ·{' '}
                   {a.nutzungsdauer_jahre === 1 ? 'Sofort (1 J.)' : `${a.nutzungsdauer_jahre} Jahre`}
                 </div>
+                {a.abgang_datum && (
+                  <div className="text-xs text-ink/50">
+                    Abgang {formatDateDE(a.abgang_datum)}
+                    {a.restbuchwert_cent > 0 && (
+                      <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → Buchung Zeile 38</>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2 pt-1">
                   <button className="btn-outline btn-sm" onClick={() => setEditing(toEdit(a))}>
                     Bearbeiten
@@ -192,6 +212,8 @@ function toEdit(a) {
     anschaffungsdatum: a.anschaffungsdatum,
     nutzungsdauer_jahre: a.nutzungsdauer_jahre,
     sofort: a.nutzungsdauer_jahre === 1,
+    abgang: Boolean(a.abgang_datum),
+    abgang_datum: a.abgang_datum || '',
     beschreibung: a.beschreibung || '',
   };
 }
@@ -212,6 +234,8 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
     const nd = editing.sofort ? 1 : Number(editing.nutzungsdauer_jahre);
     if (!nd || nd < 1) return toast.error('Nutzungsdauer muss mindestens 1 Jahr sein.');
 
+    if (editing.abgang && !editing.abgang_datum) return toast.error('Bitte Abgangsdatum angeben.');
+
     const body = {
       gewerbe_id: Number(gewerbeId),
       kategorie_id: Number(editing.kategorie_id),
@@ -219,6 +243,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
       anschaffungskosten_cent: kosten,
       anschaffungsdatum: editing.anschaffungsdatum,
       nutzungsdauer_jahre: nd,
+      abgang_datum: editing.abgang ? editing.abgang_datum : null,
       beschreibung: editing.beschreibung.trim() || null,
     };
     setBusy(true);
@@ -316,6 +341,36 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
             </span>
           </label>
         )}
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="rounded border-ink/30 text-royal focus:ring-royal"
+              checked={editing.abgang}
+              onChange={(e) => setEditing({ ...editing, abgang: e.target.checked })}
+            />
+            <span>Abgang (Verkauf / Entnahme / Verschrottung)</span>
+          </label>
+          {editing.abgang && (
+            <>
+              <label className="block">
+                <span className="field-label">Abgangsdatum</span>
+                <input
+                  type="date"
+                  className="input"
+                  value={editing.abgang_datum}
+                  onChange={(e) => setEditing({ ...editing, abgang_datum: e.target.value })}
+                />
+              </label>
+              <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
+                Die AfA endet mit dem Abgangsmonat. Den Restbuchwert (wird in der Liste angezeigt)
+                als Buchung „Restbuchwert" (Zeile 38) erfassen, einen Verkaufserlös als
+                „Veräußerung Anlagevermögen" (Zeile 19).
+              </div>
+            </>
+          )}
+        </div>
 
         <label className="block">
           <span className="field-label">Notiz (optional)</span>

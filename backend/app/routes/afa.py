@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import get_current_user
 from ..db import get_db
-from ..services.afa import jahres_afa_cent
+from ..services.afa import jahres_afa_cent, restbuchwert_cent
 
 router = APIRouter(prefix="/api/afa", tags=["afa"], dependencies=[Depends(get_current_user)])
 
@@ -29,12 +29,18 @@ class AfaIn(BaseModel):
     anschaffungskosten_cent: int = Field(gt=0)
     anschaffungsdatum: str
     nutzungsdauer_jahre: int = Field(ge=1, le=50)
+    abgang_datum: str | None = None
     beschreibung: str | None = None
 
     @field_validator("anschaffungsdatum")
     @classmethod
     def _v_date(cls, v: str) -> str:
         return _valid_date(v)
+
+    @field_validator("abgang_datum")
+    @classmethod
+    def _v_abgang(cls, v: str | None) -> str | None:
+        return _valid_date(v) if v is not None else v
 
 
 class AfaPatch(BaseModel):
@@ -43,12 +49,18 @@ class AfaPatch(BaseModel):
     anschaffungskosten_cent: int | None = Field(default=None, gt=0)
     anschaffungsdatum: str | None = None
     nutzungsdauer_jahre: int | None = Field(default=None, ge=1, le=50)
+    abgang_datum: str | None = None  # explizit null = Abgang zurücknehmen
     beschreibung: str | None = None
 
-    @field_validator("anschaffungsdatum")
+    @field_validator("anschaffungsdatum", "abgang_datum")
     @classmethod
     def _v_date(cls, v: str | None) -> str | None:
         return _valid_date(v) if v is not None else v
+
+
+def _check_abgang(anschaffungsdatum: str, abgang_datum: str | None) -> None:
+    if abgang_datum is not None and abgang_datum < anschaffungsdatum:
+        raise HTTPException(400, "Abgangsdatum darf nicht vor dem Anschaffungsdatum liegen.")
 
 
 def _afa_kategorie(db: sqlite3.Connection, kategorie_id: int) -> sqlite3.Row:
@@ -76,8 +88,18 @@ def list_afa(gewerbe_id: int, jahr: int | None = None, db: sqlite3.Connection = 
         d = dict(r)
         if jahr is not None:
             d["jahres_afa_cent"] = jahres_afa_cent(
-                r["anschaffungskosten_cent"], r["anschaffungsdatum"], r["nutzungsdauer_jahre"], jahr
+                r["anschaffungskosten_cent"],
+                r["anschaffungsdatum"],
+                r["nutzungsdauer_jahre"],
+                jahr,
+                r["abgang_datum"],
             )
+        d["restbuchwert_cent"] = restbuchwert_cent(
+            r["anschaffungskosten_cent"],
+            r["anschaffungsdatum"],
+            r["nutzungsdauer_jahre"],
+            r["abgang_datum"],
+        )
         out.append(d)
     return out
 
@@ -87,12 +109,13 @@ def create_afa(body: AfaIn, db: sqlite3.Connection = Depends(get_db)):
     if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
         raise HTTPException(404, "Gewerbe nicht gefunden.")
     _afa_kategorie(db, body.kategorie_id)
+    _check_abgang(body.anschaffungsdatum, body.abgang_datum)
     cur = db.execute(
         """
         INSERT INTO afa_buchung
             (gewerbe_id, kategorie_id, bezeichnung, anschaffungskosten_cent,
-             anschaffungsdatum, nutzungsdauer_jahre, beschreibung)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+             anschaffungsdatum, nutzungsdauer_jahre, abgang_datum, beschreibung)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.gewerbe_id,
@@ -101,6 +124,7 @@ def create_afa(body: AfaIn, db: sqlite3.Connection = Depends(get_db)):
             body.anschaffungskosten_cent,
             body.anschaffungsdatum,
             body.nutzungsdauer_jahre,
+            body.abgang_datum,
             (body.beschreibung or "").strip() or None,
         ),
     )
@@ -116,6 +140,12 @@ def update_afa(afa_id: int, body: AfaPatch, db: sqlite3.Connection = Depends(get
     if body.kategorie_id is not None:
         _afa_kategorie(db, body.kategorie_id)
 
+    neues_anschaffung = body.anschaffungsdatum or cur["anschaffungsdatum"]
+    if "abgang_datum" in body.model_fields_set:
+        _check_abgang(neues_anschaffung, body.abgang_datum)
+    elif body.anschaffungsdatum is not None:
+        _check_abgang(neues_anschaffung, cur["abgang_datum"])
+
     fields, values = [], []
     for col, val in [
         ("kategorie_id", body.kategorie_id),
@@ -126,6 +156,8 @@ def update_afa(afa_id: int, body: AfaPatch, db: sqlite3.Connection = Depends(get
     ]:
         if val is not None:
             fields.append(f"{col} = ?"); values.append(val)
+    if "abgang_datum" in body.model_fields_set:  # explizit null = Abgang zurücknehmen
+        fields.append("abgang_datum = ?"); values.append(body.abgang_datum)
     if body.beschreibung is not None:
         fields.append("beschreibung = ?"); values.append(body.beschreibung.strip() or None)
     if fields:

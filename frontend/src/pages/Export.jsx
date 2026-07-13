@@ -46,20 +46,29 @@ export default function Export() {
     load();
   }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const DOWNLOADS = {
+    summenblatt: { url: '/api/export/summenblatt.csv', name: () => `euer-summenblatt-${slug()}-${jahr}.csv` },
+    journal: { url: '/api/export/journal.csv', name: () => `beleg-journal-${slug()}-${jahr}.csv` },
+    archiv: { url: '/api/export/belege.zip', name: () => `euer-archiv-${slug()}-${jahr}.zip` },
+    backup: { url: '/api/export/backup.zip', name: () => 'tab-backup.zip', noParams: true },
+  };
+
+  function slug() {
+    return gewerbeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
   async function download(kind) {
     setDownloading(kind);
-    const url = kind === 'summenblatt' ? '/api/export/summenblatt.csv' : '/api/export/journal.csv';
-    const prefix = kind === 'summenblatt' ? 'euer-summenblatt' : 'beleg-journal';
+    const d = DOWNLOADS[kind];
     try {
-      const res = await api.get(url, {
-        params: { gewerbe_id: gewerbeId, jahr },
+      const res = await api.get(d.url, {
+        params: d.noParams ? {} : { gewerbe_id: gewerbeId, jahr },
         responseType: 'blob',
       });
-      const slug = gewerbeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const href = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = href;
-      a.download = `${prefix}-${slug}-${jahr}.csv`;
+      a.download = d.name();
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -116,6 +125,22 @@ export default function Export() {
           disabled={!data || data.zeilen.length === 0}
         >
           Drucken / PDF
+        </button>
+        <button
+          className="btn-outline w-full sm:w-auto"
+          onClick={() => download('archiv')}
+          disabled={downloading !== '' || !data}
+          title="Summenblatt + Journal + alle Beleg-Dateien des Jahres als ZIP"
+        >
+          {downloading === 'archiv' ? 'Lädt…' : 'Jahres-Archiv (ZIP)'}
+        </button>
+        <button
+          className="btn-ghost w-full sm:w-auto"
+          onClick={() => download('backup')}
+          disabled={downloading !== ''}
+          title="Komplett-Backup: Datenbank + alle Beleg-Dateien"
+        >
+          {downloading === 'backup' ? 'Lädt…' : 'Backup'}
         </button>
       </div>
 

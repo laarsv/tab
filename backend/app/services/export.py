@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import sqlite3
+import zipfile
 
 from .afa import jahres_afa_cent
+from ..config import settings
 from ..seed import NIE_BEFUELLT
 
 
@@ -69,7 +72,7 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
         for r in conn.execute("SELECT nummer, bezeichnung FROM euer_zeile WHERE jahr = ?", (jahr,))
     }
     kategorien = {
-        r["id"]: r for r in conn.execute("SELECT id, typ, abzug_quote FROM kategorie")
+        r["id"]: r for r in conn.execute("SELECT id, name, typ, abzug_quote FROM kategorie")
     }
 
     # Summen je Zeile: zuerst je Kategorie roh summieren, Quote anwenden, dann je Zeile.
@@ -87,7 +90,11 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
 
     for kat_id, roh in roh_je_kat.items():
         if kat_id not in mapping:
-            continue
+            # Stiller Wegfall wäre ein falsches Summenblatt — lieber klarer Fehler.
+            raise MappingMissingError(
+                f"Kategorie „{kategorien[kat_id]['name']}“ hat kein EÜR-Mapping für {jahr}. "
+                f"Mapping in seed.py ergänzen und neu deployen."
+            )
         kat = kategorien[kat_id]
         effektiv = round(roh * kat["abzug_quote"])
         nummer = mapping[kat_id]
@@ -96,14 +103,22 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
 
     # AfA -> Jahres-AfA-Betrag in die jeweilige (ist_afa-)Zeile.
     for r in conn.execute(
-        "SELECT kategorie_id, anschaffungskosten_cent, anschaffungsdatum, nutzungsdauer_jahre "
+        "SELECT kategorie_id, anschaffungskosten_cent, anschaffungsdatum, "
+        "nutzungsdauer_jahre, abgang_datum "
         "FROM afa_buchung WHERE gewerbe_id = ?",
         (gewerbe_id,),
     ):
         if r["kategorie_id"] not in mapping:
-            continue
+            raise MappingMissingError(
+                f"AfA-Kategorie „{kategorien[r['kategorie_id']]['name']}“ hat kein "
+                f"EÜR-Mapping für {jahr}. Mapping in seed.py ergänzen und neu deployen."
+            )
         betrag = jahres_afa_cent(
-            r["anschaffungskosten_cent"], r["anschaffungsdatum"], r["nutzungsdauer_jahre"], jahr
+            r["anschaffungskosten_cent"],
+            r["anschaffungsdatum"],
+            r["nutzungsdauer_jahre"],
+            jahr,
+            r["abgang_datum"],
         )
         if betrag <= 0:
             continue
@@ -242,7 +257,7 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
     for r in conn.execute(
         """
         SELECT a.anschaffungskosten_cent, a.anschaffungsdatum, a.nutzungsdauer_jahre,
-               a.bezeichnung, a.kategorie_id, k.name AS kat_name
+               a.abgang_datum, a.bezeichnung, a.kategorie_id, k.name AS kat_name
         FROM afa_buchung a JOIN kategorie k ON k.id = a.kategorie_id
         WHERE a.gewerbe_id = ?
         ORDER BY a.anschaffungsdatum, a.id
@@ -250,7 +265,11 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
         (gewerbe_id,),
     ):
         betrag = jahres_afa_cent(
-            r["anschaffungskosten_cent"], r["anschaffungsdatum"], r["nutzungsdauer_jahre"], jahr
+            r["anschaffungskosten_cent"],
+            r["anschaffungsdatum"],
+            r["nutzungsdauer_jahre"],
+            jahr,
+            r["abgang_datum"],
         )
         if betrag <= 0:
             continue
@@ -264,9 +283,65 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
                 format_cent_de(betrag),
                 "100",
                 f"Jahres-AfA {r['bezeichnung']} (Anschaffung {_date_de(r['anschaffungsdatum'])}, "
-                f"ND {r['nutzungsdauer_jahre']} J.)",
+                f"ND {r['nutzungsdauer_jahre']} J."
+                + (f", Abgang {_date_de(r['abgang_datum'])}" if r["abgang_datum"] else "")
+                + ")",
                 "",
             ]
         )
 
     return _csv_to_bytes(rows)
+
+
+def belege_zip(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
+    """Jahres-Archiv: Summenblatt + Journal (CSV) + alle Beleg-Dateien der Buchungen
+    des Jahres. Dateiname je Beleg: belege/JJJJ-MM-TT_id_originalname."""
+    buf = io.BytesIO()
+    fehlend: list[str] = []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"euer-summenblatt-{jahr}.csv", summenblatt_csv(conn, gewerbe_id, jahr))
+        zf.writestr(f"beleg-journal-{jahr}.csv", journal_csv(conn, gewerbe_id, jahr))
+        for r in conn.execute(
+            """
+            SELECT bel.*, b.datum FROM beleg bel
+            JOIN buchung b ON b.id = bel.buchung_id
+            WHERE bel.gewerbe_id = ? AND substr(b.datum,1,4) = ?
+            ORDER BY b.datum, bel.id
+            """,
+            (gewerbe_id, str(jahr)),
+        ):
+            path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
+            arcname = f"belege/{r['datum']}_{r['id']}_{r['original_name']}"
+            if os.path.exists(path):
+                zf.write(path, arcname)
+            else:
+                fehlend.append(arcname)
+        if fehlend:
+            zf.writestr(
+                "fehlende-dateien.txt",
+                "Diese Belege sind in der Datenbank erfasst, die Datei fehlt aber:\n"
+                + "\n".join(fehlend),
+            )
+    return buf.getvalue()
+
+
+def backup_zip(conn: sqlite3.Connection) -> bytes:
+    """Komplett-Backup: konsistenter SQLite-Snapshot (backup API) + alle Upload-Dateien."""
+    import tempfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        with tempfile.TemporaryDirectory() as td:
+            snap_path = os.path.join(td, "tab.db")
+            snap = sqlite3.connect(snap_path)
+            try:
+                conn.backup(snap)
+            finally:
+                snap.close()
+            zf.write(snap_path, "tab.db")
+        if os.path.isdir(settings.UPLOAD_ROOT):
+            for name in sorted(os.listdir(settings.UPLOAD_ROOT)):
+                path = os.path.join(settings.UPLOAD_ROOT, name)
+                if os.path.isfile(path):
+                    zf.write(path, f"uploads/{name}")
+    return buf.getvalue()

@@ -55,9 +55,10 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 Stammdaten + Flags), `euer_jahr` (VZ-Meta inkl. `vorlaeufig`), `euer_zeile` (Zeilen-Labels je
 Jahr), `euer_mapping` (Kategorie→Zeile **je Jahr**), `buchung` (**Beleg-Kopf**: gewerbe_id, datum,
 beschreibung), `buchung_position` (**je Position eine Kategorie + Betrag** — eine Rechnung kann
-mehrere Positionen haben), `afa_buchung` (Wirtschaftsgüter), `beleg` (Datei mit `gewerbe_id` +
-**nullable** `buchung_id` = Eingang/zugeordnet). Migrationen: v1 = Grundschema, v2 = `besteuerung` +
-`beleg`, v3 = `buchung_position` + Beleg-Eingang (buchung→Kopf, beleg→gewerbe-bezogen, nullable).
+mehrere Positionen haben), `afa_buchung` (Wirtschaftsgüter, inkl. **nullable `abgang_datum`**),
+`beleg` (Datei mit `gewerbe_id` + **nullable** `buchung_id` = Eingang/zugeordnet). Migrationen:
+v1 = Grundschema, v2 = `besteuerung` + `beleg`, v3 = `buchung_position` + Beleg-Eingang
+(buchung→Kopf, beleg→gewerbe-bezogen, nullable), v4 = `afa_buchung.abgang_datum`.
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -74,12 +75,21 @@ der Mapping-Version des Jahres aufgelöst.
 - **Bewirtung:** 100 % erfassen, Export rechnet **70 %** (`abzug_quote=0.7`) in Zeile 63.
 - **AfA** (`app/services/afa.py`): linear, **monatsgenau pro rata** bei Nutzungsdauer > 1;
   **Vollabzug im Kaufjahr** bei Nutzungsdauer = 1 (Hardware/Software-Sofort-Option).
-  Jahres-AfA fließt in Zeile 33, wird **berechnet, nicht gespeichert**.
-- **GWG:** weicher Hinweis im UI (800 € netto ≈ 952 € brutto), keine harte Prüfung.
-- **km-Pauschale (Zeile 71):** km-Feld im UI × 0,30 €/km (`KM_SATZ_CENT`); Backend speichert
-  nur den Betrag.
+  Jahres-AfA fließt in Zeile 33, wird **berechnet, nicht gespeichert**. **Abgang**
+  (`abgang_datum`): AfA endet mit dem Abgangsmonat; `restbuchwert_cent` wird berechnet und im
+  UI als Hinweis gezeigt (manuell als Buchung Zeile 38 erfassen, Erlös Zeile 19).
+- **GWG:** weicher Hinweis im UI (800 € netto ≈ 952 € brutto), keine harte Prüfung. Weitere
+  Soft-Hinweise: Geschenke > 50 € (Freigrenze), Homeoffice > 1.260 €/Jahr.
+- **Rechner-Helfer (`BuchungModal.jsx`, `CALCULATORS`):** Fahrtkosten (km × 0,30 €),
+  Entfernungspauschale (Tage × km, 0,30/0,38 ab km 21), Homeoffice (Tage × 6 €),
+  Verpflegungsmehraufwand (28/14 €). Sie **füllen nur das Betragsfeld** — das Betragsfeld bleibt
+  Quelle der Wahrheit, Backend speichert nur den Betrag (Edit-sicher).
+- **KU-Grenz-Guard (`/api/kennzahlen`):** Grenzvergleich (25.000/100.000 €) läuft über
+  `ku_umsatz_cent` = nur Kategorie `einnahme_ku` — steuerfreie Courtage (§4 Nr. 11) und
+  Anlagenverkäufe bleiben nach §19 Abs. 2 UStG außer Ansatz.
 - **Mapping jahres-versioniert:** 2025 verifiziert, 2026 vorläufig (`vorlaeufig=1`). Fehlt ein
-  Mapping fürs Jahr → `MappingMissingError` → 400 mit klarer Meldung (kein Crash).
+  Mapping fürs Jahr **oder für eine bebuchte Kategorie** → `MappingMissingError` → 400 mit
+  klarer Meldung (kein stilles Weglassen von Beträgen).
 - ⚠ Kategorien für laufende Kosten zeigen vorläufig auf **Zeile 60** (gewinnneutral) — finale
   Zeile (43–54) beim Vordruck-Abgleich in `seed.py` setzen, dann redeployen.
 - **Beleg-Eingang (`app/routes/belege.py`):** PDF/JPG/PNG, Dateien unter `UPLOAD_ROOT`
@@ -93,6 +103,14 @@ der Mapping-Version des Jahres aufgelöst.
   bewusst 400 (`BesteuerungNotSupportedError`), kein falscher KU-Export.
 - **PDF:** kein Server-PDF, sondern Druck-Ansicht (`window.print()` + `@media print` /
   `.print-area` in `index.css`) auf der Export-Seite.
+- **Export-Downloads:** Summenblatt/Journal-CSV, **Jahres-Archiv** `/api/export/belege.zip`
+  (CSVs + Beleg-Dateien der Buchungen des Jahres) und **Backup** `/api/export/backup.zip`
+  (SQLite-Snapshot via backup-API + alle Uploads).
+- **CSV-Import** (`POST /api/buchungen/import`): Semikolon-CSV
+  `Datum;Betrag;Kategorie[;Beschreibung[;Beleg-Details]]`, Datum TT.MM.JJJJ oder ISO, Betrag
+  deutsch, Kategorie = Key oder Name. **Alles-oder-nichts** — bei Fehlern 400 mit Zeilenliste.
+- **Datum≠Jahr-Hinweis:** BuchungModal warnt (weich), wenn das Buchungsdatum nicht im global
+  gewählten Jahr liegt — sonst „verschwindet" die Buchung hinter dem Jahresfilter.
 
 ## Tests / Validierung
 

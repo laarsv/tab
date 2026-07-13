@@ -3,10 +3,12 @@
 und können beim Anlegen via beleg_ids aus dem Eingang verknüpft werden. AfA: /api/afa."""
 from __future__ import annotations
 
+import csv
 import datetime as dt
+import io
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import get_current_user
@@ -203,3 +205,98 @@ def delete_buchung(buchung_id: int, db: sqlite3.Connection = Depends(get_db)):
     # Positionen via ON DELETE CASCADE, Belege fallen via ON DELETE SET NULL zurück in den Eingang.
     db.execute("DELETE FROM buchung WHERE id = ?", (buchung_id,))
     db.commit()
+
+
+# ── CSV-Import (einmalige Übernahme aus der alten Excel-Liste) ──────────────────
+# Semikolon-CSV, Spalten: Datum;Betrag;Kategorie[;Beschreibung[;Beleg-Details]].
+# Datum TT.MM.JJJJ oder JJJJ-MM-TT, Betrag deutsch (1.234,56), Kategorie = Key oder Name.
+# Alles-oder-nichts: bei Fehlern wird nichts angelegt, die Fehlerliste kommt als 400.
+
+
+def _parse_import_datum(raw: str) -> str | None:
+    s = raw.strip()
+    try:
+        if "." in s:
+            return dt.datetime.strptime(s, "%d.%m.%Y").date().isoformat()
+        return dt.date.fromisoformat(s).isoformat()
+    except ValueError:
+        return None
+
+
+def _parse_import_betrag_cent(raw: str) -> int | None:
+    s = raw.strip().replace("€", "").replace(" ", "")
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        cent = round(float(s) * 100)
+    except ValueError:
+        return None
+    return cent if cent > 0 else None
+
+
+@router.post("/import", status_code=201)
+def import_csv(
+    file: UploadFile,
+    gewerbe_id: int = Form(...),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone() is None:
+        raise HTTPException(404, "Gewerbe nicht gefunden.")
+
+    try:
+        text = file.file.read().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "Datei muss UTF-8-kodiert sein.")
+
+    kat_lookup: dict[str, sqlite3.Row] = {}
+    for k in db.execute("SELECT * FROM kategorie WHERE aktiv = 1"):
+        kat_lookup[k["key"].lower()] = k
+        kat_lookup[k["name"].lower()] = k
+
+    zeilen = [z for z in csv.reader(io.StringIO(text), delimiter=";") if any(c.strip() for c in z)]
+    if zeilen and zeilen[0] and "datum" in zeilen[0][0].strip().lower():
+        zeilen = zeilen[1:]  # Kopfzeile überspringen
+    if not zeilen:
+        raise HTTPException(400, "Keine Datenzeilen gefunden.")
+
+    fehler: list[str] = []
+    parsed: list[tuple[str, int, sqlite3.Row, str | None, str | None]] = []
+    for i, z in enumerate(zeilen, start=1):
+        if len(z) < 3:
+            fehler.append(f"Zeile {i}: erwartet Datum;Betrag;Kategorie (mind. 3 Spalten).")
+            continue
+        datum = _parse_import_datum(z[0])
+        betrag = _parse_import_betrag_cent(z[1])
+        kat = kat_lookup.get(z[2].strip().lower())
+        beschreibung = z[3].strip() if len(z) > 3 and z[3].strip() else None
+        details = z[4].strip() if len(z) > 4 and z[4].strip() else None
+        if datum is None:
+            fehler.append(f"Zeile {i}: ungültiges Datum „{z[0].strip()}“ (TT.MM.JJJJ oder JJJJ-MM-TT).")
+        if betrag is None:
+            fehler.append(f"Zeile {i}: ungültiger Betrag „{z[1].strip()}“ (positiv, z. B. 12,34).")
+        if kat is None:
+            fehler.append(f"Zeile {i}: unbekannte Kategorie „{z[2].strip()}“ (Key oder Name).")
+        elif kat["ist_afa"]:
+            fehler.append(f"Zeile {i}: AfA-Kategorien bitte über die AfA-Erfassung anlegen.")
+        elif kat["belegpflicht_extra"] and not details:
+            fehler.append(f"Zeile {i}: für „{kat['name']}“ sind Beleg-Details Pflicht (5. Spalte).")
+        if datum and betrag and kat and not kat["ist_afa"] and not (kat["belegpflicht_extra"] and not details):
+            parsed.append((datum, betrag, kat, beschreibung, details))
+
+    if fehler:
+        raise HTTPException(400, "Import abgebrochen — nichts angelegt:\n" + "\n".join(fehler[:20]))
+
+    for datum, betrag, kat, beschreibung, details in parsed:
+        cur = db.execute(
+            "INSERT INTO buchung (gewerbe_id, datum, beschreibung) VALUES (?, ?, ?)",
+            (gewerbe_id, datum, beschreibung),
+        )
+        db.execute(
+            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details) "
+            "VALUES (?, ?, ?, ?)",
+            (cur.lastrowid, kat["id"], betrag, details),
+        )
+    db.commit()
+    return {"angelegt": len(parsed)}

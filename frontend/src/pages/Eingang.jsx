@@ -134,6 +134,7 @@ export default function Eingang() {
         <BuchungModal
           preBelege={[verbuchen]}
           gewerbeId={gewerbeId}
+          jahr={jahr}
           kategorien={kategorien}
           onClose={() => setVerbuchen(null)}
           onSaved={load}
