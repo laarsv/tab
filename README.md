@@ -23,8 +23,8 @@ Steuerprogramm/ELSTER. **Kein** ELSTER-Direktversand, **kein** Bankabruf.
 
 ```bash
 cp .env.example .env
-python3 scripts/hash_password.py            # ADMIN_PASSWORD_HASH in .env eintragen
-openssl rand -hex 32                          # JWT_SECRET in .env eintragen
+# GOOGLE_CLIENT_ID/-SECRET in .env eintragen (siehe „Einmalig einrichten“ unten)
+openssl rand -hex 32                        # JWT_SECRET + SESSION_SECRET in .env eintragen
 
 docker compose -f docker-compose.dev.yml up --build
 # Frontend: http://localhost:5173   Backend: http://localhost:8000
@@ -51,7 +51,7 @@ Einmalig einrichten:
 1. **Google Cloud Console** → OAuth-2.0-Client, Typ „Web application".
 2. **Autorisierte Redirect-URI:** `https://tab.vrwb.de/api/auth/callback`.
 3. Client-ID/-Secret in die `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
-4. `ALLOWED_EMAILS=verwiebelars@gmail.com`, `JWT_SECRET` + `SESSION_SECRET` (`openssl rand -hex 32`).
+4. `ALLOWED_EMAILS=du@example.com`, `JWT_SECRET` + `SESSION_SECRET` (`openssl rand -hex 32`).
 
 ## Deployment (Hetzner, Docker-Compose)
 

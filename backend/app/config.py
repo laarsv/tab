@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     OAUTH_REDIRECT_URI: str = "https://tab.vrwb.de/api/auth/callback"
     # Anmeldung erlaubt für: diese exakten E-Mails (Komma-getrennt) ODER ...
     ALLOWED_EMAILS: str = ""
-    # ... jede Adresse dieser Domains (Komma-getrennt, z. B. "koenigswege.com").
+    # ... jede Adresse dieser Domains (Komma-getrennt, z. B. "example.com").
     ALLOWED_EMAIL_DOMAINS: str = ""
     # Wohin nach Login/Logout zurück (Frontend-Origin).
     FRONTEND_URL: str = "https://tab.vrwb.de"
