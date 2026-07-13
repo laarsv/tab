@@ -89,6 +89,22 @@ export const TOPICS = [
   },
 ];
 
+// Anzahl offener Themen (keine Buchung im Jahr + nicht als „nicht relevant" markiert)
+// — für das Nav-Badge und die Fortschrittsanzeige.
+export function countOffeneTopics(kategorien, buchungen, nichtRelevant) {
+  const keyById = Object.fromEntries(kategorien.map((k) => [k.id, k.key]));
+  const bebucht = new Set();
+  for (const b of buchungen) {
+    for (const p of b.positionen) {
+      const key = keyById[p.kategorie_id];
+      if (key) bebucht.add(key);
+    }
+  }
+  return TOPICS.filter(
+    (t) => !nichtRelevant.has(t.key) && !t.aktionen.some((a) => bebucht.has(a.katKey)),
+  ).length;
+}
+
 const lsKey = (gewerbeId, jahr) => `tab_check_${gewerbeId}_${jahr}`;
 
 export function loadNichtRelevant(gewerbeId, jahr) {

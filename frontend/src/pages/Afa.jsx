@@ -84,14 +84,30 @@ export default function Afa() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">AfA-Wirtschaftsgüter</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Abschreibungen (AfA)</h1>
           <p className="text-xs text-ink/60 mt-0.5">
-            Linear, monatsgenau · Jahres-AfA {jahr} fließt in Zeile 33.
+            Teure Anschaffungen über mehrere Jahre absetzen · Jahres-AfA {jahr} fließt in Zeile 33.
           </p>
         </div>
         <button className="btn-primary w-full sm:w-auto" onClick={openNew}>
-          + Wirtschaftsgut
+          + Anschaffung
         </button>
+      </div>
+
+      <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-3 text-sm text-ink/80 space-y-1">
+        <div className="font-bold">Wann gehört etwas hierher?</div>
+        <p>
+          Kostet eine Anschaffung <strong>mehr als 800 € netto</strong> (≈ 952 € brutto), darfst du
+          sie nicht auf einmal absetzen, sondern verteilst sie über die Nutzungsdauer — die
+          Jahresrate heißt <strong>Abschreibung (AfA)</strong>. Du legst die Anschaffung hier einmal
+          an, Tab rechnet die Jahresbeträge automatisch und nimmt sie in jeden Export mit.
+        </p>
+        <p>
+          <strong>Ausnahme:</strong> Computer, Laptop &amp; Software dürfen mit Nutzungsdauer 1 Jahr
+          sofort komplett abgesetzt werden — dafür gibt's den Haken „Sofortabzug". Günstigeres
+          (≤ 800 € netto) buchst du einfach als <strong>GWG</strong> direkt bei den Buchungen.
+          Verkauft oder ausgemustert? Beim Bearbeiten das Abgangsdatum setzen.
+        </p>
       </div>
 
       <div className="card p-4">
@@ -102,7 +118,9 @@ export default function Afa() {
       </div>
 
       {items.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">Keine Wirtschaftsgüter erfasst.</div>
+        <div className="card p-12 text-center text-ink/60">
+          Noch keine Anschaffungen erfasst. Nur nötig für Käufe über 800 € netto.
+        </div>
       ) : (
         <>
           <div className="hidden md:block overflow-x-auto card">
@@ -266,7 +284,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
 
   return (
     <Modal
-      title={editing.id ? 'Wirtschaftsgut bearbeiten' : 'Neues Wirtschaftsgut'}
+      title={editing.id ? 'Anschaffung bearbeiten' : 'Neue Anschaffung (AfA)'}
       onClose={() => setEditing(null)}
     >
       <form onSubmit={save} className="space-y-4">

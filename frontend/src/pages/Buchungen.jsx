@@ -5,6 +5,7 @@ import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
+import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
 import { formatEuro, formatDateDE } from '../lib/format.js';
 
 const MONATE = [
@@ -21,17 +22,22 @@ function NoGewerbe() {
 }
 
 export default function Buchungen() {
-  const { gewerbeId, jahr, reloadEingang } = useOutletContext();
+  const { gewerbeId, jahr, reloadBadges } = useOutletContext();
   const [kategorien, setKategorien] = useState([]);
   const [items, setItems] = useState([]);
+  const [belege, setBelege] = useState([]); // offener Beleg-Eingang
   const [kennzahlen, setKennzahlen] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // { buchung? } | null
+  const [verbuchen, setVerbuchen] = useState(null); // einzelner Eingangs-Beleg
+  const [wizard, setWizard] = useState(null); // { queue: beleg[], i } — Abarbeiten-Modus
   const [query, setQuery] = useState('');
   const [filterKat, setFilterKat] = useState('');
   const [filterMonat, setFilterMonat] = useState('');
   const [importing, setImporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const importRef = useRef(null);
+  const uploadRef = useRef(null);
 
   async function load() {
     if (!gewerbeId) {
@@ -40,15 +46,17 @@ export default function Buchungen() {
     }
     setLoading(true);
     try {
-      const [kat, buch, kenn] = await Promise.all([
+      const [kat, buch, kenn, bel] = await Promise.all([
         api.get('/api/kategorien', { params: { jahr } }),
         api.get('/api/buchungen', { params: { gewerbe_id: gewerbeId, jahr } }),
         api.get('/api/kennzahlen', { params: { gewerbe_id: gewerbeId, jahr } }),
+        api.get('/api/belege', { params: { gewerbe_id: gewerbeId, status: 'offen' } }),
       ]);
       setKategorien(kat.data);
       setItems(buch.data);
       setKennzahlen(kenn.data);
-      reloadEingang?.();
+      setBelege(bel.data);
+      reloadBadges?.();
     } catch (e) {
       toast.error(apiError(e));
     } finally {
@@ -84,6 +92,50 @@ export default function Buchungen() {
         })),
       },
     });
+  }
+
+  // ── Beleg-Eingang (integriert) ─────────────────────────────────────────────
+  async function uploadBelege(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('gewerbe_id', gewerbeId);
+        await api.post('/api/belege', form);
+      }
+      toast.success(files.length > 1 ? `${files.length} Belege hochgeladen.` : 'Beleg hochgeladen.');
+      await load();
+    } catch (err) {
+      toast.error(apiError(err, 'Upload fehlgeschlagen.'));
+    } finally {
+      setUploading(false);
+      if (uploadRef.current) uploadRef.current.value = '';
+    }
+  }
+
+  async function removeBeleg(b) {
+    if (!window.confirm(`Beleg „${b.original_name}" endgültig löschen?`)) return;
+    try {
+      await api.delete(`/api/belege/${b.id}`);
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  function startWizard() {
+    setWizard({ queue: belege, i: 0 });
+  }
+  function advanceWizard(queue, i) {
+    if (i + 1 < queue.length) {
+      setWizard({ queue, i: i + 1 });
+    } else {
+      setWizard(null);
+      toast.success('Alle Belege abgearbeitet. 🎉');
+    }
   }
 
   async function importCsv(e) {
@@ -166,6 +218,58 @@ export default function Buchungen() {
             + Buchung
           </button>
         </div>
+      </div>
+
+      {/* Beleg-Eingang: sammeln, später verbuchen — integriert statt eigener Seite */}
+      <div className="card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">Beleg-Eingang</div>
+            <div className="text-sm text-ink/70 mt-0.5">
+              {belege.length > 0
+                ? `Noch ${belege.length} ${belege.length === 1 ? 'Beleg' : 'Belege'} zu verbuchen.`
+                : 'Leer. Belege (PDF/JPG/PNG) hochladen und später in Ruhe verbuchen.'}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {belege.length > 0 && (
+              <button className="btn-primary btn-sm" onClick={startWizard}>
+                Jetzt abarbeiten ({belege.length})
+              </button>
+            )}
+            <button className="btn-outline btn-sm" onClick={() => uploadRef.current?.click()} disabled={uploading}>
+              {uploading ? 'Lädt…' : '+ Belege hochladen'}
+            </button>
+          </div>
+          <input ref={uploadRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={uploadBelege} />
+        </div>
+        {belege.length > 0 && (
+          <ul className="divide-y divide-ink/5 rounded-lg bg-royal-soft/5">
+            {belege.map((b) => (
+              <li key={b.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => openBeleg(b.id)}
+                  className="min-w-0 text-left text-royal font-medium hover:underline truncate"
+                  title={b.original_name}
+                >
+                  {b.original_name}
+                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-ink/50 hidden sm:inline">
+                    {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
+                  </span>
+                  <button className="btn-outline btn-sm" onClick={() => setVerbuchen(b)}>
+                    Verbuchen
+                  </button>
+                  <button className="btn-ghost btn-sm text-red-700" onClick={() => removeBeleg(b)}>
+                    Löschen
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {kennzahlen && <KuGuard k={kennzahlen} />}
@@ -273,6 +377,39 @@ export default function Buchungen() {
           kategorien={kategorien}
           onClose={() => setModal(null)}
           onSaved={load}
+        />
+      )}
+
+      {verbuchen && (
+        <BuchungModal
+          preBelege={[verbuchen]}
+          gewerbeId={gewerbeId}
+          jahr={jahr}
+          kategorien={kategorien}
+          onClose={() => setVerbuchen(null)}
+          onSaved={load}
+        />
+      )}
+
+      {wizard && (
+        <BuchungModal
+          key={wizard.queue[wizard.i].id}
+          preBelege={[wizard.queue[wizard.i]]}
+          gewerbeId={gewerbeId}
+          jahr={jahr}
+          kategorien={kategorien}
+          wizard={{
+            pos: wizard.i + 1,
+            total: wizard.queue.length,
+            onSkip: () => advanceWizard(wizard.queue, wizard.i),
+          }}
+          onClose={() => setWizard(null)}
+          onSaved={async () => {
+            // onClose läuft im Modal vor onSaved (setzt wizard=null) — hier mit den
+            // eingefangenen Werten weiterschalten, damit der Wizard nicht abbricht.
+            await load();
+            advanceWizard(wizard.queue, wizard.i);
+          }}
         />
       )}
     </div>

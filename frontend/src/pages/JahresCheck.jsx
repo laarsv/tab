@@ -16,7 +16,7 @@ function NoGewerbe() {
 }
 
 export default function JahresCheck() {
-  const { gewerbeId, jahr } = useOutletContext();
+  const { gewerbeId, jahr, reloadBadges } = useOutletContext();
   const [kategorien, setKategorien] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,7 @@ export default function JahresCheck() {
       ]);
       setKategorien(kat.data);
       setItems(buch.data);
+      reloadBadges?.();
     } catch (e) {
       toast.error(apiError(e));
     } finally {
@@ -89,6 +90,7 @@ export default function JahresCheck() {
     else next.add(key);
     setNichtRelevant(next);
     saveNichtRelevant(gewerbeId, jahr, next);
+    reloadBadges?.();
   }
 
   if (!gewerbeId) return <NoGewerbe />;

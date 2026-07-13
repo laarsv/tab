@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
+import { countOffeneTopics, loadNichtRelevant } from '../lib/jahresCheck.js';
 
 function NavBadge({ n }) {
   return (
@@ -15,13 +16,78 @@ function NavBadge({ n }) {
 }
 
 const NAV = [
-  { to: '/eingang', label: 'Eingang' },
   { to: '/buchungen', label: 'Buchungen' },
   { to: '/check', label: 'Jahres-Check' },
-  { to: '/afa', label: 'AfA' },
+  { to: '/afa', label: 'Abschreibungen' },
+];
+
+// Einträge hinter der Profil-Bubble (Desktop) bzw. unten im Drawer (mobil).
+const PROFIL_NAV = [
   { to: '/export', label: 'Export' },
   { to: '/gewerbe', label: 'Gewerbe' },
 ];
+
+function initialen(user) {
+  const name = (user?.name || user?.email || '?').trim();
+  const parts = name.split(/[\s.@_-]+/).filter(Boolean);
+  const chars = parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
+  return chars.toUpperCase();
+}
+
+function ProfilBubble({ user, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function onDoc(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Profil-Menü"
+        className="h-9 w-9 rounded-full bg-royal text-paper font-black text-sm inline-flex items-center justify-center hover:opacity-90 focus:ring-2 focus:ring-royal/40 outline-none"
+        title={user?.name || user?.email}
+      >
+        {initialen(user)}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-56 rounded-lg border border-ink/10 bg-paper shadow-lg py-1 z-50"
+        >
+          <div className="px-4 py-2 border-b border-ink/10">
+            <div className="text-sm font-bold truncate">{user?.name || 'Angemeldet'}</div>
+            <div className="text-xs text-ink/50 truncate">{user?.email}</div>
+          </div>
+          {PROFIL_NAV.map((n) => (
+            <Link
+              key={n.to}
+              to={n.to}
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10"
+            >
+              {n.label}
+            </Link>
+          ))}
+          <button
+            onClick={onLogout}
+            className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10 border-t border-ink/10"
+          >
+            Abmelden
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -30,7 +96,7 @@ export default function Layout() {
   const [gewerbe, setGewerbe] = useState([]);
   const [jahre, setJahre] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [eingangCount, setEingangCount] = useState(0);
+  const [checkOffen, setCheckOffen] = useState(0);
 
   const [gewerbeId, setGewerbeId] = useState(
     () => localStorage.getItem('tab_gewerbe') || '',
@@ -57,22 +123,26 @@ export default function Layout() {
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadEingangCount = useCallback(async (gid) => {
+  // Nav-Badge: offene Jahres-Check-Themen für Gewerbe + Jahr.
+  const loadBadges = useCallback(async (gid, j) => {
     if (!gid) {
-      setEingangCount(0);
+      setCheckOffen(0);
       return;
     }
     try {
-      const res = await api.get('/api/belege/eingang/count', { params: { gewerbe_id: gid } });
-      setEingangCount(res.data.offen);
+      const [kat, buch] = await Promise.all([
+        api.get('/api/kategorien', { params: { jahr: j } }),
+        api.get('/api/buchungen', { params: { gewerbe_id: gid, jahr: j } }),
+      ]);
+      setCheckOffen(countOffeneTopics(kat.data, buch.data, loadNichtRelevant(gid, j)));
     } catch {
-      setEingangCount(0);
+      setCheckOffen(0);
     }
   }, []);
 
   useEffect(() => {
-    loadEingangCount(gewerbeId);
-  }, [gewerbeId, loadEingangCount]);
+    loadBadges(gewerbeId, jahr);
+  }, [gewerbeId, jahr, loadBadges]);
 
   useEffect(() => {
     if (gewerbeId) localStorage.setItem('tab_gewerbe', gewerbeId);
@@ -100,7 +170,7 @@ export default function Layout() {
     gewerbe,
     jahre,
     reloadGewerbe: loadGewerbe,
-    reloadEingang: () => loadEingangCount(gewerbeId),
+    reloadBadges: () => loadBadges(gewerbeId, jahr),
     setGewerbeId,
   };
 
@@ -123,33 +193,36 @@ export default function Layout() {
             </span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-2">
-            {NAV.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                className={({ isActive }) =>
-                  `${linkBase} inline-flex items-center ${isActive ? 'text-royal' : 'text-ink/70 hover:text-ink'}`
-                }
-              >
-                {n.label}
-                {n.to === '/eingang' && eingangCount > 0 && <NavBadge n={eingangCount} />}
-              </NavLink>
-            ))}
-            <button onClick={doLogout} className={`${linkBase} text-ink/70 hover:text-ink`}>
-              Abmelden
-            </button>
-          </nav>
+          <div className="flex items-center gap-2">
+            <nav className="hidden md:flex items-center gap-2">
+              {NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  className={({ isActive }) =>
+                    `${linkBase} inline-flex items-center ${isActive ? 'text-royal' : 'text-ink/70 hover:text-ink'}`
+                  }
+                >
+                  {n.label}
+                  {n.to === '/check' && checkOffen > 0 && <NavBadge n={checkOffen} />}
+                </NavLink>
+              ))}
+            </nav>
 
-          <button
-            className="md:hidden p-2 -mr-2 rounded-md hover:bg-royal/10 text-ink/80"
-            onClick={() => setDrawer(true)}
-            aria-label="Menü öffnen"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+            <div className="hidden md:block">
+              <ProfilBubble user={user} onLogout={doLogout} />
+            </div>
+
+            <button
+              className="md:hidden p-2 -mr-2 rounded-md hover:bg-royal/10 text-ink/80"
+              onClick={() => setDrawer(true)}
+              aria-label="Menü öffnen"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Globale Filter: Gewerbe + Jahr — Ghost-Inline-Werte (DESIGN.shared.md §5.8) */}
@@ -199,11 +272,27 @@ export default function Layout() {
                   }
                 >
                   <span>{n.label}</span>
-                  {n.to === '/eingang' && eingangCount > 0 && <NavBadge n={eingangCount} />}
+                  {n.to === '/check' && checkOffen > 0 && <NavBadge n={checkOffen} />}
+                </NavLink>
+              ))}
+              <div className="my-2 border-t border-ink/10" />
+              {PROFIL_NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  onClick={() => setDrawer(false)}
+                  className={({ isActive }) =>
+                    `flex items-center px-4 py-3 text-sm font-bold transition ${
+                      isActive ? 'text-royal bg-royal-soft/10' : 'text-ink hover:bg-royal/10'
+                    }`
+                  }
+                >
+                  {n.label}
                 </NavLink>
               ))}
             </nav>
             <div className="border-t border-ink/10 p-2">
+              <div className="px-4 py-2 text-xs text-ink/50 truncate">{user?.email}</div>
               <button
                 onClick={doLogout}
                 className="w-full text-left px-4 py-3 text-sm font-bold rounded-md text-ink hover:bg-royal/10"

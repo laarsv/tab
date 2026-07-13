@@ -116,6 +116,10 @@ der Mapping-Version des Jahres aufgelöst.
   deutsch, Kategorie = Key oder Name. **Alles-oder-nichts** — bei Fehlern 400 mit Zeilenliste.
 - **Datum≠Jahr-Hinweis:** BuchungModal warnt (weich), wenn das Buchungsdatum nicht im global
   gewählten Jahr liegt — sonst „verschwindet" die Buchung hinter dem Jahresfilter.
+- **Navigation (Einsteiger-IA):** Nav = Buchungen · Jahres-Check (Badge = offene Themen) ·
+  Abschreibungen; Export/Gewerbe/Abmelden hinter der **Profil-Bubble** (Initialen, rechts).
+  Der Beleg-Eingang ist **in die Buchungen-Seite integriert** (Karte „Beleg-Eingang" mit
+  Upload, Liste, „Jetzt abarbeiten"); `/eingang` redirectet auf `/buchungen`.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.
