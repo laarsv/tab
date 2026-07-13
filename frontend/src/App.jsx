@@ -9,6 +9,7 @@ import Export from './pages/Export.jsx';
 import Gewerbe from './pages/Gewerbe.jsx';
 import JahresCheck from './pages/JahresCheck.jsx';
 import Fahrten from './pages/Fahrten.jsx';
+import Rechnungen from './pages/Rechnungen.jsx';
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/afa" element={<Afa />} />
         <Route path="/check" element={<JahresCheck />} />
         <Route path="/fahrten" element={<Fahrten />} />
+        <Route path="/rechnungen" element={<Rechnungen />} />
         <Route path="/export" element={<Export />} />
         <Route path="/gewerbe" element={<Gewerbe />} />
         <Route path="*" element={<Navigate to="/buchungen" replace />} />

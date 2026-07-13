@@ -202,6 +202,54 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_fahrt_gewerbe_datum ON fahrt(gewerbe_id, datum);
         """,
     ),
+    Migration(
+        version=6,
+        sql="""
+        -- v6: Rechnungsmodul (KU-Rechnungen mit §19-Hinweis, PDF + Mail-Versand) +
+        --     Absender-Stammdaten am Gewerbe + individuelle Mail-Einstellungen je Login.
+
+        ALTER TABLE gewerbe ADD COLUMN anschrift TEXT;           -- Absender (Name + Adresse, mehrzeilig)
+        ALTER TABLE gewerbe ADD COLUMN iban TEXT;
+        ALTER TABLE gewerbe ADD COLUMN rechnung_fusszeile TEXT;  -- z. B. Bankname, Zahlungsziel
+
+        CREATE TABLE rechnung (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id           INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            jahr                 INTEGER NOT NULL,
+            laufnummer           INTEGER NOT NULL,
+            nummer               TEXT    NOT NULL,               -- z. B. 2026-0007
+            datum                TEXT    NOT NULL,
+            leistungsdatum       TEXT,                            -- frei, z. B. "03/2026"
+            empfaenger_name      TEXT    NOT NULL,
+            empfaenger_anschrift TEXT,
+            empfaenger_email     TEXT,
+            notiz                TEXT,
+            status               TEXT    NOT NULL DEFAULT 'entwurf'
+                                 CHECK (status IN ('entwurf','versendet','bezahlt','storniert')),
+            versendet_am         TEXT,
+            bezahlt_am           TEXT,
+            created_at           TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at           TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (gewerbe_id, jahr, laufnummer)
+        );
+        CREATE TABLE rechnung_position (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            rechnung_id      INTEGER NOT NULL REFERENCES rechnung(id) ON DELETE CASCADE,
+            beschreibung     TEXT    NOT NULL,
+            menge            REAL    NOT NULL DEFAULT 1,
+            einzelpreis_cent INTEGER NOT NULL
+        );
+        CREATE INDEX idx_rechnung_gewerbe ON rechnung(gewerbe_id, jahr);
+        CREATE INDEX idx_rechnung_position ON rechnung_position(rechnung_id);
+
+        -- Gmail-App-Passwort je Login-E-Mail (Fernet-verschlüsselt, nie im Klartext).
+        CREATE TABLE user_mail (
+            email             TEXT PRIMARY KEY,
+            app_passwort_enc  TEXT NOT NULL,
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        """,
+    ),
 ]
 
 

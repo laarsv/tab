@@ -59,7 +59,9 @@ mehrere Positionen haben), `afa_buchung` (Wirtschaftsgüter, inkl. **nullable `a
 `beleg` (Datei mit `gewerbe_id` + **nullable** `buchung_id` = Eingang/zugeordnet). Migrationen:
 v1 = Grundschema, v2 = `besteuerung` + `beleg`, v3 = `buchung_position` + Beleg-Eingang
 (buchung→Kopf, beleg→gewerbe-bezogen, nullable), v4 = `afa_buchung.abgang_datum`,
-v5 = `fahrt` (Fahrten-Liste für die km-Pauschale).
+v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnung`,
+`rechnung_position`, `user_mail`) + Gewerbe-Absenderfelder (`anschrift`, `iban`,
+`rechnung_fusszeile`).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -142,6 +144,22 @@ der Mapping-Version des Jahres aufgelöst.
 - **E-Rechnung:** Beleg-Eingang akzeptiert auch **XML** (XRechnung/ZUGFeRD) — Empfangs-/
   Archivpflicht gilt seit 2025 auch für KU. Kein Parsing/Viewer, keine E-Rechnungs-
   *Erstellung* (KU sind von der Ausstellungspflicht dauerhaft befreit, JStG 2024).
+- **Rechnungsmodul (`/rechnungen`, `routes/rechnungen.py`):** KU-Rechnungen mit allen
+  Pflichtangaben; §19-Hinweis kommt automatisch aufs PDF (`services/rechnung_pdf.py`, fpdf2,
+  Beträge als „EUR" — € nicht im Core-Font). Nummer = `{jahr}-{lauf:04d}` fortlaufend je
+  Gewerbe+Jahr, vergeben beim Anlegen; **Löschen nur letzte Nummer + nie nach Versand/
+  Bezahlung** (sonst stornieren, keine Nummernlücken); Inhalt editierbar nur im Status
+  `entwurf`. „Als Einnahme buchen" öffnet das BuchungModal vorbefüllt (einnahme_ku) —
+  bewusst keine automatische Buchung.
+- **Mail-Versand individuell je Login (`routes/einstellungen.py`, `services/mailer.py`):**
+  jeder Nutzer hinterlegt SEIN Gmail-App-Passwort (Profil-Menü „E-Mail-Versand") —
+  Fernet-verschlüsselt in `user_mail` (Schlüssel aus JWT_SECRET), NICHT in der .env.
+  Versand via smtp.gmail.com vom Login-Absender (gmail.com + Workspace). Beim Speichern
+  wird der SMTP-Login live verifiziert. **JWT_SECRET ändern macht gespeicherte
+  App-Passwörter unlesbar** (Nutzer müssen neu hinterlegen — Meldung kommt automatisch).
+- **Multi-User-Hinweis:** Login erlaubt mehrere Nutzer (Allowlist/Domain), aber es gibt
+  KEINE Mandantentrennung — alle sehen alle Gewerbe/Daten. Nur der Mail-Versand ist
+  personenbezogen.
 
 ## Tests / Validierung
 

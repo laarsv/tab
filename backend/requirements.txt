@@ -7,3 +7,5 @@ authlib==1.4.0
 httpx==0.28.1
 itsdangerous==2.2.0
 python-multipart==0.0.19
+cryptography==44.0.0
+fpdf2==2.8.2

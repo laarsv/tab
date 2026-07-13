@@ -5,6 +5,7 @@ import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
+import MailSetupModal from './MailSetupModal.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
 
 function NavBadge({ n }) {
@@ -17,6 +18,7 @@ function NavBadge({ n }) {
 
 const NAV = [
   { to: '/buchungen', label: 'Buchungen' },
+  { to: '/rechnungen', label: 'Rechnungen' },
   { to: '/check', label: 'Jahres-Check' },
   { to: '/afa', label: 'Abschreibungen' },
 ];
@@ -34,7 +36,7 @@ function initialen(user) {
   return chars.toUpperCase();
 }
 
-function ProfilBubble({ user, onLogout }) {
+function ProfilBubble({ user, onLogout, onMail }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -78,6 +80,15 @@ function ProfilBubble({ user, onLogout }) {
             </Link>
           ))}
           <button
+            onClick={() => {
+              setOpen(false);
+              onMail();
+            }}
+            className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10"
+          >
+            E-Mail-Versand
+          </button>
+          <button
             onClick={onLogout}
             className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10 border-t border-ink/10"
           >
@@ -92,6 +103,7 @@ function ProfilBubble({ user, onLogout }) {
 export default function Layout() {
   const { user, logout } = useAuth();
   const [drawer, setDrawer] = useState(false);
+  const [mailModal, setMailModal] = useState(false);
 
   const [gewerbe, setGewerbe] = useState([]);
   const [jahre, setJahre] = useState([]);
@@ -210,7 +222,7 @@ export default function Layout() {
             </nav>
 
             <div className="hidden md:block">
-              <ProfilBubble user={user} onLogout={doLogout} />
+              <ProfilBubble user={user} onLogout={doLogout} onMail={() => setMailModal(true)} />
             </div>
 
             <button
@@ -290,6 +302,15 @@ export default function Layout() {
                   {n.label}
                 </NavLink>
               ))}
+              <button
+                onClick={() => {
+                  setDrawer(false);
+                  setMailModal(true);
+                }}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-ink hover:bg-royal/10"
+              >
+                E-Mail-Versand
+              </button>
             </nav>
             <div className="border-t border-ink/10 p-2">
               <div className="px-4 py-2 text-xs text-ink/50 truncate">{user?.email}</div>
@@ -303,6 +324,8 @@ export default function Layout() {
           </aside>
         </div>
       )}
+
+      {mailModal && <MailSetupModal onClose={() => setMailModal(false)} />}
 
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">

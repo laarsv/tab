@@ -33,6 +33,9 @@ export default function Gewerbe() {
       name: editing.name?.trim(),
       steuernummer: editing.steuernummer?.trim() || null,
       besteuerung: editing.besteuerung || 'kleinunternehmer',
+      anschrift: editing.anschrift?.trim() || null,
+      iban: editing.iban?.trim() || null,
+      rechnung_fusszeile: editing.rechnung_fusszeile?.trim() || null,
     };
     if (!body.name) return toast.error('Name ist Pflicht.');
     try {
@@ -73,7 +76,16 @@ export default function Gewerbe() {
         </div>
         <button
           className="btn-primary w-full sm:w-auto"
-          onClick={() => setEditing({ name: '', steuernummer: '', besteuerung: 'kleinunternehmer' })}
+          onClick={() =>
+            setEditing({
+              name: '',
+              steuernummer: '',
+              besteuerung: 'kleinunternehmer',
+              anschrift: '',
+              iban: '',
+              rechnung_fusszeile: '',
+            })
+          }
         >
           + Gewerbe
         </button>
@@ -118,6 +130,9 @@ export default function Gewerbe() {
                       name: g.name,
                       steuernummer: g.steuernummer || '',
                       besteuerung: g.besteuerung || 'kleinunternehmer',
+                      anschrift: g.anschrift || '',
+                      iban: g.iban || '',
+                      rechnung_fusszeile: g.rechnung_fusszeile || '',
                     })
                   }
                 >
@@ -155,6 +170,39 @@ export default function Gewerbe() {
                 onChange={(e) => setEditing({ ...editing, steuernummer: e.target.value })}
               />
             </label>
+
+            <label className="block">
+              <span className="field-label">Rechnungs-Absender: Name & Anschrift</span>
+              <textarea
+                className="input min-h-[80px]"
+                value={editing.anschrift}
+                onChange={(e) => setEditing({ ...editing, anschrift: e.target.value })}
+                placeholder={'Max Mustermann\nMusterstraße 1\n20095 Hamburg'}
+              />
+              <span className="block text-xs text-ink/60 mt-1">
+                Erscheint auf Rechnungen (Pflichtangabe).
+              </span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
+              <label className="block">
+                <span className="field-label">IBAN (für Rechnungen)</span>
+                <input
+                  className="input"
+                  value={editing.iban}
+                  onChange={(e) => setEditing({ ...editing, iban: e.target.value })}
+                  placeholder="DE12 3456 …"
+                />
+              </label>
+              <label className="block">
+                <span className="field-label">Rechnungs-Fußzeile (optional)</span>
+                <input
+                  className="input"
+                  value={editing.rechnung_fusszeile}
+                  onChange={(e) => setEditing({ ...editing, rechnung_fusszeile: e.target.value })}
+                  placeholder="z. B. Bank, Zahlungsziel 14 Tage"
+                />
+              </label>
+            </div>
 
             <label className="flex items-start gap-2 text-sm">
               <input
