@@ -23,12 +23,11 @@ Synology-Ablage kann älter sein — das Design-Projekt gewinnt). Konvention:
 
 - **Wortmarke** `vrwb` = gesetzter Text, **immer klein**, Roboto **900**, Laufweite
   **−4,5 %** (`tracking-wordmark`). Cursor `_` in Royal = einziges grafisches Element.
-- **Produkt-Lockup „Im Lockup" — präferierte Marke im App-Header** (CI-Update;
-  `SignaturLockup` in `components/Wordmark.jsx`): handschriftliche **Signatur in Royal**
-  (`src/assets/logo-signatur.svg` = `logo-clean.svg` aus dem Design-Projekt, gerendert
-  per CSS-Mask auf `bg-royal`) + **Haarlinie** (`ink/15`) + rechts `vrwb_` (Roboto 900)
-  mit dem **Toolnamen als Subline** in Roboto Mono (10 px, +4 % Laufweite, `ink/50`).
-  Proportionen ans CI-Sheet angelehnt, auf die 64-px-Header-Höhe skaliert.
+- **Signatur-Lockup — präferierte Marke im App-Header** (CI-Update; `SignaturLockup`
+  in `components/Wordmark.jsx`): handschriftliche **Signatur in Royal** (Pfad aus
+  `logo-clean.svg` des Design-Projekts, als **Inline-SVG in `currentColor`** — kein
+  CSS-Mask, das rendert nicht überall) + **Haarlinie** (`ink/15`) + rechts der
+  **Standalone-Lockup `vrwb_tab`** (keine Subline-Variante im Header).
 - **Produkt-Lockup „Standalone"** (`Wordmark`, default): **`vrwb_tab`** — Unterstrich =
   Trenner in Royal, Toolname in **Roboto Mono 500 Royal**, ~0,83× Größe, Laufweite −1 %
   (`tracking-toolname`). Toolnamen immer klein, ein Wort. Einsatz: Login-Hero, Footer,

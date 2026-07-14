@@ -18,8 +18,8 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
   **weiß (`paper`)** (`.btn-primary`, Badges); Royal als *Textfarbe* auf Weiß ist ok (Nav aktiv,
   Eyebrow, Links). **Tool-Marke** (CI-Konvention, Details + Quelle in DESIGN.md §1b;
   zentral in `components/Wordmark.jsx` — nie inline nachbauen): **App-Header =
-  `SignaturLockup`** (Signatur in Royal + Haarlinie + `vrwb_` mit Subline „tab",
-  präferiert lt. CI); **Login/Footer/Titel = Standalone `vrwb_tab`** (`vrwb` Roboto 900
+  `SignaturLockup`** (Signatur als Inline-SVG in Royal + Haarlinie + Standalone
+  `vrwb_tab`, präferiert lt. CI); **Login/Footer/Titel = Standalone `vrwb_tab`** (`vrwb` Roboto 900
   −4,5 %, `_tab` Royal, Toolname Roboto Mono 500 0,83× −1 %, immer klein; auf Ink `_tab`
   Royal Soft). Favicon `t_` auf Royal (`public/favicon.svg`). Roboto + Roboto Mono
   self-hosted, kein Google-CDN. `theme-color = #2947c9`.
