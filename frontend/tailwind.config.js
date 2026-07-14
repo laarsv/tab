@@ -13,9 +13,11 @@ export default {
       },
       fontFamily: {
         sans: ['Roboto', 'system-ui', 'sans-serif'],
+        mono: ['Roboto Mono', 'ui-monospace', 'monospace'],
       },
       letterSpacing: {
         wordmark: '-0.045em', // CI v1.0: Wortmarke Roboto 900, Laufweite −4,5 %
+        toolname: '-0.01em', // CI Produkt-Lockup: Toolname in Roboto Mono
         tagline: '0.18em',
       },
     },

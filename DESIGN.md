@@ -15,22 +15,30 @@ colors: {
 
 `<meta name="theme-color" content="#2947c9">`.
 
-## 1b. Wortmarke & Bildmarke — VRWB CI v1.0 (verbindlich)
+## 1b. Wortmarke, Produkt-Lockup & Bildmarke — VRWB CI v1.0 (verbindlich)
 
-Quelle: „VRWB Corporate Identity.dc.html" (Synology-Ablage `_Ablage/Technisch/Vrwb/VRWB
-Markenidentität/`; auch als claude.ai-Design). Konvention für alle vrwb-Tools:
+Quelle (Source of Truth): claude.ai-Design-Projekt **„VRWB Markenidentität"**
+(`VRWB Corporate Identity.dc.html`, per DesignSync erreichbar; die Kopie in der
+Synology-Ablage kann älter sein — das Design-Projekt gewinnt). Konvention:
 
-- **Wortmarke = gesetzter Text, immer klein**: `tab` in Roboto **900**,
-  Laufweite **−4,5 %** (`tracking-wordmark`). Der Terminal-**Cursor `_` ist das einzige
-  grafische Element** und das einzige Royal-Element pro Logo-Anwendung.
-- Farbvarianten: auf Paper → Ink + Cursor Royal; **auf Ink → Weiß + Cursor Royal**
-  (Login-Hero); auf Royal-Fläche → Weiß + Cursor Royal-Soft.
-- **Blink** (`.wordmark-cursor-blink`, 1.2s steps) nur im Hero/Login — nie in der App-Nav.
+- **Wortmarke** `vrwb` = gesetzter Text, **immer klein**, Roboto **900**, Laufweite
+  **−4,5 %** (`tracking-wordmark`). Cursor `_` in Royal = einziges grafisches Element.
+- **Produkt-Lockup „Standalone" — die Marke dieses Tools** (`components/Wordmark.jsx`):
+  **`vrwb_tab`** — der Unterstrich wird zum Trenner in Royal, der Toolname hängt direkt
+  dran in **Roboto Mono 500 Royal**, ~0,83× Größe, Laufweite −1 % (`tracking-toolname`).
+  Toolnamen immer klein, ein Wort. Einsatz: App-Header, Login-Hero, Footer, Browser-Titel.
+  Auf Ink: `vrwb` weiß, `_tab` in **Royal Soft** (Lesbarkeit; analog „auf Royal → Soft").
+- **Produkt-Lockup „Im Lockup"**: handschriftliche Signatur (Royal, `logo-clean.svg` im
+  Design-Projekt) + Haarlinie + `vrwb_` mit Toolname als Subline in Roboto Mono — für
+  Briefkopf/Rechnungen/Website-Footer. In der App nicht verwendet.
+- **Blink** (`.wordmark-cursor-blink`, 1.2 s steps) nur für den Cursor der puren
+  Dachmarken-Wortmarke im Hero (Login-Fußzeile `vrwb_`) — nie im Standalone-Lockup
+  (dort ist `_` Trenner, kein Cursor) und nie in der App-Nav.
 - **Bildmarke/Favicon**: Anfangsbuchstabe + Cursor (`t_`) weiß/royal-soft auf Royal,
   abgerundetes Quadrat mit Radius ≈ 23 % der Kante (`frontend/public/favicon.svg`).
   Wortmarke und Bildmarke nie nebeneinander doppeln.
-- Nie „Tab"/„TAB" setzen, nicht sperren/stauchen, keine Schatten/Verläufe/Outlines.
-- Zuordnung zur Dachmarke: Footer/Login „ein Werkzeug von `vrwb_`" (Link auf vrwb.de).
+- Nie „Tab"/„TAB"/„VRWB" setzen, nicht sperren/stauchen, keine Schatten/Verläufe/Outlines.
+- Roboto Mono self-hosted via `@fontsource/roboto-mono` (500), Tailwind `font-mono`.
 
 ## 2. Contrast rule (royal blue is a *dark* accent)
 

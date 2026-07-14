@@ -2,6 +2,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { loginUrl } from '../api/client.js';
 import { PageSpinner } from '../components/Spinner.jsx';
+import Wordmark from '../components/Wordmark.jsx';
 
 const ERRORS = {
   not_allowed: 'Diese Google-Adresse ist nicht freigeschaltet.',
@@ -28,10 +29,8 @@ export default function Login() {
       />
       <div className="relative z-10 w-full max-w-md px-4 sm:px-8 py-12">
         <div className="text-center mb-8">
-          {/* Wortmarke gemäß CI v1.0: auf Ink weiß, Cursor in Royal, Hero blinkt */}
-          <span className="text-4xl font-black tracking-wordmark text-paper">
-            tab<span className="text-royal wordmark-cursor-blink">_</span>
-          </span>
+          {/* Produkt-Lockup (standalone) gemäß CI — auf Ink: weiß, _toolname in Royal Soft */}
+          <Wordmark onInk className="text-4xl" />
           <p className="mt-2 text-sm text-paper/70">EÜR-Buchhaltung für Kleinunternehmer</p>
         </div>
 
@@ -61,7 +60,7 @@ export default function Login() {
             rel="noreferrer"
             className="font-black tracking-wordmark text-paper/80 hover:text-paper"
           >
-            vrwb<span className="text-royal">_</span>
+            vrwb<span className="text-royal-soft wordmark-cursor-blink">_</span>
           </a>
         </p>
       </div>
