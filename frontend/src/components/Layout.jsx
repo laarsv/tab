@@ -197,8 +197,9 @@ export default function Layout() {
       <header className="bg-paper border-b border-royal-soft/30 sticky top-0 z-30">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center min-w-0">
+            {/* Wortmarke gemäß CI v1.0: klein, Roboto 900, Cursor als einziges Royal-Element */}
             <span className="text-2xl font-black tracking-wordmark">
-              Tab<span className="text-royal">_</span>
+              tab<span className="text-royal">_</span>
             </span>
             <span className="ml-2 sm:ml-3 text-sm sm:text-base font-light text-ink/60 truncate hidden sm:inline">
               EÜR-Buchhaltung
@@ -334,9 +335,22 @@ export default function Layout() {
       </main>
 
       <footer className="border-t border-ink/10">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 text-xs text-ink/50">
-          Tab · EÜR für Kleinunternehmer (§19 UStG) · keine Steuerberatung · angemeldet als{' '}
-          {user?.name || user?.email}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 text-xs text-ink/50 flex flex-wrap items-center gap-x-1.5">
+          <span className="font-black tracking-wordmark text-ink/70">
+            tab<span className="text-royal">_</span>
+          </span>
+          <span>
+            · EÜR für Kleinunternehmer (§19 UStG) · keine Steuerberatung · ein Werkzeug von{' '}
+            <a
+              href="https://vrwb.de"
+              target="_blank"
+              rel="noreferrer"
+              className="font-black tracking-wordmark text-ink/70 hover:text-ink"
+            >
+              vrwb<span className="text-royal">_</span>
+            </a>{' '}
+            · angemeldet als {user?.name || user?.email}
+          </span>
         </div>
       </footer>
     </div>

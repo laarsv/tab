@@ -15,7 +15,7 @@ export default {
         sans: ['Roboto', 'system-ui', 'sans-serif'],
       },
       letterSpacing: {
-        wordmark: '-0.02em',
+        wordmark: '-0.045em', // CI v1.0: Wortmarke Roboto 900, Laufweite −4,5 %
         tagline: '0.18em',
       },
     },

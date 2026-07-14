@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- CI v1.0 Bildmarke: Anfangsbuchstabe + Cursor auf Royal, Radius ~23% -->
+  <rect width="64" height="64" rx="15" fill="#2947c9"/>
+  <text x="32" y="45" text-anchor="middle"
+        font-family="Roboto, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
+        font-weight="900" font-size="36" letter-spacing="-1.4">
+    <tspan fill="#ffffff">t</tspan><tspan fill="#aeb9ee">_</tspan>
+  </text>
+</svg>

@@ -49,3 +49,10 @@
   .no-print { display: none !important; }
   .card { box-shadow: none !important; border-color: #ccc !important; }
 }
+
+/* CI v1.0: blinkender Terminal-Cursor der Wortmarke (nur im Hero/Login einsetzen). */
+@keyframes vrwb-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+.wordmark-cursor-blink { animation: vrwb-blink 1.2s steps(1) infinite; }

@@ -12,12 +12,14 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 
 ## Verbindliche Quellen
 
-- **`DESIGN.md`** — **verbindliche Marken-/Farbnorm: VRWB „Sync", Royal Blue.** Tokens
+- **`DESIGN.md`** — **verbindliche Marken-/Farbnorm: VRWB CI v1.0, Royal Blue.** Tokens
   `royal` (`#2947c9`/soft `#aeb9ee`), `ink` `#161a24`, `paper`. **Kontrastregel (wichtig, anders
   als bei Mint):** Royal ist ein *dunkler* Akzent → Text auf **gefüllten** Royal-Flächen ist
   **weiß (`paper`)** (`.btn-primary`, Badges); Royal als *Textfarbe* auf Weiß ist ok (Nav aktiv,
-  Eyebrow, Links). Wortmarke **„Tab_"** (Unterstrich-Akzent, `text-royal`; auf dunklem Login-Hero
-  `text-royal-soft`). Roboto self-hosted, kein Google-CDN. `theme-color = #2947c9`.
+  Eyebrow, Links). **Wortmarke „`tab_`" — immer klein** (CI-Konvention, Quelle in DESIGN.md
+  §1b): Roboto 900, `tracking-wordmark` (−4,5 %), Cursor `_` = einziges Royal-Element; auf
+  Ink-Hero weiß + Cursor Royal (blinkt nur dort); Favicon `t_` auf Royal (`public/favicon.svg`).
+  Roboto self-hosted, kein Google-CDN. `theme-color = #2947c9`.
 - **`DESIGN.shared.md`** — Dichte-/Komponenten-Konventionen (Dichte v2): 44 px Touch **mobil**,
   Desktop kompakt (~32–36 px) — Tipp-Felder `py-2.5 text-base` auf Base, ab `sm:` `py-1.5 text-sm`
   (iOS-Zoom-Schutz nie brechen). `.field-label` (dezent), `.eyebrow`, Formular-Grids `gap-x-5 gap-y-2`,

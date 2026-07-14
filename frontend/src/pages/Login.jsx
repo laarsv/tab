@@ -28,8 +28,9 @@ export default function Login() {
       />
       <div className="relative z-10 w-full max-w-md px-4 sm:px-8 py-12">
         <div className="text-center mb-8">
+          {/* Wortmarke gemäß CI v1.0: auf Ink weiß, Cursor in Royal, Hero blinkt */}
           <span className="text-4xl font-black tracking-wordmark text-paper">
-            Tab<span className="text-royal-soft">_</span>
+            tab<span className="text-royal wordmark-cursor-blink">_</span>
           </span>
           <p className="mt-2 text-sm text-paper/70">EÜR-Buchhaltung für Kleinunternehmer</p>
         </div>
@@ -51,6 +52,18 @@ export default function Login() {
             Mit Google anmelden
           </a>
         </div>
+
+        <p className="mt-6 text-center text-xs text-paper/50">
+          ein Werkzeug von{' '}
+          <a
+            href="https://vrwb.de"
+            target="_blank"
+            rel="noreferrer"
+            className="font-black tracking-wordmark text-paper/80 hover:text-paper"
+          >
+            vrwb<span className="text-royal">_</span>
+          </a>
+        </p>
       </div>
     </div>
   );

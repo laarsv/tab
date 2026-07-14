@@ -15,6 +15,23 @@ colors: {
 
 `<meta name="theme-color" content="#2947c9">`.
 
+## 1b. Wortmarke & Bildmarke — VRWB CI v1.0 (verbindlich)
+
+Quelle: „VRWB Corporate Identity.dc.html" (Synology-Ablage `_Ablage/Technisch/Vrwb/VRWB
+Markenidentität/`; auch als claude.ai-Design). Konvention für alle vrwb-Tools:
+
+- **Wortmarke = gesetzter Text, immer klein**: `tab` in Roboto **900**,
+  Laufweite **−4,5 %** (`tracking-wordmark`). Der Terminal-**Cursor `_` ist das einzige
+  grafische Element** und das einzige Royal-Element pro Logo-Anwendung.
+- Farbvarianten: auf Paper → Ink + Cursor Royal; **auf Ink → Weiß + Cursor Royal**
+  (Login-Hero); auf Royal-Fläche → Weiß + Cursor Royal-Soft.
+- **Blink** (`.wordmark-cursor-blink`, 1.2s steps) nur im Hero/Login — nie in der App-Nav.
+- **Bildmarke/Favicon**: Anfangsbuchstabe + Cursor (`t_`) weiß/royal-soft auf Royal,
+  abgerundetes Quadrat mit Radius ≈ 23 % der Kante (`frontend/public/favicon.svg`).
+  Wortmarke und Bildmarke nie nebeneinander doppeln.
+- Nie „Tab"/„TAB" setzen, nicht sperren/stauchen, keine Schatten/Verläufe/Outlines.
+- Zuordnung zur Dachmarke: Footer/Login „ein Werkzeug von `vrwb_`" (Link auf vrwb.de).
+
 ## 2. Contrast rule (royal blue is a *dark* accent)
 
 - **Foreground on an accent fill = white (`paper`).** White on `#2947c9` ≈ 7.4:1;
