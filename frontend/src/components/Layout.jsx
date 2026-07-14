@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
 import MailSetupModal from './MailSetupModal.jsx';
-import Wordmark from './Wordmark.jsx';
+import Wordmark, { SignaturLockup } from './Wordmark.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
 
 function NavBadge({ n }) {
@@ -198,8 +198,8 @@ export default function Layout() {
       <header className="bg-paper border-b border-royal-soft/30 sticky top-0 z-30">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center min-w-0">
-            <Wordmark className="text-2xl" />
-            <span className="ml-2 sm:ml-3 text-sm sm:text-base font-light text-ink/60 truncate hidden sm:inline">
+            <SignaturLockup />
+            <span className="ml-3 sm:ml-4 text-sm sm:text-base font-light text-ink/60 truncate hidden lg:inline">
               EÜR-Buchhaltung
             </span>
           </div>
