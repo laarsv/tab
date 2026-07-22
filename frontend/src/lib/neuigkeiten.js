@@ -99,21 +99,35 @@ export const NEUIGKEITEN = [
   },
 ];
 
-const LS_KEY = 'tab_news_gesehen';
+// Gelesen-Status je Eintrag (Set von IDs). Das Fenster zeigt Ungelesenes so
+// lange, bis es einzeln (oder per „Alle als gelesen") bestätigt wird — bloßes
+// Schließen zählt NICHT als gelesen.
+const LS_KEY = 'tab_news_gelesen';
+const LS_ALT = 'tab_news_gesehen'; // altes Format: höchste gesehene id
 
-export function neuesteId() {
-  return Math.max(...NEUIGKEITEN.map((n) => n.id));
+export function gelesenIds() {
+  let set;
+  try {
+    set = new Set(JSON.parse(localStorage.getItem(LS_KEY) || '[]'));
+  } catch {
+    set = new Set();
+  }
+  const alt = Number(localStorage.getItem(LS_ALT) || 0); // Migration vom alten Format
+  if (alt) NEUIGKEITEN.forEach((n) => n.id <= alt && set.add(n.id));
+  return set;
 }
 
-export function gesehenBis() {
-  return Number(localStorage.getItem(LS_KEY) || 0);
+export function speichereGelesen(set) {
+  localStorage.setItem(LS_KEY, JSON.stringify([...set]));
+}
+
+export function alleGelesen() {
+  const set = new Set(NEUIGKEITEN.map((n) => n.id));
+  speichereGelesen(set);
+  return set;
 }
 
 export function ungelesene() {
-  const bis = gesehenBis();
-  return NEUIGKEITEN.filter((n) => n.id > bis).length;
-}
-
-export function alleGesehen() {
-  localStorage.setItem(LS_KEY, String(neuesteId()));
+  const gelesen = gelesenIds();
+  return NEUIGKEITEN.filter((n) => !gelesen.has(n.id)).length;
 }

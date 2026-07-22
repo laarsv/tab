@@ -9,7 +9,7 @@ import MailSetupModal from './MailSetupModal.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
 import Wordmark, { SignaturLockup } from './Wordmark.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
-import { alleGesehen, ungelesene } from '../lib/neuigkeiten.js';
+import { ungelesene } from '../lib/neuigkeiten.js';
 
 function NavBadge({ n }) {
   return (
@@ -125,7 +125,8 @@ export default function Layout() {
   }, []);
 
   function closeNews() {
-    alleGesehen();
+    // Schließen markiert nichts als gelesen — Ungelesenes kommt beim nächsten
+    // Login wieder, bis es im Fenster einzeln bestätigt wird.
     setNewsModal(false);
   }
 
