@@ -581,8 +581,9 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
 
         <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/70">
           Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen
-          automatisch aufs PDF. §4-Nr.-11-Rechnungen werden bei „Als Einnahme buchen" der
-          Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
+          automatisch aufs PDF — das zugleich eine <strong>E-Rechnung</strong> ist
+          (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden bei „Als Einnahme buchen"
+          der Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
@@ -634,7 +635,8 @@ function SendenModal({ rechnung, user, onClose, onSent }) {
           <textarea className="input min-h-[140px]" value={text} onChange={(e) => setText(e.target.value)} />
         </label>
         <div className="text-xs text-ink/60">
-          PDF hängt automatisch an · Absender: {user?.email} (landet in deinem „Gesendet"-Ordner)
+          PDF (E-Rechnung, ZUGFeRD) hängt automatisch an · Absender: {user?.email} (landet in
+          deinem „Gesendet"-Ordner)
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
           <button type="button" className="btn-ghost" onClick={onClose}>Abbrechen</button>

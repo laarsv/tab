@@ -158,9 +158,15 @@ der Mapping-Version des Jahres aufgelöst.
   (Unveränderbarkeits-Anforderungen kann Tab nicht erfüllen — nicht versprechen!). Die Liste
   landet als `fahrten-{jahr}.csv` im Jahres-ZIP. Nicht in der Nav — verlinkt aus dem
   Jahres-Check (Auto-Thema).
-- **E-Rechnung:** Beleg-Eingang akzeptiert auch **XML** (XRechnung/ZUGFeRD) — Empfangs-/
-  Archivpflicht gilt seit 2025 auch für KU. Kein Parsing/Viewer, keine E-Rechnungs-
-  *Erstellung* (KU sind von der Ausstellungspflicht dauerhaft befreit, JStG 2024).
+- **E-Rechnung (Empfang):** Beleg-Eingang akzeptiert **XML** (XRechnung/ZUGFeRD) —
+  Empfangs-/Archivpflicht gilt seit 2025 auch für KU; Parsing via `beleg_extract`.
+- **E-Rechnung (Erstellung, `services/e_rechnung.py`):** ausgehende Rechnungs-PDFs sind
+  **ZUGFeRD/Factur-X (Profil EN 16931)** — handgebautes CII-XML (KU: Steuerkategorie „E",
+  Steuer-Hinweis als ExemptionReason, Steuernummer schemeID FC) + Einbettung via
+  `factur-x`-Lib (`check_xsd=True`). `rechnungs_pdf()` ist der einzige Einstieg für
+  Download/Versand/Abo; **schlägt die Einbettung fehl → normale PDF, nie blockieren**.
+  Anschriften werden tolerant geparst (`parse_anschrift`, PLZ-Muster, Land fix DE).
+  Bewusst außen vor: B2G/Leitweg-ID, reines XRechnung-XML ohne PDF.
 - **Rechnungsmodul (`/rechnungen`, `routes/rechnungen.py`):** KU-Rechnungen mit allen
   Pflichtangaben; **Steuer-Hinweis je Rechnung wählbar** (`steuerhinweis`, v7): `ku19`
   (§19-Satz, Default) oder `vers4nr11` (steuerfreie Versicherungsvermittlung §4 Nr. 11) —

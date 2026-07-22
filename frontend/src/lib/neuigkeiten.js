@@ -4,6 +4,12 @@
 
 export const NEUIGKEITEN = [
   {
+    id: 12,
+    datum: '2026-07-22',
+    titel: 'Deine Rechnungen sind jetzt E-Rechnungen',
+    text: 'Jede Rechnungs-PDF trägt ab sofort unsichtbar das amtliche E-Rechnungs-XML in sich (ZUGFeRD/EN 16931). Für deine Kunden sieht alles aus wie immer — deren Buchhaltungssoftware liest die Daten aber automatisch ein. Als Kleinunternehmer wärst du dazu nicht mal verpflichtet: einfach einen Schritt voraus.',
+  },
+  {
     id: 11,
     datum: '2026-07-22',
     titel: 'Belege per E-Mail einschicken',

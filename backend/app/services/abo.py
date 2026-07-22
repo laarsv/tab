@@ -19,7 +19,7 @@ import logging
 import sqlite3
 
 from .mailer import MailNotConfiguredError, MailSendError, send_mail
-from .rechnung_pdf import build_rechnung_pdf
+from .e_rechnung import rechnungs_pdf
 from .rechnungen import erstelle_rechnung
 
 log = logging.getLogger("tab.abo")
@@ -85,7 +85,7 @@ def erstelle_rechnung_aus_abo(
                 "SELECT * FROM rechnung_position WHERE rechnung_id = ? ORDER BY id", (rid,)
             ).fetchall()
             summe = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in pos_rows)
-            pdf = build_rechnung_pdf(r, pos_rows, gewerbe)
+            pdf = rechnungs_pdf(r, pos_rows, gewerbe)
             betreff = _ersetze_monat(abo["betreff"], monat_str) or f"Rechnung {r['nummer']}"
             text = _ersetze_monat(abo["mail_text"], monat_str) or (
                 f"Guten Tag,\n\nanbei erhalten Sie die Rechnung {r['nummer']} "

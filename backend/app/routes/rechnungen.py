@@ -14,8 +14,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import get_current_user
 from ..db import get_db
+from ..services.e_rechnung import rechnungs_pdf
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
-from ..services.rechnung_pdf import STEUERHINWEISE, build_rechnung_pdf
+from ..services.rechnung_pdf import STEUERHINWEISE
 from ..services.rechnungen import erstelle_rechnung
 from .kontakte import upsert_kontakt
 
@@ -248,7 +249,7 @@ def set_status(rechnung_id: int, body: StatusIn, db: sqlite3.Connection = Depend
 def _pdf_bytes(db: sqlite3.Connection, rechnung_id: int) -> tuple[bytes, dict]:
     r = _row(db, rechnung_id)
     g = db.execute("SELECT * FROM gewerbe WHERE id = ?", (r["gewerbe_id"],)).fetchone()
-    return build_rechnung_pdf(r, r["positionen"], g), r
+    return rechnungs_pdf(r, r["positionen"], g), r
 
 
 @router.get("/{rechnung_id}/pdf", dependencies=[Depends(get_current_user)])
