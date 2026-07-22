@@ -32,27 +32,29 @@ from .routes import (
 )
 from .seed import seed
 from .services.abo import run_faellige_abos
+from .services.mail_import import run_mail_import
 from .auth.router import router as auth_router
 
 ABO_INTERVALL_SEKUNDEN = 6 * 3600
+MAIL_IMPORT_INTERVALL_SEKUNDEN = 10 * 60
 
 
-def _abo_lauf() -> None:
+def _mit_connection(fn) -> None:
     conn = _connect()
     try:
-        run_faellige_abos(conn)
+        fn(conn)
     finally:
         conn.close()
 
 
-async def _abo_scheduler() -> None:
-    """Wiederkehrende Rechnungen: beim Start und dann alle 6 h fällige Abos ausführen."""
+async def _scheduler(name: str, fn, intervall: int) -> None:
+    """Hintergrund-Lauf: beim Start und dann im Intervall (Abos, Mail-Import)."""
     while True:
         try:
-            await asyncio.to_thread(_abo_lauf)
+            await asyncio.to_thread(_mit_connection, fn)
         except Exception:
-            logging.getLogger("tab.abo").exception("Abo-Lauf fehlgeschlagen")
-        await asyncio.sleep(ABO_INTERVALL_SEKUNDEN)
+            logging.getLogger(f"tab.{name}").exception("%s-Lauf fehlgeschlagen", name)
+        await asyncio.sleep(intervall)
 
 
 @asynccontextmanager
@@ -65,9 +67,15 @@ async def lifespan(app: FastAPI):
         seed(conn)
     finally:
         conn.close()
-    scheduler = asyncio.create_task(_abo_scheduler())
+    tasks = [
+        asyncio.create_task(_scheduler("abo", run_faellige_abos, ABO_INTERVALL_SEKUNDEN)),
+        asyncio.create_task(
+            _scheduler("mail_import", run_mail_import, MAIL_IMPORT_INTERVALL_SEKUNDEN)
+        ),
+    ]
     yield
-    scheduler.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 app = FastAPI(title="Tab", lifespan=lifespan)

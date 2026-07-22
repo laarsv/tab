@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime as dt
 import os
 import sqlite3
-import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -14,20 +13,10 @@ from pydantic import BaseModel
 from ..auth.deps import get_current_user
 from ..config import settings
 from ..db import get_db
-from ..services.beleg_extract import parse_e_rechnung, vorschlag_fuer_beleg
+from ..services.beleg_extract import vorschlag_fuer_beleg
+from ..services.beleg_store import BelegAbgelehnt, default_gewerbe_id, speichere_beleg
 
 router = APIRouter(prefix="/api", tags=["belege"], dependencies=[Depends(get_current_user)])
-
-ALLOWED = {
-    "application/pdf": ".pdf",
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    # E-Rechnungen (XRechnung/ZUGFeRD-XML): empfangen + archivieren können ist
-    # seit 2025 auch für Kleinunternehmer Pflicht — Anzeige/Parsing bewusst nicht.
-    "application/xml": ".xml",
-    "text/xml": ".xml",
-}
-
 
 def _valid_date(value: str) -> str:
     try:
@@ -70,42 +59,51 @@ def upload_beleg(
         if b["gewerbe_id"] != gewerbe_id:
             raise HTTPException(400, "Buchung gehört zu einem anderen Gewerbe.")
 
-    ext = ALLOWED.get(file.content_type or "")
-    if ext is None and (file.filename or "").lower().endswith(".xml"):
-        ext = ".xml"  # Browser melden XML-Dateien teils ohne brauchbaren MIME-Typ
-    if ext is None:
-        raise HTTPException(400, "Nur PDF, JPG, PNG oder XML (E-Rechnung) erlaubt.")
-
-    data = file.file.read()
-    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
-    if len(data) == 0:
-        raise HTTPException(400, "Datei ist leer.")
-    if len(data) > max_bytes:
-        raise HTTPException(400, f"Datei zu groß (max. {settings.MAX_UPLOAD_MB} MB).")
-
-    stored_name = f"{uuid.uuid4().hex}{ext}"
-    os.makedirs(settings.UPLOAD_ROOT, exist_ok=True)
-    with open(os.path.join(settings.UPLOAD_ROOT, stored_name), "wb") as fh:
-        fh.write(data)
-
-    # E-Rechnung (XML): Fälligkeitsdatum direkt übernehmen, wenn keins angegeben.
-    if ext == ".xml" and not faellig_am:
-        parsed = parse_e_rechnung(data)
-        if parsed and parsed.get("faellig_am"):
-            faellig_am = parsed["faellig_am"]
-
-    original = os.path.basename(file.filename or f"beleg{ext}")
-    cur = db.execute(
-        """
-        INSERT INTO beleg (gewerbe_id, buchung_id, original_name, stored_name, content_type,
-                           size_bytes, faellig_am)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (gewerbe_id, buchung_id, original, stored_name, file.content_type, len(data),
-         faellig_am or None),
-    )
+    try:
+        beleg_id = speichere_beleg(
+            db,
+            gewerbe_id=gewerbe_id,
+            original_name=file.filename or "",
+            data=file.file.read(),
+            content_type=file.content_type,
+            faellig_am=faellig_am or None,
+            buchung_id=buchung_id,
+        )
+    except BelegAbgelehnt as e:
+        raise HTTPException(400, str(e))
     db.commit()
-    return _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (cur.lastrowid,)).fetchone())
+    return _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone())
+
+
+@router.post("/belege/share", status_code=201)
+def share_belege(
+    belege: list[UploadFile],
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """PWA-Share-Target: vom Handy geteilte Dateien landen im Eingang des
+    Standard-Gewerbes (Import-Gewerbe des Nutzers, sonst erstes aktives)."""
+    gid = default_gewerbe_id(db, user["email"])
+    if gid is None:
+        raise HTTPException(400, "Kein aktives Gewerbe vorhanden.")
+    gespeichert, fehler = [], []
+    for f in belege:
+        try:
+            gespeichert.append(
+                speichere_beleg(
+                    db,
+                    gewerbe_id=gid,
+                    original_name=f.filename or "",
+                    data=f.file.read(),
+                    content_type=f.content_type,
+                )
+            )
+        except BelegAbgelehnt as e:
+            fehler.append(f"{f.filename}: {e}")
+    db.commit()
+    if not gespeichert and fehler:
+        raise HTTPException(400, " · ".join(fehler))
+    return {"gespeichert": len(gespeichert), "fehler": fehler, "gewerbe_id": gid}
 
 
 @router.get("/belege")

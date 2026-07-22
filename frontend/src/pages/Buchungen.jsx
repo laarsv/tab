@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
@@ -67,6 +67,17 @@ export default function Buchungen() {
   useEffect(() => {
     load();
   }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rückmeldung nach PWA-Share (Redirect vom Service Worker mit ?geteilt=…)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const g = searchParams.get('geteilt');
+    if (!g) return;
+    if (g === 'ok') toast.success('Beleg(e) vom Handy in den Eingang übernommen.');
+    else toast.error('Teilen fehlgeschlagen — Beleg bitte manuell hochladen.');
+    searchParams.delete('geteilt');
+    setSearchParams(searchParams, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function remove(id) {
     if (!window.confirm('Diese Buchung wirklich löschen? Angehängte Belege wandern zurück in den Eingang.'))

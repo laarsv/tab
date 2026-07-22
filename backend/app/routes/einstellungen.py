@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ..auth.deps import get_current_user
 from ..db import get_db
+from ..services.mail_import import plus_adresse
 from ..services.mailer import (
     MailNotConfiguredError,
     MailSendError,
@@ -25,7 +26,43 @@ router = APIRouter(prefix="/api/einstellungen", tags=["einstellungen"])
 
 @router.get("/mail")
 def mail_status(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
-    return {"email": user["email"], "konfiguriert": is_configured(db, user["email"])}
+    row = db.execute(
+        "SELECT import_aktiv, import_gewerbe_id FROM user_mail WHERE email = ?",
+        (user["email"],),
+    ).fetchone()
+    return {
+        "email": user["email"],
+        "konfiguriert": is_configured(db, user["email"]),
+        "plus_adresse": plus_adresse(user["email"]),
+        "import_aktiv": bool(row["import_aktiv"]) if row else False,
+        "import_gewerbe_id": row["import_gewerbe_id"] if row else None,
+    }
+
+
+class MailImportIn(BaseModel):
+    aktiv: bool
+    gewerbe_id: int | None = None
+
+
+@router.put("/mail/import")
+def mail_import_speichern(
+    body: MailImportIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not is_configured(db, user["email"]):
+        raise HTTPException(400, "Zuerst das App-Passwort hinterlegen — der Abruf läuft über IMAP.")
+    if body.gewerbe_id is not None and db.execute(
+        "SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)
+    ).fetchone() is None:
+        raise HTTPException(404, "Gewerbe nicht gefunden.")
+    db.execute(
+        "UPDATE user_mail SET import_aktiv = ?, import_gewerbe_id = ?, "
+        "updated_at = datetime('now') WHERE email = ?",
+        (1 if body.aktiv else 0, body.gewerbe_id, user["email"]),
+    )
+    db.commit()
+    return mail_status(user, db)
 
 
 class MailIn(BaseModel):

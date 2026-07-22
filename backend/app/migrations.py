@@ -320,6 +320,24 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE beleg ADD COLUMN faellig_am TEXT;
         """,
     ),
+    Migration(
+        version=11,
+        sql="""
+        -- v11: Beleg-Eingang per E-Mail (IMAP-Abruf der eigenen +tab-Adresse) —
+        --      Einstellungen je Login + Dedup-Log über Message-IDs.
+        ALTER TABLE user_mail ADD COLUMN import_aktiv INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE user_mail ADD COLUMN import_gewerbe_id INTEGER
+            REFERENCES gewerbe(id) ON DELETE SET NULL;
+        CREATE TABLE mail_import (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            email       TEXT NOT NULL,
+            message_id  TEXT NOT NULL,
+            beleg_ids   TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (email, message_id)
+        );
+        """,
+    ),
 ]
 
 

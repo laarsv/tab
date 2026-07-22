@@ -69,7 +69,8 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 `rechnung_fusszeile`), v7 = `rechnung.steuerhinweis`, v8 = `rechnung_abo`
 (wiederkehrende Rechnungen, Positionen als JSON), v9 = `kontakt` (inkl. Backfill
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
-im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set).
+im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
+v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -181,6 +182,18 @@ der Mapping-Version des Jahres aufgelöst.
   BuchungModal befüllt beim Verbuchen leere Felder vor und zeigt einen Prüf-Hinweis;
   der Endpoint darf das Verbuchen nie blockieren (Fehler → leerer Vorschlag).
   XML-Upload übernimmt die Fälligkeit automatisch in `beleg.faellig_am`.
+- **Beleg-Zugänge außer Upload:** (1) **Mail-Import** (`services/mail_import.py`,
+  Scheduler alle 10 min): holt per IMAP (imap.gmail.com, gleiches App-Passwort)
+  Mails an die eigene **+tab-Adresse** ab (letzte 14 Tage, `readonly` — Postfach
+  wird nie verändert), speichert Anhänge via `services/beleg_store.speichere_beleg`
+  in den Eingang. Guards: nur Absender aus der Allowlist, Dedup über Message-ID
+  (`mail_import`). Einstellungen je Login: PUT `/api/einstellungen/mail/import`
+  (Toggle + Ziel-Gewerbe), UI im MailSetupModal. (2) **PWA-Share-Target**
+  (`public/manifest.webmanifest` + `public/sw.js`): Teilen vom Handy → SW fängt
+  POST `/share-target` ab → `/api/belege/share` (Ziel = Import-Gewerbe, sonst
+  erstes aktives) → Redirect `?geteilt=ok|fehler` (Toast in Buchungen). SW macht
+  bewusst KEIN Caching. Android/Chrome only — iOS kann kein Share-Target (Mail-Weg).
+  Datei-Validierung/XML-Fälligkeit zentral in `beleg_store` (Upload nutzt es auch).
 - **Kontakte (`routes/kontakte.py`, Tabelle `kontakt`):** Rechnungsempfänger je Gewerbe,
   Name case-insensitiv eindeutig. **Füllen sich automatisch**: Rechnung/Abo anlegen
   upsertet den Empfänger (`upsert_kontakt` — nur nicht-leere Felder überschreiben).

@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
+import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 
 // E-Mail-Versand einrichten: Gmail-App-Passwort des eingeloggten Nutzers.
 // Individuell je Login (verschlüsselt in der DB), Versand von der eigenen Adresse.
 export default function MailSetupModal({ onClose }) {
-  const [status, setStatus] = useState(null); // { email, konfiguriert }
+  const [status, setStatus] = useState(null); // { email, konfiguriert, plus_adresse, import_* }
   const [passwort, setPasswort] = useState('');
   const [busy, setBusy] = useState('');
+  const [gewerbe, setGewerbe] = useState([]);
 
   async function load() {
     try {
-      const res = await api.get('/api/einstellungen/mail');
+      const [res, g] = await Promise.all([
+        api.get('/api/einstellungen/mail'),
+        api.get('/api/gewerbe'),
+      ]);
       setStatus(res.data);
+      setGewerbe(g.data);
     } catch (e) {
       toast.error(apiError(e));
     }
@@ -22,6 +28,22 @@ export default function MailSetupModal({ onClose }) {
   useEffect(() => {
     load();
   }, []);
+
+  async function saveImport(aktiv, gewerbeId) {
+    setBusy('import');
+    try {
+      const res = await api.put('/api/einstellungen/mail/import', {
+        aktiv,
+        gewerbe_id: gewerbeId ? Number(gewerbeId) : null,
+      });
+      setStatus(res.data);
+      toast.success(aktiv ? 'Mail-Import aktiv — Abruf alle 10 Minuten.' : 'Mail-Import aus.');
+    } catch (err) {
+      toast.error(apiError(err), { duration: 8000 });
+    } finally {
+      setBusy('');
+    }
+  }
 
   async function save(e) {
     e.preventDefault();
@@ -129,6 +151,50 @@ export default function MailSetupModal({ onClose }) {
             </button>
           </div>
         </form>
+
+        <div className="pt-4 border-t border-ink/10 space-y-3">
+          <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
+            Beleg-Eingang per E-Mail
+          </div>
+          <p className="text-sm text-ink/70">
+            Belege einfach weiterleiten an{' '}
+            <code className="font-mono text-royal font-medium break-all">
+              {status?.plus_adresse || '…'}
+            </code>{' '}
+            — Tab holt sie alle 10 Minuten ab und legt die Anhänge (PDF/JPG/PNG/XML) in den
+            Eingang. Aus Sicherheit werden nur Mails von freigeschalteten Absendern importiert;
+            an deinem Postfach wird nichts verändert.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="rounded border-ink/30 text-royal focus:ring-royal"
+                checked={Boolean(status?.import_aktiv)}
+                disabled={!status?.konfiguriert || busy !== ''}
+                onChange={(e) => saveImport(e.target.checked, status?.import_gewerbe_id)}
+              />
+              <span className="font-bold">Mail-Import aktiv</span>
+            </label>
+            {status?.import_aktiv && gewerbe.length > 1 && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-ink/60">in Gewerbe:</span>
+                <Dropdown
+                  value={String(status?.import_gewerbe_id || gewerbe[0]?.id || '')}
+                  onChange={(v) => saveImport(true, v)}
+                  options={gewerbe.map((g) => ({ value: String(g.id), label: g.name }))}
+                  variant="ghost"
+                />
+              </div>
+            )}
+          </div>
+          {!status?.konfiguriert && (
+            <p className="text-xs text-ink/50">
+              Voraussetzung: App-Passwort oben hinterlegen (der Abruf läuft über IMAP mit
+              demselben Passwort).
+            </p>
+          )}
+        </div>
       </div>
     </Modal>
   );
