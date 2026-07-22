@@ -22,7 +22,8 @@ function NoGewerbe() {
 }
 
 export default function Buchungen() {
-  const { gewerbeId, jahr, reloadBadges } = useOutletContext();
+  const { gewerbeId, jahr, gewerbe, reloadBadges } = useOutletContext();
+  const andereGewerbe = (gewerbe || []).filter((g) => String(g.id) !== String(gewerbeId) && g.aktiv);
   const [kategorien, setKategorien] = useState([]);
   const [items, setItems] = useState([]);
   const [belege, setBelege] = useState([]); // offener Beleg-Eingang
@@ -140,6 +141,17 @@ export default function Buchungen() {
   async function setFaellig(b, datum) {
     try {
       await api.patch(`/api/belege/${b.id}`, { faellig_am: datum || null });
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  async function verschiebeBeleg(b, zielGewerbeId) {
+    try {
+      await api.patch(`/api/belege/${b.id}`, { gewerbe_id: Number(zielGewerbeId) });
+      const ziel = andereGewerbe.find((g) => String(g.id) === String(zielGewerbeId));
+      toast.success(`Beleg nach „${ziel?.name || 'anderes Gewerbe'}" verschoben.`);
       await load();
     } catch (e) {
       toast.error(apiError(e));
@@ -308,6 +320,15 @@ export default function Buchungen() {
                     <button className="btn-outline btn-sm" onClick={() => setVerbuchen(b)}>
                       Verbuchen
                     </button>
+                    {andereGewerbe.length > 0 && (
+                      <Dropdown
+                        value=""
+                        placeholder="Verschieben…"
+                        options={andereGewerbe.map((g) => ({ value: String(g.id), label: `→ ${g.name}` }))}
+                        onChange={(v) => verschiebeBeleg(b, v)}
+                        variant="ghost"
+                      />
+                    )}
                     <button className="btn-ghost btn-sm text-red-700" onClick={() => removeBeleg(b)}>
                       Löschen
                     </button>

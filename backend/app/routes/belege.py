@@ -165,6 +165,7 @@ def list_buchung_belege(
 class BelegPatch(BaseModel):
     buchung_id: int | None = None   # zuordnen; explizit null = zurück in den Eingang
     faellig_am: str | None = None   # explizit null = Fälligkeit entfernen
+    gewerbe_id: int | None = None   # offenen Beleg in ein anderes eigenes Gewerbe verschieben
 
 
 @router.patch("/belege/{beleg_id}")
@@ -191,6 +192,11 @@ def patch_beleg(
         if body.faellig_am:
             _valid_date(body.faellig_am)
         fields.append("faellig_am = ?"); values.append(body.faellig_am or None)
+    if body.gewerbe_id is not None and body.gewerbe_id != bel["gewerbe_id"]:
+        if bel["buchung_id"] is not None:
+            raise HTTPException(400, "Nur offene Eingangs-Belege können verschoben werden.")
+        check_gewerbe(db, user, body.gewerbe_id)  # Ziel muss dem Nutzer gehören
+        fields.append("gewerbe_id = ?"); values.append(body.gewerbe_id)
     if fields:
         db.execute(f"UPDATE beleg SET {', '.join(fields)} WHERE id = ?", (*values, beleg_id))
         db.commit()

@@ -46,6 +46,22 @@ def speichere_beleg(
     if len(data) > settings.MAX_UPLOAD_MB * 1024 * 1024:
         raise BelegAbgelehnt(f"Datei zu groß (max. {settings.MAX_UPLOAD_MB} MB).")
 
+    # Speicher-Quota je Nutzer (Summe über alle Gewerbe des Besitzers).
+    owner = conn.execute(
+        "SELECT owner_email FROM gewerbe WHERE id = ?", (gewerbe_id,)
+    ).fetchone()
+    if owner and owner["owner_email"]:
+        belegt = conn.execute(
+            "SELECT COALESCE(SUM(b.size_bytes), 0) FROM beleg b "
+            "JOIN gewerbe g ON g.id = b.gewerbe_id WHERE g.owner_email = ?",
+            (owner["owner_email"],),
+        ).fetchone()[0]
+        if belegt + len(data) > settings.QUOTA_MB * 1024 * 1024:
+            raise BelegAbgelehnt(
+                f"Speicherplatz voll ({settings.QUOTA_MB} MB) — alte Belege löschen "
+                f"oder Jahres-Archive sichern und aufräumen."
+            )
+
     stored_name = f"{uuid.uuid4().hex}{ext}"
     os.makedirs(settings.UPLOAD_ROOT, exist_ok=True)
     with open(os.path.join(settings.UPLOAD_ROOT, stored_name), "wb") as fh:
@@ -79,14 +95,12 @@ def default_gewerbe_id(conn: sqlite3.Connection, user_email: str) -> int | None:
     if row and row["import_gewerbe_id"]:
         gid = row["import_gewerbe_id"]
         if conn.execute(
-            "SELECT 1 FROM gewerbe WHERE id = ? AND aktiv = 1 "
-            "AND (owner_email IS NULL OR owner_email = ?)",
+            "SELECT 1 FROM gewerbe WHERE id = ? AND aktiv = 1 AND owner_email = ?",
             (gid, email),
         ).fetchone():
             return gid
     row = conn.execute(
-        "SELECT id FROM gewerbe WHERE aktiv = 1 AND (owner_email IS NULL OR owner_email = ?) "
-        "ORDER BY id LIMIT 1",
+        "SELECT id FROM gewerbe WHERE aktiv = 1 AND owner_email = ? ORDER BY id LIMIT 1",
         (email,),
     ).fetchone()
     return row["id"] if row else None

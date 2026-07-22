@@ -21,10 +21,10 @@ import sqlite3
 
 from ..config import settings
 from .beleg_store import BelegAbgelehnt, default_gewerbe_id, speichere_beleg
+from .mailer import lade_konto
 
 log = logging.getLogger("tab.mail_import")
 
-IMAP_HOST = "smtp.gmail.com".replace("smtp", "imap")  # imap.gmail.com
 SUCHFENSTER_TAGE = 14
 
 
@@ -34,7 +34,8 @@ def plus_adresse(email_addr: str) -> str:
 
 
 def importiere_nachricht(
-    conn: sqlite3.Connection, user_email: str, gewerbe_id: int, msg_bytes: bytes
+    conn: sqlite3.Connection, user_email: str, gewerbe_id: int, msg_bytes: bytes,
+    erlaubte_absender: set[str] | None = None,
 ) -> list[int] | None:
     """Verarbeitet eine Mail: Absender-Check, Dedup, Anhänge speichern.
     Gibt Beleg-IDs zurück (leer = keine passenden Anhänge), None = übersprungen."""
@@ -49,7 +50,11 @@ def importiere_nachricht(
         return None
 
     absender = (email.utils.parseaddr(msg.get("From") or "")[1] or "").lower()
-    if not settings.is_email_allowed(absender):
+    # Bei offener Registrierung: nur eigene Weiterleitungen (Login- bzw.
+    # Mail-Konto-Adresse) + der Vertrauenskreis aus der Allowlist — Fremde
+    # können nichts in den Eingang schieben.
+    eigene = {user_email.lower()} | {a.lower() for a in (erlaubte_absender or set())}
+    if absender not in eigene and not settings.is_email_allowed(absender):
         log.info("Mail-Import %s: Absender %s nicht freigeschaltet — übersprungen",
                  user_email, absender)
         conn.execute(  # trotzdem als verarbeitet merken, sonst prüfen wir sie ewig
@@ -90,14 +95,20 @@ def importiere_nachricht(
     return beleg_ids
 
 
-def _hole_fuer_nutzer(conn: sqlite3.Connection, user_email: str, app_passwort: str,
+def import_ziel(konto: dict) -> str:
+    """Adresse, an die Beleg-Mails gehen: eigene Import-Adresse oder +tab-Variante
+    der Absender-Adresse."""
+    return konto["import_adresse"] or plus_adresse(konto["absender"])
+
+
+def _hole_fuer_nutzer(conn: sqlite3.Connection, user_email: str, konto: dict,
                       gewerbe_id: int) -> int:
     seit = (dt.date.today() - dt.timedelta(days=SUCHFENSTER_TAGE)).strftime("%d-%b-%Y")
-    ziel = plus_adresse(user_email)
+    ziel = import_ziel(konto)
     importiert = 0
-    M = imaplib.IMAP4_SSL(IMAP_HOST, 993, timeout=30)
+    M = imaplib.IMAP4_SSL(konto["imap_host"], konto["imap_port"], timeout=30)
     try:
-        M.login(user_email, app_passwort)
+        M.login(konto["benutzer"], konto["passwort"])
         M.select("INBOX", readonly=True)  # readonly: wir verändern nichts am Postfach
         typ, daten = M.search(None, f'(SINCE {seit} TO "{ziel}")')
         if typ != "OK":
@@ -106,7 +117,10 @@ def _hole_fuer_nutzer(conn: sqlite3.Connection, user_email: str, app_passwort: s
             typ, teile = M.fetch(num, "(RFC822)")
             if typ != "OK" or not teile or teile[0] is None:
                 continue
-            ids = importiere_nachricht(conn, user_email, gewerbe_id, teile[0][1])
+            ids = importiere_nachricht(
+                conn, user_email, gewerbe_id, teile[0][1],
+                erlaubte_absender={konto["absender"], konto["benutzer"]},
+            )
             if ids:
                 importiert += len(ids)
     finally:
@@ -119,19 +133,17 @@ def _hole_fuer_nutzer(conn: sqlite3.Connection, user_email: str, app_passwort: s
 
 def run_mail_import(conn: sqlite3.Connection) -> int:
     """Alle Nutzer mit aktivem Import abarbeiten. Gibt Anzahl neuer Belege zurück."""
-    from .mailer import _fernet  # lazy: Fernet-Key aus JWT_SECRET
-
     gesamt = 0
     nutzer = conn.execute(
-        "SELECT * FROM user_mail WHERE import_aktiv = 1"
+        "SELECT email FROM user_mail WHERE import_aktiv = 1"
     ).fetchall()
     for u in nutzer:
         gid = default_gewerbe_id(conn, u["email"])  # owner-gescoped
         if gid is None:
             continue
         try:
-            passwort = _fernet().decrypt(u["app_passwort_enc"].encode()).decode()
-            gesamt += _hole_fuer_nutzer(conn, u["email"], passwort, gid)
+            konto = lade_konto(conn, u["email"])
+            gesamt += _hole_fuer_nutzer(conn, u["email"], konto, gid)
         except Exception:
             log.exception("Mail-Import für %s fehlgeschlagen", u["email"])
     return gesamt

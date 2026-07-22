@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     ALLOWED_EMAILS: str = ""
     # ... jede Adresse dieser Domains (Komma-getrennt, z. B. "example.com").
     ALLOWED_EMAIL_DOMAINS: str = ""
+    # Offene Registrierung: true = jedes Google-Konto darf sich anmelden.
+    # Die Allowlist bleibt dann als ADMIN-Liste (ALLOWED_EMAILS) und als Kreis
+    # vertrauenswürdiger Mail-Import-Absender aktiv.
+    OPEN_SIGNUP: bool = False
+    # Speicher-Quota für Beleg-Dateien je Nutzer (Summe über alle seine Gewerbe).
+    QUOTA_MB: int = 500
     # Wohin nach Login/Logout zurück (Frontend-Origin).
     FRONTEND_URL: str = "https://tab.vrwb.de"
 

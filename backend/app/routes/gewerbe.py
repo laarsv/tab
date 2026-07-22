@@ -6,7 +6,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import GEWERBE_SICHTBAR_SQL, check_gewerbe, get_current_user
+from ..auth.deps import check_gewerbe, get_current_user, ist_admin
 from ..db import get_db
 
 router = APIRouter(prefix="/api/gewerbe", tags=["gewerbe"], dependencies=[Depends(get_current_user)])
@@ -54,7 +54,8 @@ def list_gewerbe(
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    sql = f"SELECT * FROM gewerbe WHERE {GEWERBE_SICHTBAR_SQL}"
+    sichtbar = "(owner_email = ? OR owner_email IS NULL)" if ist_admin(user) else "owner_email = ?"
+    sql = f"SELECT * FROM gewerbe WHERE {sichtbar}"
     if not include_inactive:
         sql += " AND aktiv = 1"
     sql += " ORDER BY aktiv DESC, name COLLATE NOCASE"

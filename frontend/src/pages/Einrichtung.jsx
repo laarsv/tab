@@ -86,7 +86,7 @@ export default function Einrichtung() {
   const fertig = [s1, s2, s3, s4, s5].filter(Boolean).length;
 
   function copyPlus() {
-    navigator.clipboard?.writeText(mail?.plus_adresse || '').then(
+    navigator.clipboard?.writeText(mail?.import_ziel || '').then(
       () => toast.success('Adresse kopiert.'),
       () => {},
     );
@@ -118,6 +118,11 @@ export default function Einrichtung() {
           <strong>Name & Anschrift</strong> und die <strong>IBAN</strong> eintragen — Pflichtangaben
           auf jeder Rechnung.
         </p>
+        <p className="text-xs text-ink/60">
+          Mehrere Gewerbe unter einem Login gehen — sie teilen sich aber die Absender-Adresse
+          beim Rechnungsversand. Faustregel: <strong>Eigene Mail-Domain pro Firma → eigener
+          Login pro Firma.</strong>
+        </p>
       </Schritt>
 
       <Schritt nr={2} titel="E-Mail-Versand einrichten (App-Passwort)" done={s2} chip={<StatusChip done={s2} />}>
@@ -139,15 +144,16 @@ export default function Einrichtung() {
           <li>Mit „Test-Mail" eine Probe an dich selbst schicken.</li>
         </ol>
         <p className="text-xs text-ink/50">
-          Gilt pro Person: Jeder Login hinterlegt sein eigenes App-Passwort und versendet von
-          seiner eigenen Adresse.
+          Gilt pro Person: Jeder Login hinterlegt sein eigenes Mail-Konto und versendet von
+          seiner eigenen Adresse. Deine Mail liegt nicht bei Google? Im Dialog einfach
+          „Eigener Mail-Server" wählen (SMTP/IMAP-Daten deines Anbieters, z. B. All-Inkl).
         </p>
       </Schritt>
 
       <Schritt nr={3} titel="Belege per E-Mail einschicken" done={s3} chip={<StatusChip done={s3} />}>
         <p>
           Deine persönliche Beleg-Adresse:{' '}
-          <code className="font-mono text-royal font-medium break-all">{mail?.plus_adresse || '…'}</code>{' '}
+          <code className="font-mono text-royal font-medium break-all">{mail?.import_ziel || '…'}</code>{' '}
           <button className="btn-ghost btn-sm" onClick={copyPlus}>Kopieren</button>
         </p>
         <p>

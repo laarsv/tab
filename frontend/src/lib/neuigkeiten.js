@@ -4,6 +4,18 @@
 
 export const NEUIGKEITEN = [
   {
+    id: 15,
+    datum: '2026-07-22',
+    titel: 'Tab ist offen für alle',
+    text: 'Jedes Google-Konto kann sich jetzt anmelden und loslegen — Freunde und Kollegen einfach auf tab.vrwb.de schicken. Jeder Nutzer hat seinen komplett eigenen Bereich.',
+  },
+  {
+    id: 14,
+    datum: '2026-07-22',
+    titel: 'Eigener Mail-Server statt Gmail',
+    text: 'Deine Mail liegt nicht bei Google? Im Mail-Dialog jetzt „Eigener Mail-Server" wählen (z. B. All-Inkl, IONOS): Rechnungen gehen dann von deiner eigenen Domain raus, und der Beleg-Import holt dort ab.',
+  },
+  {
     id: 13,
     datum: '2026-07-22',
     titel: 'Getrennte Bereiche für jeden Nutzer',

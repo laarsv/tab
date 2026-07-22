@@ -213,16 +213,29 @@ der Mapping-Version des Jahres aufgelöst.
   upsertet den Empfänger (`upsert_kontakt` — nur nicht-leere Felder überschreiben).
   UI: „Aus Kontakten übernehmen"-Picker in Rechnungs- und Abo-Modal, Pflege über
   `KontakteModal` (Button „Kontakte" auf der Rechnungen-Seite).
-- **Mail-Versand individuell je Login (`routes/einstellungen.py`, `services/mailer.py`):**
-  jeder Nutzer hinterlegt SEIN Gmail-App-Passwort (Profil-Menü „E-Mail-Versand") —
-  Fernet-verschlüsselt in `user_mail` (Schlüssel aus JWT_SECRET), NICHT in der .env.
-  Versand via smtp.gmail.com vom Login-Absender (gmail.com + Workspace). Beim Speichern
-  wird der SMTP-Login live verifiziert. **JWT_SECRET ändern macht gespeicherte
-  App-Passwörter unlesbar** (Nutzer müssen neu hinterlegen — Meldung kommt automatisch).
+- **Beleg verschieben:** offene Eingangs-Belege können per PATCH (`gewerbe_id`) in ein
+  anderes eigenes Gewerbe wandern (UI: „Verschieben…"-Dropdown im Eingang bei >1 Gewerbe).
+- **Mail-Konto individuell je Login (`routes/einstellungen.py`, `services/mailer.py`, v13):**
+  Provider **'google'** (App-Passwort, smtp/imap.gmail.com) oder **'custom'** (eigener
+  Mail-Server, z. B. All-Inkl: Host/Port/Benutzer/Absender frei, Port 587 STARTTLS oder
+  465 SSL — Hetzner blockt nur 25/465-ausgehend teils, 587+993 sind offen, live geprüft).
+  `lade_konto()` löst alles inkl. Defaults auf; From: = `absender_email` (custom) bzw.
+  Login-Adresse. Import-Ziel = `import_adresse` oder +tab-Variante des Absenders
+  (`mail_import.import_ziel`). Passwort Fernet-verschlüsselt (Schlüssel aus JWT_SECRET),
+  beim Speichern SMTP-Login live verifiziert. **JWT_SECRET ändern macht gespeicherte
+  Passwörter unlesbar** (Nutzer hinterlegen neu — Meldung kommt automatisch).
+  Faustregel (steht im Wizard): eigene Absender-Domain pro Firma → eigener Login.
+- **Offene Registrierung (`OPEN_SIGNUP=true` in .env):** jedes Google-Konto darf sich
+  anmelden. Die Allowlist bleibt aktiv als **Admin-Liste** (`ALLOWED_EMAILS` → `ist_admin`,
+  Backup-Zugriff, Sicht auf herrenlose Gewerbe) und als Vertrauenskreis beim Mail-Import.
+  Schutz gegen Missbrauch: Beleg-Speicher-**Quota je Nutzer** (`QUOTA_MB`, Default 500,
+  geprüft in `beleg_store`), Upload-Größenlimit, Mail-Import nur von eigenen/vertrauten
+  Absendern. Voraussetzung (manuell in Google Cloud): OAuth-Consent-Screen auf
+  „In production", sonst blockt Google fremde Logins.
 - **Mandantentrennung (v12):** `gewerbe.owner_email` — **jede Route** prüft Zugriff über
-  `auth/deps.check_gewerbe` (fremd → 404, keine Existenz verraten); Listen filtern mit
-  `GEWERBE_SICHTBAR_SQL`. `owner_email NULL` = Alt-Bestand, für alle sichtbar, bis manuell
-  zugeordnet (`UPDATE gewerbe SET owner_email=…`). Neue Gewerbe gehören dem Ersteller.
+  `auth/deps.check_gewerbe` (fremd → 404, keine Existenz verraten). `owner_email NULL` =
+  herrenloser Alt-Bestand: **nur für Admins sichtbar** (zum Zuordnen via
+  `UPDATE gewerbe SET owner_email=…`). Neue Gewerbe gehören dem Ersteller.
   Row-Level-Objekte (Buchung/Beleg/Rechnung/Abo/Fahrt/AfA/Kontakt) erben über ihr Gewerbe.
   **Backup (`/api/export/backup.zip`) nur für Admins** = explizite `ALLOWED_EMAILS`-Einträge
   (`ist_admin`), Domain-Nutzer nicht. Bei NEUEN Routen mit `gewerbe_id`/Objekt-IDs IMMER

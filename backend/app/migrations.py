@@ -347,6 +347,23 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE gewerbe ADD COLUMN owner_email TEXT;
         """,
     ),
+    Migration(
+        version=13,
+        sql="""
+        -- v13: Eigener Mail-Server je Login (Option B): provider 'google' (Default,
+        --      smtp/imap.gmail.com) oder 'custom' (beliebiger Anbieter, z. B. All-Inkl).
+        --      absender_email = From: auf Rechnungen; import_adresse = Ziel für den
+        --      Beleg-Mail-Import (Fallback: +tab-Variante des Absenders).
+        ALTER TABLE user_mail ADD COLUMN provider TEXT NOT NULL DEFAULT 'google';
+        ALTER TABLE user_mail ADD COLUMN smtp_host TEXT;
+        ALTER TABLE user_mail ADD COLUMN smtp_port INTEGER;
+        ALTER TABLE user_mail ADD COLUMN imap_host TEXT;
+        ALTER TABLE user_mail ADD COLUMN imap_port INTEGER;
+        ALTER TABLE user_mail ADD COLUMN mail_benutzer TEXT;
+        ALTER TABLE user_mail ADD COLUMN absender_email TEXT;
+        ALTER TABLE user_mail ADD COLUMN import_adresse TEXT;
+        """,
+    ),
 ]
 
 

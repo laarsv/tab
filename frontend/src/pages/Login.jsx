@@ -45,7 +45,7 @@ export default function Login() {
               {ERRORS[error] || 'Anmeldung fehlgeschlagen.'}
             </div>
           )}
-          <p className="text-sm text-ink/60">Melde dich mit deinem freigeschalteten Google-Konto an.</p>
+          <p className="text-sm text-ink/60">Melde dich mit deinem Google-Konto an — kostenlos, keine Registrierung nötig.</p>
           <a href={loginUrl} className="btn-primary w-full shadow-lg gap-2">
             <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
               <path

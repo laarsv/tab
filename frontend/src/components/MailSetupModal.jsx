@@ -4,13 +4,21 @@ import { api, apiError } from '../api/client.js';
 import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 
-// E-Mail-Versand einrichten: Gmail-App-Passwort des eingeloggten Nutzers.
-// Individuell je Login (verschlüsselt in der DB), Versand von der eigenen Adresse.
+const PROVIDER_OPTIONS = [
+  { value: 'google', label: 'Google / Gmail (App-Passwort)' },
+  { value: 'custom', label: 'Eigener Mail-Server (z. B. All-Inkl, IONOS …)' },
+];
+
+// Mail-Konto einrichten: Versand (SMTP) + Beleg-Import (IMAP) — je Login,
+// Provider Google oder eigener Mail-Server. Passwort verschlüsselt in der DB.
 export default function MailSetupModal({ onClose }) {
-  const [status, setStatus] = useState(null); // { email, konfiguriert, plus_adresse, import_* }
-  const [passwort, setPasswort] = useState('');
-  const [busy, setBusy] = useState('');
+  const [status, setStatus] = useState(null);
   const [gewerbe, setGewerbe] = useState([]);
+  const [busy, setBusy] = useState('');
+  const [form, setForm] = useState({
+    provider: 'google', passwort: '', smtp_host: '', smtp_port: '', imap_host: '',
+    imap_port: '', mail_benutzer: '', absender_email: '', import_adresse: '',
+  });
 
   async function load() {
     try {
@@ -20,6 +28,17 @@ export default function MailSetupModal({ onClose }) {
       ]);
       setStatus(res.data);
       setGewerbe(g.data);
+      setForm((f) => ({
+        ...f,
+        provider: res.data.provider || 'google',
+        smtp_host: res.data.smtp_host || '',
+        smtp_port: res.data.smtp_port || '',
+        imap_host: res.data.imap_host || '',
+        imap_port: res.data.imap_port || '',
+        mail_benutzer: res.data.mail_benutzer || '',
+        absender_email: res.data.absender_email || '',
+        import_adresse: res.data.import_adresse || '',
+      }));
     } catch (e) {
       toast.error(apiError(e));
     }
@@ -27,7 +46,61 @@ export default function MailSetupModal({ onClose }) {
 
   useEffect(() => {
     load();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const custom = form.provider === 'custom';
+
+  async function save(e) {
+    e.preventDefault();
+    if (!form.passwort.trim()) return toast.error('Bitte Passwort eingeben.');
+    setBusy('save');
+    try {
+      await api.put('/api/einstellungen/mail', {
+        provider: form.provider,
+        app_passwort: form.passwort.trim(),
+        smtp_host: form.smtp_host.trim() || null,
+        smtp_port: form.smtp_port ? Number(form.smtp_port) : null,
+        imap_host: form.imap_host.trim() || null,
+        imap_port: form.imap_port ? Number(form.imap_port) : null,
+        mail_benutzer: form.mail_benutzer.trim() || null,
+        absender_email: form.absender_email.trim() || null,
+        import_adresse: form.import_adresse.trim() || null,
+      });
+      toast.success('Gespeichert — Login beim Mail-Server hat geklappt.');
+      setForm((f) => ({ ...f, passwort: '' }));
+      await load();
+    } catch (err) {
+      toast.error(apiError(err), { duration: 10000 });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function test() {
+    setBusy('test');
+    try {
+      await api.post('/api/einstellungen/mail/test');
+      toast.success('Test-Mail gesendet — check das Absender-Postfach.');
+    } catch (err) {
+      toast.error(apiError(err), { duration: 10000 });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm('Mail-Konto aus Tab entfernen?')) return;
+    setBusy('remove');
+    try {
+      await api.delete('/api/einstellungen/mail');
+      toast.success('Entfernt.');
+      await load();
+    } catch (err) {
+      toast.error(apiError(err));
+    } finally {
+      setBusy('');
+    }
+  }
 
   async function saveImport(aktiv, gewerbeId) {
     setBusy('import');
@@ -45,75 +118,14 @@ export default function MailSetupModal({ onClose }) {
     }
   }
 
-  async function save(e) {
-    e.preventDefault();
-    if (!passwort.trim()) return toast.error('Bitte App-Passwort eingeben.');
-    setBusy('save');
-    try {
-      await api.put('/api/einstellungen/mail', { app_passwort: passwort.trim() });
-      toast.success('Gespeichert — Login bei Google hat geklappt.');
-      setPasswort('');
-      await load();
-    } catch (err) {
-      toast.error(apiError(err), { duration: 10000 });
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function test() {
-    setBusy('test');
-    try {
-      await api.post('/api/einstellungen/mail/test');
-      toast.success('Test-Mail an dich selbst gesendet — check dein Postfach.');
-    } catch (err) {
-      toast.error(apiError(err), { duration: 10000 });
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function remove() {
-    if (!window.confirm('App-Passwort aus Tab entfernen?')) return;
-    setBusy('remove');
-    try {
-      await api.delete('/api/einstellungen/mail');
-      toast.success('Entfernt.');
-      await load();
-    } catch (err) {
-      toast.error(apiError(err));
-    } finally {
-      setBusy('');
-    }
-  }
-
   return (
-    <Modal title="E-Mail-Versand einrichten" onClose={onClose}>
+    <Modal title="E-Mail-Versand & Beleg-Import" onClose={onClose} maxWidth="max-w-2xl">
       <div className="space-y-4">
-        <p className="text-sm text-ink/70">
-          Rechnungen werden direkt von <strong>{status?.email || 'deiner Adresse'}</strong>{' '}
-          verschickt (landen auch in deinem „Gesendet"-Ordner). Dafür braucht Tab einmalig ein{' '}
-          <strong>App-Passwort</strong> deines Google-Kontos — nicht dein normales Passwort.
-        </p>
-        <ol className="text-sm text-ink/70 list-decimal ml-5 space-y-1">
-          <li>2-Faktor-Authentifizierung im Google-Konto aktivieren (falls noch nicht).</li>
-          <li>
-            <a
-              className="text-royal font-medium hover:underline"
-              href="https://myaccount.google.com/apppasswords"
-              target="_blank"
-              rel="noreferrer"
-            >
-              myaccount.google.com/apppasswords
-            </a>{' '}
-            öffnen, App-Passwort „Tab" erstellen.
-          </li>
-          <li>Die 16 Zeichen hier einfügen (Leerzeichen egal).</li>
-        </ol>
-
         {status?.konfiguriert && (
           <div className="rounded-lg bg-royal-soft/15 p-3 text-sm text-ink/80 flex items-center justify-between gap-2">
-            <span>✓ App-Passwort hinterlegt — Versand aktiv.</span>
+            <span>
+              ✓ Konto aktiv — Rechnungen gehen von <strong>{status.absender}</strong> raus.
+            </span>
             <div className="flex gap-2 shrink-0">
               <button className="btn-outline btn-sm" onClick={test} disabled={busy !== ''}>
                 {busy === 'test' ? 'Sendet…' : 'Test-Mail'}
@@ -126,20 +138,86 @@ export default function MailSetupModal({ onClose }) {
         )}
 
         <form onSubmit={save} className="space-y-3">
+          <div className="block">
+            <span className="field-label">Mail-Anbieter</span>
+            <Dropdown
+              value={form.provider}
+              onChange={(v) => setForm({ ...form, provider: String(v) })}
+              options={PROVIDER_OPTIONS}
+            />
+          </div>
+
+          {custom ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
+                <label className="block">
+                  <span className="field-label">Absender-Adresse (steht auf Rechnungen)</span>
+                  <input className="input" value={form.absender_email} placeholder="rechnung@deine-domain.de"
+                    onChange={(e) => setForm({ ...form, absender_email: e.target.value })} />
+                </label>
+                <label className="block">
+                  <span className="field-label">Benutzername (meist die Mail-Adresse)</span>
+                  <input className="input" value={form.mail_benutzer} placeholder="rechnung@deine-domain.de"
+                    onChange={(e) => setForm({ ...form, mail_benutzer: e.target.value })} />
+                </label>
+                <label className="block">
+                  <span className="field-label">SMTP-Server (Versand)</span>
+                  <input className="input" value={form.smtp_host} placeholder="z. B. w0123456.kasserver.com"
+                    onChange={(e) => setForm({ ...form, smtp_host: e.target.value })} />
+                </label>
+                <label className="block">
+                  <span className="field-label">SMTP-Port</span>
+                  <input className="input tabular-nums" value={form.smtp_port} placeholder="587"
+                    onChange={(e) => setForm({ ...form, smtp_port: e.target.value })} />
+                </label>
+                <label className="block">
+                  <span className="field-label">IMAP-Server (Beleg-Import, optional)</span>
+                  <input className="input" value={form.imap_host} placeholder="leer = wie SMTP-Server"
+                    onChange={(e) => setForm({ ...form, imap_host: e.target.value })} />
+                </label>
+                <label className="block">
+                  <span className="field-label">IMAP-Port</span>
+                  <input className="input tabular-nums" value={form.imap_port} placeholder="993"
+                    onChange={(e) => setForm({ ...form, imap_port: e.target.value })} />
+                </label>
+              </div>
+              <label className="block">
+                <span className="field-label">Beleg-Import-Adresse (optional)</span>
+                <input className="input" value={form.import_adresse} placeholder="z. B. belege@deine-domain.de (Alias aufs selbe Postfach)"
+                  onChange={(e) => setForm({ ...form, import_adresse: e.target.value })} />
+                <span className="block text-xs text-ink/60 mt-1">
+                  Leer = die +tab-Variante deiner Absender-Adresse. Falls dein Anbieter
+                  +Adressen nicht zustellt, lege einen Alias an und trage ihn hier ein.
+                </span>
+              </label>
+            </>
+          ) : (
+            <ol className="text-sm text-ink/70 list-decimal ml-5 space-y-1">
+              <li>2-Faktor-Authentifizierung im Google-Konto aktivieren (falls noch nicht).</li>
+              <li>
+                <a className="text-royal font-medium hover:underline" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+                  myaccount.google.com/apppasswords
+                </a>{' '}
+                öffnen, App-Passwort „Tab" erstellen.
+              </li>
+              <li>Die 16 Zeichen unten einfügen (Leerzeichen egal).</li>
+            </ol>
+          )}
+
           <label className="block">
             <span className="field-label">
-              {status?.konfiguriert ? 'Neues App-Passwort (ersetzt das alte)' : 'App-Passwort'}
+              {custom ? 'Postfach-Passwort' : status?.konfiguriert ? 'Neues App-Passwort (ersetzt das alte)' : 'App-Passwort'}
             </span>
             <input
               type="password"
               className="input"
-              value={passwort}
-              onChange={(e) => setPasswort(e.target.value)}
-              placeholder="xxxx xxxx xxxx xxxx"
+              value={form.passwort}
+              onChange={(e) => setForm({ ...form, passwort: e.target.value })}
+              placeholder={custom ? '••••••••' : 'xxxx xxxx xxxx xxxx'}
               autoComplete="off"
             />
             <span className="block text-xs text-ink/60 mt-1">
-              Wird verschlüsselt gespeichert und beim Speichern direkt bei Google getestet.
+              Wird verschlüsselt gespeichert und beim Speichern direkt am Mail-Server getestet.
             </span>
           </label>
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -159,10 +237,10 @@ export default function MailSetupModal({ onClose }) {
           <p className="text-sm text-ink/70">
             Belege einfach weiterleiten an{' '}
             <code className="font-mono text-royal font-medium break-all">
-              {status?.plus_adresse || '…'}
+              {status?.import_ziel || '…'}
             </code>{' '}
             — Tab holt sie alle 10 Minuten ab und legt die Anhänge (PDF/JPG/PNG/XML) in den
-            Eingang. Aus Sicherheit werden nur Mails von freigeschalteten Absendern importiert;
+            Eingang. Importiert werden nur Mails von dir selbst bzw. freigeschalteten Absendern;
             an deinem Postfach wird nichts verändert.
           </p>
           <div className="flex flex-wrap items-center gap-3">
@@ -190,8 +268,8 @@ export default function MailSetupModal({ onClose }) {
           </div>
           {!status?.konfiguriert && (
             <p className="text-xs text-ink/50">
-              Voraussetzung: App-Passwort oben hinterlegen (der Abruf läuft über IMAP mit
-              demselben Passwort).
+              Voraussetzung: Mail-Konto oben hinterlegen (der Abruf läuft über IMAP mit
+              denselben Zugangsdaten).
             </p>
           )}
         </div>

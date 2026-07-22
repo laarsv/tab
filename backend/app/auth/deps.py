@@ -20,8 +20,9 @@ def get_current_user(request: Request) -> dict:
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_session")
 
-    # Allowlist (E-Mail oder Domain) bei jedem Request prüfen → Entzug wirkt sofort.
-    if not settings.is_email_allowed(email):
+    # Offene Registrierung: jedes Google-Konto darf rein; sonst Allowlist
+    # (E-Mail oder Domain) bei jedem Request prüfen → Entzug wirkt sofort.
+    if not settings.OPEN_SIGNUP and not settings.is_email_allowed(email):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not_allowed")
 
     return {"email": email, "name": payload.get("name"), "picture": payload.get("picture")}
@@ -30,16 +31,19 @@ def get_current_user(request: Request) -> dict:
 def check_gewerbe(db: sqlite3.Connection, user: dict, gewerbe_id: int) -> sqlite3.Row:
     """Mandanten-Guard: Gewerbe muss existieren und dem Nutzer gehören.
 
-    owner_email NULL = Alt-Bestand (für alle sichtbar, bis zugeordnet). Fremde
-    Gewerbe antworten mit 404 (nicht 403 — keine Existenz verraten).
+    owner_email NULL = herrenloser Alt-Bestand: seit der offenen Registrierung
+    nur noch für Admins sichtbar (zum Zuordnen). Fremde Gewerbe antworten mit
+    404 (nicht 403 — keine Existenz verraten).
     """
     row = db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
-    if row is None or (row["owner_email"] and row["owner_email"] != user["email"]):
+    if row is None:
+        raise HTTPException(404, "Gewerbe nicht gefunden.")
+    if row["owner_email"] is None:
+        if not ist_admin(user):
+            raise HTTPException(404, "Gewerbe nicht gefunden.")
+    elif row["owner_email"] != user["email"]:
         raise HTTPException(404, "Gewerbe nicht gefunden.")
     return row
-
-
-GEWERBE_SICHTBAR_SQL = "(owner_email IS NULL OR owner_email = ?)"
 
 
 def ist_admin(user: dict) -> bool:
