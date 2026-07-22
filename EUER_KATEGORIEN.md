@@ -65,6 +65,7 @@ Jede Kategorie trägt:
 | Umsatzsteuerfreie Einnahme §4 Nr. 11 (Versicherungs-Courtage) | **16** | nach §4 UStG steuerfrei | ✅ |
 | Veräußerung/Entnahme Anlagevermögen (z. B. Hardware-Verkauf) | **19** | Erlös, bei KU brutto | ✅ |
 | Private Kfz-Nutzung (1 %-Regelung, Betriebs-Kfz) | **20** | Nutzungsentnahme = Betriebseinnahme; Rechner im UI (1 % × Monate) | ⚠️ |
+| Sonstige Entnahmen (Sach-/Nutzungs-/Leistungsentnahme) | **20** | gleiche Zeile („… und sonstige Entnahmen") | ⚠️ |
 | *(berechnet)* Summe Betriebseinnahmen | **23** | Tool errechnet | ✅ |
 
 **Hinweis Courtage (Z12 vs. Z16):** §4-Nr.11-Umsätze gehören sachlich in Zeile 16. Ob ein
@@ -81,6 +82,7 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 |---|---|---|---|
 | Bezogene Leistungen / Fremdleistungen / Provisionen (z. B. Tippgeber, freie Mitarbeiter) | **29** | — | ✅ |
 | Waren/Roh-/Hilfsstoffe | **27** | für Makler/App selten | ✅ |
+| Personal: Löhne, Gehälter, Minijob-Pauschalabgaben | 30/31, vorläufig **60** | Minijob: Lohn + Abgaben an Minijob-Zentrale | ⚠️ |
 
 ### 4.2 Abschreibungen (AfA) — eigene Buchungslogik, siehe §5
 
@@ -136,6 +138,7 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 | Wege Wohnung↔Betriebsstätte (Entfernungspauschale) | **73** | 0,30 €/km (ab km 21: 0,38 €), Z72 = Kürzung | ✅ |
 | Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing) | 68–70, vorläufig **60** | Gegenstück zur 1 %-Regelung (Z20) | ⚠️ |
 | ÖPNV / Bahn / Taxi (Geschäftsfahrten) | 70, vorläufig **60** | „sonstige tatsächliche Fahrtkosten"; Deutschlandticket nur anteilig; Wege Wohnung↔Betrieb bleiben bei Z73 | ⚠️ |
+| Zinsen & Finanzierungskosten (betrieblich) | Schuldzinsen-Zeilen, vorläufig **60** | einfache Fälle (Kredit-/Ratenkauf-Zinsen); §4-Abs.-4a-Prüfung = Steuerberater | ⚠️ |
 
 > **Betriebs-Kfz mit 1 %-Regelung (integriert, bewusst schlank):** Laufende Kfz-Kosten als
 > „Kfz-Kosten Betriebs-Kfz" buchen (⚠ vorläufig Zeile 60, final 68–70 — gewinnneutral), die

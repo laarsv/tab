@@ -23,9 +23,11 @@ KATEGORIEN: list[tuple] = [
     ("einnahme_steuerfrei","Umsatzsteuerfreie Einnahme §4 Nr. 11 (Courtage)",   "einnahme", 1.0, 0, 0, 11),
     ("veraeusserung_av",   "Veräußerung/Entnahme Anlagevermögen",               "einnahme", 1.0, 0, 0, 12),
     ("kfz_privatnutzung",  "Private Kfz-Nutzung (1 %-Regelung, Betriebs-Kfz)",  "einnahme", 1.0, 0, 0, 13),
+    ("entnahme_sonstig",   "Sonstige Entnahmen (Sach-/Nutzungs-/Leistungsentnahme)", "einnahme", 1.0, 0, 0, 14),
     # --- Ausgaben: Wareneinsatz/Fremdleistungen ---
     ("waren",              "Waren / Roh- und Hilfsstoffe",                       "ausgabe", 1.0, 0, 0, 20),
     ("fremdleistungen",    "Bezogene Leistungen / Fremdleistungen / Provisionen","ausgabe", 1.0, 0, 0, 21),
+    ("personal",           "Personal: Löhne, Gehälter, Minijob-Pauschalabgaben", "ausgabe", 1.0, 0, 0, 21),
     # --- Ausgaben: AfA / GWG ---
     ("afa_beweglich",      "AfA bewegliche Wirtschaftsgüter (Hardware > 800 €)", "ausgabe", 1.0, 1, 0, 22),
     ("gwg",                "GWG-Sofortabzug (≤ 800 € netto)",                    "ausgabe", 1.0, 0, 0, 23),
@@ -56,6 +58,7 @@ KATEGORIEN: list[tuple] = [
     ("wege_wohnung_betrieb","Wege Wohnung–Betriebsstätte (Entfernungspauschale)","ausgabe", 1.0, 0, 0, 44),
     ("kfz_kosten",         "Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing)", "ausgabe", 1.0, 0, 0, 45),
     ("oepnv",              "ÖPNV / Bahn / Taxi (Geschäftsfahrten)",              "ausgabe", 1.0, 0, 0, 46),
+    ("zinsen",             "Zinsen & Finanzierungskosten (betrieblich)",         "ausgabe", 1.0, 0, 0, 47),
 ]
 
 # (nummer, bezeichnung) — Zeilen-Stammdaten (Basis, gilt für 2025 und vorläufig 2026)
@@ -88,6 +91,7 @@ MAPPING: dict[str, int] = {
     "einnahme_steuerfrei": 16,
     "veraeusserung_av": 19,
     "kfz_privatnutzung": 20,            # ⚠ Vordruck-Abgleich (lt. EUER_KATEGORIEN.md §4.6)
+    "entnahme_sonstig": 20,             # ⚠ gleiche Zeile („… und sonstige Entnahmen")
     "waren": 27,
     "fremdleistungen": 29,
     "afa_beweglich": 33,
@@ -108,6 +112,8 @@ MAPPING: dict[str, int] = {
     "kontogebuehren": 60,               # ✅ „übrige" (wie buerobedarf/software)
     "kfz_kosten": 60,                   # ⚠ final Zeile 68–70 (Kfz-Block) beim Vordruck-Abgleich
     "oepnv": 60,                        # ⚠ final Zeile 70 (sonstige tatsächliche Fahrtkosten)
+    "personal": 60,                     # ⚠ final Zeilen 30/31 (Löhne/Gehälter + Sozialabgaben)
+    "zinsen": 60,                       # ⚠ final Schuldzinsen-Zeilen beim Vordruck-Abgleich
     "geschenke": 62,
     "bewirtung": 63,
     "verpflegungsmehraufwand": 64,

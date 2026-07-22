@@ -53,9 +53,18 @@ export const TOPICS = [
   },
   {
     key: 'konto',
-    frage: 'Zahlst du Kontoführung oder Zahlungsgebühren?',
-    text: 'Geschäftskonto-Gebühren, PayPal-, Stripe- oder Kartenlese-Gebühren — kleine Beträge, läppern sich übers Jahr. Tipp: einmal im Jahr aus dem Konto-/PayPal-Jahresreport summieren.',
-    aktionen: [{ label: 'Gebühren buchen', katKey: 'kontogebuehren' }],
+    frage: 'Zahlst du Kontoführung, Zahlungsgebühren oder Kreditzinsen?',
+    text: 'Geschäftskonto-Gebühren, PayPal-, Stripe- oder Kartenlese-Gebühren — kleine Beträge, läppern sich übers Jahr. Tipp: einmal im Jahr aus dem Konto-/PayPal-Jahresreport summieren. Auch Zinsen für betriebliche Kredite oder Ratenkäufe zählen.',
+    aktionen: [
+      { label: 'Gebühren buchen', katKey: 'kontogebuehren' },
+      { label: 'Kreditzinsen buchen', katKey: 'zinsen' },
+    ],
+  },
+  {
+    key: 'personal',
+    frage: 'Beschäftigst du jemanden — z. B. einen Minijobber?',
+    text: 'Lohn/Gehalt und die Pauschalabgaben an die Minijob-Zentrale sind voll absetzbar. Die Lohnabrechnung selbst macht Tab nicht — hier landet nur, was du tatsächlich gezahlt hast.',
+    aktionen: [{ label: 'Lohn/Abgaben buchen', katKey: 'personal' }],
   },
   {
     key: 'fortbildung',

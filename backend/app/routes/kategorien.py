@@ -16,7 +16,7 @@ router = APIRouter(
 @router.get("")
 def list_kategorien(jahr: int | None = None, db: sqlite3.Connection = Depends(get_db)):
     if jahr is None:
-        rows = db.execute("SELECT * FROM kategorie WHERE aktiv = 1 ORDER BY sort_order")
+        rows = db.execute("SELECT * FROM kategorie WHERE aktiv = 1 ORDER BY sort_order, id")
         return [dict(r) for r in rows]
     rows = db.execute(
         """
@@ -24,7 +24,7 @@ def list_kategorien(jahr: int | None = None, db: sqlite3.Connection = Depends(ge
         FROM kategorie k
         LEFT JOIN euer_mapping m ON m.kategorie_id = k.id AND m.jahr = ?
         WHERE k.aktiv = 1
-        ORDER BY k.sort_order
+        ORDER BY k.sort_order, k.id
         """,
         (jahr,),
     )
