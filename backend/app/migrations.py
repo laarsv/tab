@@ -288,6 +288,30 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_abo_faellig ON rechnung_abo(aktiv, naechste_am);
         """,
     ),
+    Migration(
+        version=9,
+        sql="""
+        -- v9: Kontakte (Rechnungsempfänger). Füllen sich automatisch: jede erstellte
+        --     Rechnung upsertet ihren Empfänger (Name case-insensitiv eindeutig je Gewerbe).
+        CREATE TABLE kontakt (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            name        TEXT    NOT NULL COLLATE NOCASE,
+            anschrift   TEXT,
+            email       TEXT,
+            notiz       TEXT,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (gewerbe_id, name)
+        );
+        -- Backfill aus bestehenden Rechnungen.
+        INSERT INTO kontakt (gewerbe_id, name, anschrift, email)
+            SELECT gewerbe_id, empfaenger_name,
+                   MAX(empfaenger_anschrift), MAX(empfaenger_email)
+            FROM rechnung
+            GROUP BY gewerbe_id, empfaenger_name COLLATE NOCASE;
+        """,
+    ),
 ]
 
 

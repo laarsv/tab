@@ -26,6 +26,7 @@ from .routes import (
     fahrten,
     gewerbe,
     kategorien,
+    kontakte,
     meta,
     rechnungen,
 )
@@ -97,6 +98,7 @@ def health():
 app.include_router(auth_router)
 app.include_router(gewerbe.router)
 app.include_router(kategorien.router)
+app.include_router(kontakte.router)
 app.include_router(buchungen.router)
 app.include_router(belege.router)
 app.include_router(afa.router)

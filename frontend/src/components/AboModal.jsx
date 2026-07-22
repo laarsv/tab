@@ -29,7 +29,7 @@ function emptyPos() {
 
 // Wiederkehrende Rechnung (Abo) anlegen/bearbeiten. prefill: aus einer bestehenden
 // Rechnung („Wiederholen…"); abo: bestehendes Abo bearbeiten.
-export default function AboModal({ abo, prefill, gewerbeId, mailKonfiguriert, onClose, onSaved }) {
+export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailKonfiguriert, onClose, onSaved }) {
   const isEdit = Boolean(abo?.id);
   const src = abo || prefill || {};
   const [form, setForm] = useState(() => ({
@@ -122,6 +122,27 @@ export default function AboModal({ abo, prefill, gewerbeId, mailKonfiguriert, on
       maxWidth="max-w-2xl"
     >
       <form onSubmit={save} className="space-y-4">
+        {kontakte.length > 0 && (
+          <div className="block">
+            <span className="field-label">Aus Kontakten übernehmen</span>
+            <Dropdown
+              value=""
+              placeholder="Kontakt wählen…"
+              searchable
+              options={kontakte.map((k) => ({ value: String(k.id), label: k.name }))}
+              onChange={(v) => {
+                const k = kontakte.find((x) => String(x.id) === String(v));
+                if (k)
+                  setForm((f) => ({
+                    ...f,
+                    empfaenger_name: k.name,
+                    empfaenger_anschrift: k.anschrift || '',
+                    empfaenger_email: k.email || '',
+                  }));
+              }}
+            />
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Empfänger (Name/Firma)</span>

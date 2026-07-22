@@ -17,6 +17,7 @@ from ..db import get_db
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
 from ..services.rechnung_pdf import STEUERHINWEISE, build_rechnung_pdf
 from ..services.rechnungen import erstelle_rechnung
+from .kontakte import upsert_kontakt
 
 router = APIRouter(prefix="/api/rechnungen", tags=["rechnungen"])
 
@@ -130,6 +131,9 @@ def create_rechnung(body: RechnungIn, db: sqlite3.Connection = Depends(get_db)):
         steuerhinweis=body.steuerhinweis,
         positionen=[p.model_dump() for p in body.positionen],
     )
+    # Empfänger automatisch als Kontakt merken (füllt den Kontakte-Speicher von selbst).
+    upsert_kontakt(db, body.gewerbe_id, body.empfaenger_name,
+                   body.empfaenger_anschrift, body.empfaenger_email)
     db.commit()
     return _row(db, rid)
 

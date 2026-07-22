@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import AboModal from '../components/AboModal.jsx';
+import KontakteModal from '../components/KontakteModal.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import Modal from '../components/Modal.jsx';
@@ -59,6 +60,8 @@ export default function Rechnungen() {
   const [senden, setSenden] = useState(null); // rechnung
   const [einnahme, setEinnahme] = useState(null); // rechnung -> BuchungModal
   const [aboModal, setAboModal] = useState(null); // { abo? , prefill? }
+  const [kontakte, setKontakte] = useState([]);
+  const [kontakteModal, setKontakteModal] = useState(false);
 
   const gewerbeRow = gewerbe.find((g) => String(g.id) === String(gewerbeId));
 
@@ -69,16 +72,18 @@ export default function Rechnungen() {
     }
     setLoading(true);
     try {
-      const [r, kat, m, a] = await Promise.all([
+      const [r, kat, m, a, ko] = await Promise.all([
         api.get('/api/rechnungen', { params: { gewerbe_id: gewerbeId, jahr } }),
         api.get('/api/kategorien', { params: { jahr } }),
         api.get('/api/einstellungen/mail'),
         api.get('/api/rechnungsabos', { params: { gewerbe_id: gewerbeId } }),
+        api.get('/api/kontakte', { params: { gewerbe_id: gewerbeId } }),
       ]);
       setItems(r.data);
       setKategorien(kat.data);
       setMail(m.data);
       setAbos(a.data);
+      setKontakte(ko.data);
     } catch (e) {
       toast.error(apiError(e));
     } finally {
@@ -165,9 +170,14 @@ export default function Rechnungen() {
             Fortlaufende Nummern, §19-Hinweis automatisch drauf · Versand von {mail?.email}
           </p>
         </div>
-        <button className="btn-primary w-full sm:w-auto" onClick={() => setEditing({ positionen: [emptyRPos()] })}>
-          + Rechnung
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button className="btn-outline btn-sm hidden sm:inline-flex" onClick={() => setKontakteModal(true)}>
+            Kontakte{kontakte.length > 0 ? ` (${kontakte.length})` : ''}
+          </button>
+          <button className="btn-primary" onClick={() => setEditing({ positionen: [emptyRPos()] })}>
+            + Rechnung
+          </button>
+        </div>
       </div>
 
       {!gewerbeRow?.anschrift && (
@@ -334,8 +344,13 @@ export default function Rechnungen() {
           setEditing={setEditing}
           gewerbeId={gewerbeId}
           jahr={jahr}
+          kontakte={kontakte}
           onSaved={load}
         />
+      )}
+
+      {kontakteModal && (
+        <KontakteModal gewerbeId={gewerbeId} onClose={() => setKontakteModal(false)} onChanged={load} />
       )}
 
       {senden && (
@@ -347,6 +362,7 @@ export default function Rechnungen() {
           abo={aboModal.abo}
           prefill={aboModal.prefill}
           gewerbeId={gewerbeId}
+          kontakte={kontakte}
           mailKonfiguriert={Boolean(mail?.konfiguriert)}
           onClose={() => setAboModal(null)}
           onSaved={load}
@@ -372,7 +388,7 @@ export default function Rechnungen() {
   );
 }
 
-function RechnungModal({ editing, setEditing, gewerbeId, jahr, onSaved }) {
+function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onSaved }) {
   const [busy, setBusy] = useState(false);
   const isEdit = Boolean(editing.id);
   const [form, setForm] = useState(() => ({
@@ -448,6 +464,27 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, onSaved }) {
   return (
     <Modal title={isEdit ? `Rechnung bearbeiten` : 'Neue Rechnung'} onClose={() => setEditing(null)} maxWidth="max-w-2xl">
       <form onSubmit={save} className="space-y-4">
+        {kontakte.length > 0 && (
+          <div className="block">
+            <span className="field-label">Aus Kontakten übernehmen</span>
+            <Dropdown
+              value=""
+              placeholder="Kontakt wählen…"
+              searchable
+              options={kontakte.map((k) => ({ value: String(k.id), label: k.name }))}
+              onChange={(v) => {
+                const k = kontakte.find((x) => String(x.id) === String(v));
+                if (k)
+                  setForm((f) => ({
+                    ...f,
+                    empfaenger_name: k.name,
+                    empfaenger_anschrift: k.anschrift || '',
+                    empfaenger_email: k.email || '',
+                  }));
+              }}
+            />
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Empfänger (Name/Firma)</span>

@@ -17,6 +17,7 @@ from ..db import get_db
 from ..services.abo import INTERVALL_MONATE, erstelle_rechnung_aus_abo, naechster_termin
 from ..services.mailer import is_configured
 from ..services.rechnung_pdf import STEUERHINWEISE
+from .kontakte import upsert_kontakt
 
 router = APIRouter(prefix="/api/rechnungsabos", tags=["rechnungsabos"])
 
@@ -157,6 +158,8 @@ def create_abo(
             user["email"],
         ),
     )
+    upsert_kontakt(db, body.gewerbe_id, body.empfaenger_name,
+                   body.empfaenger_anschrift, body.empfaenger_email)
     db.commit()
     return _row(db, cur.lastrowid)
 

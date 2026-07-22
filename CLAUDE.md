@@ -67,7 +67,8 @@ v1 = Grundschema, v2 = `besteuerung` + `beleg`, v3 = `buchung_position` + Beleg-
 v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnung`,
 `rechnung_position`, `user_mail`) + Gewerbe-Absenderfelder (`anschrift`, `iban`,
 `rechnung_fusszeile`), v7 = `rechnung.steuerhinweis`, v8 = `rechnung_abo`
-(wiederkehrende Rechnungen, Positionen als JSON).
+(wiederkehrende Rechnungen, Positionen als JSON), v9 = `kontakt` (inkl. Backfill
+aus bestehenden Rechnungen).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -169,6 +170,11 @@ der Mapping-Version des Jahres aufgelöst.
   Server-Pause) — sonst bleibt die Rechnung als Entwurf. Verpasste Stichtage werden als
   Rechnungen nachgeholt. UI: „Wiederholen…" an jeder Rechnung erstellt das Abo vorbefüllt;
   Abo-Liste mit Jetzt ausführen/Pausieren oben auf der Rechnungen-Seite.
+- **Kontakte (`routes/kontakte.py`, Tabelle `kontakt`):** Rechnungsempfänger je Gewerbe,
+  Name case-insensitiv eindeutig. **Füllen sich automatisch**: Rechnung/Abo anlegen
+  upsertet den Empfänger (`upsert_kontakt` — nur nicht-leere Felder überschreiben).
+  UI: „Aus Kontakten übernehmen"-Picker in Rechnungs- und Abo-Modal, Pflege über
+  `KontakteModal` (Button „Kontakte" auf der Rechnungen-Seite).
 - **Mail-Versand individuell je Login (`routes/einstellungen.py`, `services/mailer.py`):**
   jeder Nutzer hinterlegt SEIN Gmail-App-Passwort (Profil-Menü „E-Mail-Versand") —
   Fernet-verschlüsselt in `user_mail` (Schlüssel aus JWT_SECRET), NICHT in der .env.
