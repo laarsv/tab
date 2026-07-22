@@ -2,6 +2,7 @@
 später einer Buchung zuordnen. buchung_id NULL = offen/Eingang."""
 from __future__ import annotations
 
+import datetime as dt
 import os
 import sqlite3
 import uuid
@@ -27,6 +28,14 @@ ALLOWED = {
 }
 
 
+def _valid_date(value: str) -> str:
+    try:
+        dt.date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(400, "faellig_am muss im Format YYYY-MM-DD sein.")
+    return value
+
+
 def _beleg_dict(r: sqlite3.Row) -> dict:
     return {
         "id": r["id"],
@@ -36,6 +45,7 @@ def _beleg_dict(r: sqlite3.Row) -> dict:
         "content_type": r["content_type"],
         "size_bytes": r["size_bytes"],
         "created_at": r["created_at"],
+        "faellig_am": r["faellig_am"],
         "offen": r["buchung_id"] is None,
     }
 
@@ -45,8 +55,11 @@ def upload_beleg(
     file: UploadFile,
     gewerbe_id: int = Form(...),
     buchung_id: int | None = Form(None),
+    faellig_am: str | None = Form(None),
     db: sqlite3.Connection = Depends(get_db),
 ):
+    if faellig_am:
+        _valid_date(faellig_am)
     if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone() is None:
         raise HTTPException(404, "Gewerbe nicht gefunden.")
     if buchung_id is not None:
@@ -77,10 +90,12 @@ def upload_beleg(
     original = os.path.basename(file.filename or f"beleg{ext}")
     cur = db.execute(
         """
-        INSERT INTO beleg (gewerbe_id, buchung_id, original_name, stored_name, content_type, size_bytes)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO beleg (gewerbe_id, buchung_id, original_name, stored_name, content_type,
+                           size_bytes, faellig_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (gewerbe_id, buchung_id, original, stored_name, file.content_type, len(data)),
+        (gewerbe_id, buchung_id, original, stored_name, file.content_type, len(data),
+         faellig_am or None),
     )
     db.commit()
     return _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (cur.lastrowid,)).fetchone())
@@ -94,10 +109,12 @@ def list_belege(
 ):
     sql = "SELECT * FROM beleg WHERE gewerbe_id = ?"
     if status == "offen":
-        sql += " AND buchung_id IS NULL"
+        # Fällige zuerst (überfällig oben), dann Rest nach Upload-Zeit.
+        sql += " AND buchung_id IS NULL ORDER BY faellig_am IS NULL, faellig_am, created_at DESC, id DESC"
     elif status == "zugeordnet":
-        sql += " AND buchung_id IS NOT NULL"
-    sql += " ORDER BY created_at DESC, id DESC"
+        sql += " AND buchung_id IS NOT NULL ORDER BY created_at DESC, id DESC"
+    else:
+        sql += " ORDER BY created_at DESC, id DESC"
     return [_beleg_dict(r) for r in db.execute(sql, (gewerbe_id,))]
 
 
@@ -118,7 +135,8 @@ def list_buchung_belege(buchung_id: int, db: sqlite3.Connection = Depends(get_db
 
 
 class BelegPatch(BaseModel):
-    buchung_id: int | None = None  # zuordnen; explizit null = zurück in den Eingang
+    buchung_id: int | None = None   # zuordnen; explizit null = zurück in den Eingang
+    faellig_am: str | None = None   # explizit null = Fälligkeit entfernen
 
 
 @router.patch("/belege/{beleg_id}")
@@ -126,14 +144,25 @@ def patch_beleg(beleg_id: int, body: BelegPatch, db: sqlite3.Connection = Depend
     bel = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
     if bel is None:
         raise HTTPException(404, "Beleg nicht gefunden.")
-    if body.buchung_id is not None:
-        b = db.execute("SELECT gewerbe_id FROM buchung WHERE id = ?", (body.buchung_id,)).fetchone()
-        if b is None:
-            raise HTTPException(404, "Buchung nicht gefunden.")
-        if b["gewerbe_id"] != bel["gewerbe_id"]:
-            raise HTTPException(400, "Buchung gehört zu einem anderen Gewerbe.")
-    db.execute("UPDATE beleg SET buchung_id = ? WHERE id = ?", (body.buchung_id, beleg_id))
-    db.commit()
+
+    fields, values = [], []
+    if "buchung_id" in body.model_fields_set:
+        if body.buchung_id is not None:
+            b = db.execute(
+                "SELECT gewerbe_id FROM buchung WHERE id = ?", (body.buchung_id,)
+            ).fetchone()
+            if b is None:
+                raise HTTPException(404, "Buchung nicht gefunden.")
+            if b["gewerbe_id"] != bel["gewerbe_id"]:
+                raise HTTPException(400, "Buchung gehört zu einem anderen Gewerbe.")
+        fields.append("buchung_id = ?"); values.append(body.buchung_id)
+    if "faellig_am" in body.model_fields_set:
+        if body.faellig_am:
+            _valid_date(body.faellig_am)
+        fields.append("faellig_am = ?"); values.append(body.faellig_am or None)
+    if fields:
+        db.execute(f"UPDATE beleg SET {', '.join(fields)} WHERE id = ?", (*values, beleg_id))
+        db.commit()
     return _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone())
 
 

@@ -312,6 +312,14 @@ MIGRATIONS: list[Migration] = [
             GROUP BY gewerbe_id, empfaenger_name COLLATE NOCASE;
         """,
     ),
+    Migration(
+        version=10,
+        sql="""
+        -- v10: optionales Fälligkeitsdatum am Eingangs-Beleg — macht den Eingang
+        --      nebenbei zur „noch zu zahlen"-Liste (kein Banking, nur Erinnerung).
+        ALTER TABLE beleg ADD COLUMN faellig_am TEXT;
+        """,
+    ),
 ]
 
 

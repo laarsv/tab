@@ -68,7 +68,8 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 `rechnung_position`, `user_mail`) + Gewerbe-Absenderfelder (`anschrift`, `iban`,
 `rechnung_fusszeile`), v7 = `rechnung.steuerhinweis`, v8 = `rechnung_abo`
 (wiederkehrende Rechnungen, Positionen als JSON), v9 = `kontakt` (inkl. Backfill
-aus bestehenden Rechnungen).
+aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
+im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via

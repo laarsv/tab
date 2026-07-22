@@ -6,7 +6,7 @@ import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
-import { formatEuro, formatDateDE } from '../lib/format.js';
+import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
 
 const MONATE = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -126,6 +126,15 @@ export default function Buchungen() {
     }
   }
 
+  async function setFaellig(b, datum) {
+    try {
+      await api.patch(`/api/belege/${b.id}`, { faellig_am: datum || null });
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
   function startWizard() {
     setWizard({ queue: belege, i: 0 });
   }
@@ -226,9 +235,19 @@ export default function Buchungen() {
           <div>
             <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">Beleg-Eingang</div>
             <div className="text-sm text-ink/70 mt-0.5">
-              {belege.length > 0
-                ? `Noch ${belege.length} ${belege.length === 1 ? 'Beleg' : 'Belege'} zu verbuchen.`
-                : 'Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen und später in Ruhe verbuchen.'}
+              {belege.length > 0 ? (
+                <>
+                  Noch {belege.length} {belege.length === 1 ? 'Beleg' : 'Belege'} zu verbuchen.
+                  {belege.filter((b) => b.faellig_am && b.faellig_am < todayISO()).length > 0 && (
+                    <span className="text-red-700 font-bold">
+                      {' '}
+                      {belege.filter((b) => b.faellig_am && b.faellig_am < todayISO()).length} überfällig!
+                    </span>
+                  )}
+                </>
+              ) : (
+                'Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen und später in Ruhe verbuchen.'
+              )}
             </div>
           </div>
           <div className="flex gap-2">
@@ -245,29 +264,46 @@ export default function Buchungen() {
         </div>
         {belege.length > 0 && (
           <ul className="divide-y divide-ink/5 rounded-lg bg-royal-soft/5">
-            {belege.map((b) => (
-              <li key={b.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                <button
-                  type="button"
-                  onClick={() => openBeleg(b.id)}
-                  className="min-w-0 text-left text-royal font-medium hover:underline truncate"
-                  title={b.original_name}
-                >
-                  {b.original_name}
-                </button>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-ink/50 hidden sm:inline">
-                    {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
-                  </span>
-                  <button className="btn-outline btn-sm" onClick={() => setVerbuchen(b)}>
-                    Verbuchen
+            {belege.map((b) => {
+              const ueberfaellig = b.faellig_am && b.faellig_am < todayISO();
+              return (
+                <li key={b.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => openBeleg(b.id)}
+                    className="min-w-0 text-left text-royal font-medium hover:underline truncate"
+                    title={b.original_name}
+                  >
+                    {b.original_name}
                   </button>
-                  <button className="btn-ghost btn-sm text-red-700" onClick={() => removeBeleg(b)}>
-                    Löschen
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {ueberfaellig && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-900 text-[11px] font-bold">
+                        überfällig
+                      </span>
+                    )}
+                    <label className="flex items-center gap-1 text-xs text-ink/50" title="Fällig am (optional) — wann muss die Rechnung bezahlt sein?">
+                      <span className="hidden sm:inline">fällig</span>
+                      <input
+                        type="date"
+                        className={`input !w-[136px] !py-1 !text-xs ${ueberfaellig ? '!border-red-400' : ''}`}
+                        value={b.faellig_am || ''}
+                        onChange={(e) => setFaellig(b, e.target.value)}
+                      />
+                    </label>
+                    <span className="text-xs text-ink/50 hidden lg:inline">
+                      {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
+                    </span>
+                    <button className="btn-outline btn-sm" onClick={() => setVerbuchen(b)}>
+                      Verbuchen
+                    </button>
+                    <button className="btn-ghost btn-sm text-red-700" onClick={() => removeBeleg(b)}>
+                      Löschen
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
