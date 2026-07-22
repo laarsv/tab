@@ -135,6 +135,7 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 | Fahrtkosten privates Kfz (betrieblich) | **71** | 0,30 €/km **oder** tatsächliche Kosten | ✅ |
 | Wege Wohnung↔Betriebsstätte (Entfernungspauschale) | **73** | 0,30 €/km (ab km 21: 0,38 €), Z72 = Kürzung | ✅ |
 | Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing) | 68–70, vorläufig **60** | Gegenstück zur 1 %-Regelung (Z20) | ⚠️ |
+| ÖPNV / Bahn / Taxi (Geschäftsfahrten) | 70, vorläufig **60** | „sonstige tatsächliche Fahrtkosten"; Deutschlandticket nur anteilig; Wege Wohnung↔Betrieb bleiben bei Z73 | ⚠️ |
 
 > **Betriebs-Kfz mit 1 %-Regelung (integriert, bewusst schlank):** Laufende Kfz-Kosten als
 > „Kfz-Kosten Betriebs-Kfz" buchen (⚠ vorläufig Zeile 60, final 68–70 — gewinnneutral), die

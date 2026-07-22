@@ -13,10 +13,11 @@ export const TOPICS = [
   },
   {
     key: 'auto',
-    frage: 'Bist du beruflich mit dem Auto unterwegs?',
-    text: 'Privatwagen: betriebliche Kilometer in der Fahrten-Liste sammeln und mit 0,30 €/km buchen. Firmenwagen (gehört dem Betrieb): laufende Kosten buchen und die Privatnutzung über die 1 %-Regelung erfassen (E-Auto 0,25 %, Hybrid 0,5 %). E-Auto-Fahrer: Auch die jährliche THG-Prämie ist eine Betriebseinnahme!',
+    frage: 'Bist du beruflich unterwegs — Auto, Bahn oder Bus?',
+    text: 'Privatwagen: betriebliche Kilometer in der Fahrten-Liste sammeln und mit 0,30 €/km buchen. Firmenwagen (gehört dem Betrieb): laufende Kosten buchen und die Privatnutzung über die 1 %-Regelung erfassen (E-Auto 0,25 %, Hybrid 0,5 %). Bahn-, Bus- und Taxi-Tickets für Geschäftsfahrten laufen über die eigene ÖPNV-Kategorie (Deutschlandticket: nur den betrieblichen Anteil). E-Auto-Fahrer: Auch die jährliche THG-Prämie ist eine Betriebseinnahme!',
     aktionen: [
       { label: 'km-Pauschale (Privatwagen)', katKey: 'fahrtkosten_kfz' },
+      { label: 'ÖPNV/Bahn/Taxi buchen', katKey: 'oepnv' },
       { label: '1 %-Regelung (Firmenwagen)', katKey: 'kfz_privatnutzung' },
       { label: 'Kfz-Kosten (Firmenwagen)', katKey: 'kfz_kosten' },
     ],

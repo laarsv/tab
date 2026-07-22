@@ -55,6 +55,7 @@ KATEGORIEN: list[tuple] = [
     ("fahrtkosten_kfz",    "Fahrtkosten privates Kfz (0,30 €/km)",               "ausgabe", 1.0, 0, 0, 43),
     ("wege_wohnung_betrieb","Wege Wohnung–Betriebsstätte (Entfernungspauschale)","ausgabe", 1.0, 0, 0, 44),
     ("kfz_kosten",         "Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing)", "ausgabe", 1.0, 0, 0, 45),
+    ("oepnv",              "ÖPNV / Bahn / Taxi (Geschäftsfahrten)",              "ausgabe", 1.0, 0, 0, 46),
 ]
 
 # (nummer, bezeichnung) — Zeilen-Stammdaten (Basis, gilt für 2025 und vorläufig 2026)
@@ -106,6 +107,7 @@ MAPPING: dict[str, int] = {
     "werbung_repraesentation": 60,      # ⚠
     "kontogebuehren": 60,               # ✅ „übrige" (wie buerobedarf/software)
     "kfz_kosten": 60,                   # ⚠ final Zeile 68–70 (Kfz-Block) beim Vordruck-Abgleich
+    "oepnv": 60,                        # ⚠ final Zeile 70 (sonstige tatsächliche Fahrtkosten)
     "geschenke": 62,
     "bewirtung": 63,
     "verpflegungsmehraufwand": 64,
