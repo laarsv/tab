@@ -6,8 +6,10 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
 import MailSetupModal from './MailSetupModal.jsx';
+import NeuigkeitenModal from './NeuigkeitenModal.jsx';
 import Wordmark, { SignaturLockup } from './Wordmark.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
+import { alleGesehen, ungelesene } from '../lib/neuigkeiten.js';
 
 function NavBadge({ n }) {
   return (
@@ -28,6 +30,7 @@ const NAV = [
 const PROFIL_NAV = [
   { to: '/export', label: 'Export' },
   { to: '/gewerbe', label: 'Gewerbe' },
+  { to: '/einrichtung', label: 'Einrichtung & Hilfe' },
 ];
 
 function initialen(user) {
@@ -37,7 +40,7 @@ function initialen(user) {
   return chars.toUpperCase();
 }
 
-function ProfilBubble({ user, onLogout, onMail }) {
+function ProfilBubble({ user, onLogout, onMail, onNews }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -90,6 +93,15 @@ function ProfilBubble({ user, onLogout, onMail }) {
             E-Mail-Versand
           </button>
           <button
+            onClick={() => {
+              setOpen(false);
+              onNews();
+            }}
+            className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10"
+          >
+            Neuigkeiten
+          </button>
+          <button
             onClick={onLogout}
             className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10 border-t border-ink/10"
           >
@@ -105,6 +117,17 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const [drawer, setDrawer] = useState(false);
   const [mailModal, setMailModal] = useState(false);
+  const [newsModal, setNewsModal] = useState(false);
+
+  // Neuigkeiten einmalig automatisch zeigen, wenn es Ungelesenes gibt.
+  useEffect(() => {
+    if (ungelesene() > 0) setNewsModal(true);
+  }, []);
+
+  function closeNews() {
+    alleGesehen();
+    setNewsModal(false);
+  }
 
   const [gewerbe, setGewerbe] = useState([]);
   const [jahre, setJahre] = useState([]);
@@ -185,6 +208,7 @@ export default function Layout() {
     reloadGewerbe: loadGewerbe,
     reloadBadges: () => loadBadges(gewerbeId, jahr),
     setGewerbeId,
+    openMailSetup: () => setMailModal(true),
   };
 
   function doLogout() {
@@ -221,7 +245,12 @@ export default function Layout() {
             </nav>
 
             <div className="hidden md:block">
-              <ProfilBubble user={user} onLogout={doLogout} onMail={() => setMailModal(true)} />
+              <ProfilBubble
+                user={user}
+                onLogout={doLogout}
+                onMail={() => setMailModal(true)}
+                onNews={() => setNewsModal(true)}
+              />
             </div>
 
             <button
@@ -310,6 +339,15 @@ export default function Layout() {
               >
                 E-Mail-Versand
               </button>
+              <button
+                onClick={() => {
+                  setDrawer(false);
+                  setNewsModal(true);
+                }}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-ink hover:bg-royal/10"
+              >
+                Neuigkeiten
+              </button>
             </nav>
             <div className="border-t border-ink/10 p-2">
               <div className="px-4 py-2 text-xs text-ink/50 truncate">{user?.email}</div>
@@ -325,6 +363,7 @@ export default function Layout() {
       )}
 
       {mailModal && <MailSetupModal onClose={() => setMailModal(false)} />}
+      {newsModal && <NeuigkeitenModal onClose={closeNews} />}
 
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">

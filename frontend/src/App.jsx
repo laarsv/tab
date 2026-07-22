@@ -10,6 +10,7 @@ import Gewerbe from './pages/Gewerbe.jsx';
 import JahresCheck from './pages/JahresCheck.jsx';
 import Fahrten from './pages/Fahrten.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
+import Einrichtung from './pages/Einrichtung.jsx';
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/check" element={<JahresCheck />} />
         <Route path="/fahrten" element={<Fahrten />} />
         <Route path="/rechnungen" element={<Rechnungen />} />
+        <Route path="/einrichtung" element={<Einrichtung />} />
         <Route path="/export" element={<Export />} />
         <Route path="/gewerbe" element={<Gewerbe />} />
         <Route path="*" element={<Navigate to="/buchungen" replace />} />

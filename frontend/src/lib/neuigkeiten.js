@@ -1,0 +1,89 @@
+// Neuigkeiten („Was ist neu?"). Bei jedem größeren Feature hier einen Eintrag
+// ERGÄNZEN (id hochzählen, neueste zuerst) — das Fenster öffnet sich dann beim
+// nächsten Login automatisch. Gesehen-Status liegt in localStorage.
+
+export const NEUIGKEITEN = [
+  {
+    id: 11,
+    datum: '2026-07-22',
+    titel: 'Belege per E-Mail einschicken',
+    text: 'Leite Rechnungen einfach an deine persönliche +tab-Adresse weiter (z. B. name+tab@gmail.com) — Tab holt sie alle 10 Minuten ab und legt die Anhänge in den Beleg-Eingang. Nur Mails von freigeschalteten Absendern werden importiert.',
+    link: { to: '/einrichtung', label: 'Einrichten' },
+  },
+  {
+    id: 10,
+    datum: '2026-07-22',
+    titel: 'Tab aufs Handy — installieren & teilen',
+    text: 'Tab lässt sich als App installieren. Auf Android taucht es danach im Teilen-Menü auf: Kassenzettel fotografieren → Teilen → tab → liegt im Eingang. iPhone: App installieren geht auch, fürs Teilen nutzt du dort den Mail-Weg.',
+    link: { to: '/einrichtung', label: 'Anleitung' },
+  },
+  {
+    id: 9,
+    datum: '2026-07-22',
+    titel: 'Belege werden automatisch gelesen',
+    text: 'Beim Verbuchen füllt Tab Datum, Betrag, Lieferant und Kategorie vor: E-Rechnungen exakt, PDF-Rechnungen über den Text, Fotos per Texterkennung. Die Kategorie lernt aus deinen früheren Buchungen. Alles lokal auf deinem Server — und immer nur ein Vorschlag zum Prüfen.',
+  },
+  {
+    id: 8,
+    datum: '2026-07-22',
+    titel: 'Fälligkeit im Beleg-Eingang',
+    text: 'Offene Rechnungen bekommen ein „fällig am"-Datum — der Eingang sortiert das Dringendste nach oben und markiert Überfälliges rot. Bezahlen, verbuchen, fertig.',
+  },
+  {
+    id: 7,
+    datum: '2026-07-22',
+    titel: 'Kontakte, die sich selbst pflegen',
+    text: 'Jede Rechnung merkt sich ihren Empfänger automatisch. Bei der nächsten Rechnung reicht „Aus Kontakten übernehmen" — Name, Anschrift und E-Mail sind drin.',
+  },
+  {
+    id: 6,
+    datum: '2026-07-22',
+    titel: 'Wiederkehrende Rechnungen (Abos)',
+    text: 'An jeder Rechnung gibt es „Wiederholen…": monatlich, vierteljährlich oder jährlich erstellt Tab die Rechnung automatisch — als Entwurf oder direkt versendet. Der Platzhalter {monat} wird z. B. zu „Betreuung 08/2026".',
+  },
+  {
+    id: 5,
+    datum: '2026-07-14',
+    titel: 'Rechnungen schreiben & versenden',
+    text: 'Rechnungen mit fortlaufender Nummer und allen Pflichtangaben (§19- oder §4-Nr.-11-Hinweis wählbar), als PDF und per E-Mail von deiner eigenen Adresse. Bezahlte Rechnungen wandern per Klick als Einnahme in die EÜR.',
+  },
+  {
+    id: 4,
+    datum: '2026-07-14',
+    titel: 'Jahres-Check: nichts mehr vergessen',
+    text: 'Die häufigsten Absetz-Themen als einfache Fragen — Auto, Handy, Homeoffice, Bewirtung … Der Status kommt automatisch aus deinen Buchungen, dazu die Liste „Gehört NICHT in die Buchhaltung".',
+    link: { to: '/check', label: 'Jahres-Check öffnen' },
+  },
+  {
+    id: 3,
+    datum: '2026-07-14',
+    titel: 'Fahrten-Liste & Firmenwagen',
+    text: 'Betriebliche Fahrten mit dem Privatwagen unterm Jahr sammeln und am Jahresende per Klick als km-Pauschale buchen. Für den Firmenwagen rechnet die 1 %-Regelung mit — inkl. 0,5 % (Hybrid) und 0,25 % (E-Auto).',
+    link: { to: '/fahrten', label: 'Fahrten-Liste' },
+  },
+  {
+    id: 2,
+    datum: '2026-07-13',
+    titel: 'Komfort überall',
+    text: 'Beleg-Eingang mit „Jetzt abarbeiten"-Wizard, Suche und Filter in den Buchungen, Buchung duplizieren, CSV-Import für Altdaten, Rechner für Homeoffice/Verpflegung/Entfernungspauschale und das Jahres-Archiv (ZIP) mit allen Belegen.',
+  },
+];
+
+const LS_KEY = 'tab_news_gesehen';
+
+export function neuesteId() {
+  return Math.max(...NEUIGKEITEN.map((n) => n.id));
+}
+
+export function gesehenBis() {
+  return Number(localStorage.getItem(LS_KEY) || 0);
+}
+
+export function ungelesene() {
+  const bis = gesehenBis();
+  return NEUIGKEITEN.filter((n) => n.id > bis).length;
+}
+
+export function alleGesehen() {
+  localStorage.setItem(LS_KEY, String(neuesteId()));
+}

@@ -129,8 +129,16 @@ der Mapping-Version des Jahres aufgelöst.
   deutsch, Kategorie = Key oder Name. **Alles-oder-nichts** — bei Fehlern 400 mit Zeilenliste.
 - **Datum≠Jahr-Hinweis:** BuchungModal warnt (weich), wenn das Buchungsdatum nicht im global
   gewählten Jahr liegt — sonst „verschwindet" die Buchung hinter dem Jahresfilter.
+- **Neuigkeiten (`lib/neuigkeiten.js` + `NeuigkeitenModal`):** Bei jedem größeren Feature
+  einen Eintrag ERGÄNZEN (id hochzählen, neueste zuerst) — das Fenster öffnet beim nächsten
+  Login automatisch (localStorage `tab_news_gesehen`), sonst über Profil-Menü „Neuigkeiten".
+- **Einrichtung & Hilfe (`/einrichtung`, `pages/Einrichtung.jsx`):** geführter 5-Schritte-
+  Wizard (Gewerbe/Absender, App-Passwort, Mail-Import, PWA aufs Handy, erste Buchungen) —
+  Status wo möglich automatisch aus echten Daten, PWA per Haken (localStorage
+  `tab_setup_haken`). Detail-Anleitungen für App-Passwort/+tab-Adresse/PWA leben HIER
+  (nicht duplizieren). `openMailSetup` kommt aus dem Layout-Context.
 - **Navigation (Einsteiger-IA):** Nav = Buchungen · Jahres-Check (Badge = offene Themen) ·
-  Abschreibungen; Export/Gewerbe/Abmelden hinter der **Profil-Bubble** (Initialen, rechts).
+  Abschreibungen; Export/Gewerbe/Einrichtung/Abmelden hinter der **Profil-Bubble** (Initialen, rechts).
   Der Beleg-Eingang ist **in die Buchungen-Seite integriert** (Karte „Beleg-Eingang" mit
   Upload, Liste, „Jetzt abarbeiten"); `/eingang` redirectet auf `/buchungen`.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
