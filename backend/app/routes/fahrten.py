@@ -9,7 +9,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 
 router = APIRouter(prefix="/api/fahrten", tags=["fahrten"], dependencies=[Depends(get_current_user)])
@@ -51,7 +51,13 @@ class FahrtPatch(BaseModel):
 
 
 @router.get("")
-def list_fahrten(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+def list_fahrten(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     rows = [
         dict(r)
         for r in db.execute(
@@ -70,9 +76,12 @@ def list_fahrten(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(ge
 
 
 @router.post("", status_code=201)
-def create_fahrt(body: FahrtIn, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+def create_fahrt(
+    body: FahrtIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, body.gewerbe_id)
     cur = db.execute(
         "INSERT INTO fahrt (gewerbe_id, datum, ziel, anlass, km) VALUES (?, ?, ?, ?, ?)",
         (
@@ -88,9 +97,16 @@ def create_fahrt(body: FahrtIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{fahrt_id}")
-def update_fahrt(fahrt_id: int, body: FahrtPatch, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM fahrt WHERE id = ?", (fahrt_id,)).fetchone() is None:
+def update_fahrt(
+    fahrt_id: int,
+    body: FahrtPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    row = db.execute("SELECT * FROM fahrt WHERE id = ?", (fahrt_id,)).fetchone()
+    if row is None:
         raise HTTPException(404, "Fahrt nicht gefunden.")
+    check_gewerbe(db, user, row["gewerbe_id"])
     fields, values = [], []
     if body.datum is not None:
         fields.append("datum = ?"); values.append(body.datum)
@@ -107,6 +123,13 @@ def update_fahrt(fahrt_id: int, body: FahrtPatch, db: sqlite3.Connection = Depen
 
 
 @router.delete("/{fahrt_id}", status_code=204)
-def delete_fahrt(fahrt_id: int, db: sqlite3.Connection = Depends(get_db)):
+def delete_fahrt(
+    fahrt_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    row = db.execute("SELECT * FROM fahrt WHERE id = ?", (fahrt_id,)).fetchone()
+    if row is not None:
+        check_gewerbe(db, user, row["gewerbe_id"])
     db.execute("DELETE FROM fahrt WHERE id = ?", (fahrt_id,))
     db.commit()

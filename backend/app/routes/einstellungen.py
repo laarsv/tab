@@ -8,7 +8,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.mail_import import plus_adresse
 from ..services.mailer import (
@@ -52,10 +52,8 @@ def mail_import_speichern(
 ):
     if not is_configured(db, user["email"]):
         raise HTTPException(400, "Zuerst das App-Passwort hinterlegen — der Abruf läuft über IMAP.")
-    if body.gewerbe_id is not None and db.execute(
-        "SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)
-    ).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+    if body.gewerbe_id is not None:
+        check_gewerbe(db, user, body.gewerbe_id)
     db.execute(
         "UPDATE user_mail SET import_aktiv = ?, import_gewerbe_id = ?, "
         "updated_at = datetime('now') WHERE email = ?",

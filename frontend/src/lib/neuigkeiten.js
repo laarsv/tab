@@ -4,6 +4,12 @@
 
 export const NEUIGKEITEN = [
   {
+    id: 13,
+    datum: '2026-07-22',
+    titel: 'Getrennte Bereiche für jeden Nutzer',
+    text: 'Jedes Gewerbe gehört jetzt der Person, die es angelegt hat — Buchungen, Belege, Rechnungen und Kontakte sind privat. Andere Nutzer dieser Tab-Instanz sehen deine Daten nicht mehr (und du ihre nicht).',
+  },
+  {
     id: 12,
     datum: '2026-07-22',
     titel: 'Deine Rechnungen sind jetzt E-Rechnungen',

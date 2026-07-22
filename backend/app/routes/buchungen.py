@@ -11,7 +11,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 
 router = APIRouter(
@@ -67,6 +67,14 @@ def _check_position(db: sqlite3.Connection, pos: PositionIn) -> None:
         raise HTTPException(400, f"Für „{k['name']}“ sind Beleg-Details Pflicht.")
 
 
+def _check_buchung(db: sqlite3.Connection, user: dict, buchung_id: int) -> sqlite3.Row:
+    row = db.execute("SELECT * FROM buchung WHERE id = ?", (buchung_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Buchung nicht gefunden.")
+    check_gewerbe(db, user, row["gewerbe_id"])
+    return row
+
+
 def _positionen(db: sqlite3.Connection, buchung_id: int) -> list[dict]:
     rows = db.execute(
         """
@@ -97,8 +105,12 @@ def _row(db: sqlite3.Connection, buchung_id: int) -> dict:
 
 @router.get("")
 def list_buchungen(
-    gewerbe_id: int, jahr: int | None = None, db: sqlite3.Connection = Depends(get_db)
+    gewerbe_id: int,
+    jahr: int | None = None,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
 ):
+    check_gewerbe(db, user, gewerbe_id)
     sql = (
         "SELECT b.id, b.gewerbe_id, b.datum, b.beschreibung, b.created_at, b.updated_at, "
         "(SELECT COUNT(*) FROM beleg WHERE beleg.buchung_id = b.id) AS beleg_count, "
@@ -134,9 +146,12 @@ def list_buchungen(
 
 
 @router.post("", status_code=201)
-def create_buchung(body: BuchungIn, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+def create_buchung(
+    body: BuchungIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, body.gewerbe_id)
     for pos in body.positionen:
         _check_position(db, pos)
 
@@ -168,10 +183,13 @@ def create_buchung(body: BuchungIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{buchung_id}")
-def update_buchung(buchung_id: int, body: BuchungPatch, db: sqlite3.Connection = Depends(get_db)):
-    cur = db.execute("SELECT * FROM buchung WHERE id = ?", (buchung_id,)).fetchone()
-    if cur is None:
-        raise HTTPException(404, "Buchung nicht gefunden.")
+def update_buchung(
+    buchung_id: int,
+    body: BuchungPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    _check_buchung(db, user, buchung_id)
 
     fields, values = [], []
     if body.datum is not None:
@@ -201,8 +219,13 @@ def update_buchung(buchung_id: int, body: BuchungPatch, db: sqlite3.Connection =
 
 
 @router.delete("/{buchung_id}", status_code=204)
-def delete_buchung(buchung_id: int, db: sqlite3.Connection = Depends(get_db)):
+def delete_buchung(
+    buchung_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     # Positionen via ON DELETE CASCADE, Belege fallen via ON DELETE SET NULL zurück in den Eingang.
+    _check_buchung(db, user, buchung_id)
     db.execute("DELETE FROM buchung WHERE id = ?", (buchung_id,))
     db.commit()
 
@@ -240,10 +263,10 @@ def _parse_import_betrag_cent(raw: str) -> int | None:
 def import_csv(
     file: UploadFile,
     gewerbe_id: int = Form(...),
+    user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+    check_gewerbe(db, user, gewerbe_id)
 
     try:
         text = file.file.read().decode("utf-8-sig")

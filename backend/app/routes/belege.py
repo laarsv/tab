@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..config import settings
 from ..db import get_db
 from ..services.beleg_extract import vorschlag_fuer_beleg
@@ -40,18 +40,26 @@ def _beleg_dict(r: sqlite3.Row) -> dict:
     }
 
 
+def _check_beleg(db: sqlite3.Connection, user: dict, beleg_id: int) -> sqlite3.Row:
+    row = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Beleg nicht gefunden.")
+    check_gewerbe(db, user, row["gewerbe_id"])
+    return row
+
+
 @router.post("/belege", status_code=201)
 def upload_beleg(
     file: UploadFile,
     gewerbe_id: int = Form(...),
     buchung_id: int | None = Form(None),
     faellig_am: str | None = Form(None),
+    user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
     if faellig_am:
         _valid_date(faellig_am)
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+    check_gewerbe(db, user, gewerbe_id)
     if buchung_id is not None:
         b = db.execute("SELECT gewerbe_id FROM buchung WHERE id = ?", (buchung_id,)).fetchone()
         if b is None:
@@ -110,8 +118,10 @@ def share_belege(
 def list_belege(
     gewerbe_id: int,
     status: str = "offen",  # offen | zugeordnet | all
+    user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
+    check_gewerbe(db, user, gewerbe_id)
     sql = "SELECT * FROM beleg WHERE gewerbe_id = ?"
     if status == "offen":
         # Fällige zuerst (überfällig oben), dann Rest nach Upload-Zeit.
@@ -124,7 +134,12 @@ def list_belege(
 
 
 @router.get("/belege/eingang/count")
-def eingang_count(gewerbe_id: int, db: sqlite3.Connection = Depends(get_db)):
+def eingang_count(
+    gewerbe_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     n = db.execute(
         "SELECT COUNT(*) FROM beleg WHERE gewerbe_id = ? AND buchung_id IS NULL", (gewerbe_id,)
     ).fetchone()[0]
@@ -132,7 +147,15 @@ def eingang_count(gewerbe_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.get("/buchungen/{buchung_id}/belege")
-def list_buchung_belege(buchung_id: int, db: sqlite3.Connection = Depends(get_db)):
+def list_buchung_belege(
+    buchung_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    b = db.execute("SELECT gewerbe_id FROM buchung WHERE id = ?", (buchung_id,)).fetchone()
+    if b is None:
+        raise HTTPException(404, "Buchung nicht gefunden.")
+    check_gewerbe(db, user, b["gewerbe_id"])
     rows = db.execute(
         "SELECT * FROM beleg WHERE buchung_id = ? ORDER BY id", (buchung_id,)
     ).fetchall()
@@ -145,10 +168,13 @@ class BelegPatch(BaseModel):
 
 
 @router.patch("/belege/{beleg_id}")
-def patch_beleg(beleg_id: int, body: BelegPatch, db: sqlite3.Connection = Depends(get_db)):
-    bel = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
-    if bel is None:
-        raise HTTPException(404, "Beleg nicht gefunden.")
+def patch_beleg(
+    beleg_id: int,
+    body: BelegPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    bel = _check_beleg(db, user, beleg_id)
 
     fields, values = [], []
     if "buchung_id" in body.model_fields_set:
@@ -172,12 +198,14 @@ def patch_beleg(beleg_id: int, body: BelegPatch, db: sqlite3.Connection = Depend
 
 
 @router.get("/belege/{beleg_id}/vorschlag")
-def beleg_vorschlag(beleg_id: int, db: sqlite3.Connection = Depends(get_db)):
+def beleg_vorschlag(
+    beleg_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     """Beleg auslesen (E-Rechnung/PDF-Text/OCR) und Buchungsfelder vorschlagen —
     immer nur Vorschlag, das UI markiert die Werte zum Prüfen."""
-    r = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
-    if r is None:
-        raise HTTPException(404, "Beleg nicht gefunden.")
+    r = _check_beleg(db, user, beleg_id)
     path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
     if not os.path.exists(path):
         raise HTTPException(410, "Datei nicht mehr vorhanden.")
@@ -190,10 +218,12 @@ def beleg_vorschlag(beleg_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.get("/belege/{beleg_id}/download")
-def download_beleg(beleg_id: int, db: sqlite3.Connection = Depends(get_db)):
-    r = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
-    if r is None:
-        raise HTTPException(404, "Beleg nicht gefunden.")
+def download_beleg(
+    beleg_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    r = _check_beleg(db, user, beleg_id)
     path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
     if not os.path.exists(path):
         raise HTTPException(410, "Datei nicht mehr vorhanden.")
@@ -201,10 +231,15 @@ def download_beleg(beleg_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/belege/{beleg_id}", status_code=204)
-def delete_beleg(beleg_id: int, db: sqlite3.Connection = Depends(get_db)):
+def delete_beleg(
+    beleg_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     r = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
     if r is None:
         return
+    check_gewerbe(db, user, r["gewerbe_id"])
     path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
     try:
         if os.path.exists(path):

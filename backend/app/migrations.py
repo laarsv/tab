@@ -338,6 +338,15 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=12,
+        sql="""
+        -- v12: Mandantentrennung — jedes Gewerbe gehört einem Login (owner_email).
+        --      NULL = Alt-Bestand (für alle sichtbar, bis manuell zugeordnet);
+        --      Durchsetzung in JEDER Route via auth/deps.check_gewerbe.
+        ALTER TABLE gewerbe ADD COLUMN owner_email TEXT;
+        """,
+    ),
 ]
 
 

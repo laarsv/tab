@@ -12,7 +12,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.e_rechnung import rechnungs_pdf
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
@@ -93,6 +93,14 @@ def _positionen(db: sqlite3.Connection, rechnung_id: int) -> list[dict]:
     ]
 
 
+def _check_rechnung(db: sqlite3.Connection, user: dict, rechnung_id: int) -> sqlite3.Row:
+    row = db.execute("SELECT * FROM rechnung WHERE id = ?", (rechnung_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Rechnung nicht gefunden.")
+    check_gewerbe(db, user, row["gewerbe_id"])
+    return row
+
+
 def _row(db: sqlite3.Connection, rechnung_id: int) -> dict:
     r = db.execute("SELECT * FROM rechnung WHERE id = ?", (rechnung_id,)).fetchone()
     if r is None:
@@ -103,8 +111,14 @@ def _row(db: sqlite3.Connection, rechnung_id: int) -> dict:
     return d
 
 
-@router.get("", dependencies=[Depends(get_current_user)])
-def list_rechnungen(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+@router.get("")
+def list_rechnungen(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     ids = [
         r["id"]
         for r in db.execute(
@@ -116,10 +130,13 @@ def list_rechnungen(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends
     return [_row(db, i) for i in ids]
 
 
-@router.post("", status_code=201, dependencies=[Depends(get_current_user)])
-def create_rechnung(body: RechnungIn, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+@router.post("", status_code=201)
+def create_rechnung(
+    body: RechnungIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, body.gewerbe_id)
     rid = erstelle_rechnung(
         db,
         gewerbe_id=body.gewerbe_id,
@@ -139,11 +156,14 @@ def create_rechnung(body: RechnungIn, db: sqlite3.Connection = Depends(get_db)):
     return _row(db, rid)
 
 
-@router.patch("/{rechnung_id}", dependencies=[Depends(get_current_user)])
-def update_rechnung(rechnung_id: int, body: RechnungPatch, db: sqlite3.Connection = Depends(get_db)):
-    cur = db.execute("SELECT * FROM rechnung WHERE id = ?", (rechnung_id,)).fetchone()
-    if cur is None:
-        raise HTTPException(404, "Rechnung nicht gefunden.")
+@router.patch("/{rechnung_id}")
+def update_rechnung(
+    rechnung_id: int,
+    body: RechnungPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cur = _check_rechnung(db, user, rechnung_id)
 
     inhalt_geaendert = any(
         v is not None
@@ -187,11 +207,16 @@ def update_rechnung(rechnung_id: int, body: RechnungPatch, db: sqlite3.Connectio
     return _row(db, rechnung_id)
 
 
-@router.delete("/{rechnung_id}", status_code=204, dependencies=[Depends(get_current_user)])
-def delete_rechnung(rechnung_id: int, db: sqlite3.Connection = Depends(get_db)):
+@router.delete("/{rechnung_id}", status_code=204)
+def delete_rechnung(
+    rechnung_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     cur = db.execute("SELECT * FROM rechnung WHERE id = ?", (rechnung_id,)).fetchone()
     if cur is None:
         return
+    check_gewerbe(db, user, cur["gewerbe_id"])
     if cur["status"] in ("versendet", "bezahlt"):
         raise HTTPException(400, "Versendete/bezahlte Rechnungen nicht löschen — stornieren.")
     max_lauf = db.execute(
@@ -218,13 +243,16 @@ class StatusIn(BaseModel):
         return _valid_date(v) if v is not None else v
 
 
-@router.post("/{rechnung_id}/status", dependencies=[Depends(get_current_user)])
-def set_status(rechnung_id: int, body: StatusIn, db: sqlite3.Connection = Depends(get_db)):
+@router.post("/{rechnung_id}/status")
+def set_status(
+    rechnung_id: int,
+    body: StatusIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     if body.status not in ("entwurf", "versendet", "bezahlt", "storniert"):
         raise HTTPException(400, "Unbekannter Status.")
-    cur = db.execute("SELECT * FROM rechnung WHERE id = ?", (rechnung_id,)).fetchone()
-    if cur is None:
-        raise HTTPException(404, "Rechnung nicht gefunden.")
+    cur = _check_rechnung(db, user, rechnung_id)
     heute = dt.date.today().isoformat()
     if body.status == "bezahlt":
         db.execute(
@@ -252,8 +280,13 @@ def _pdf_bytes(db: sqlite3.Connection, rechnung_id: int) -> tuple[bytes, dict]:
     return rechnungs_pdf(r, r["positionen"], g), r
 
 
-@router.get("/{rechnung_id}/pdf", dependencies=[Depends(get_current_user)])
-def rechnung_pdf(rechnung_id: int, db: sqlite3.Connection = Depends(get_db)):
+@router.get("/{rechnung_id}/pdf")
+def rechnung_pdf(
+    rechnung_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    _check_rechnung(db, user, rechnung_id)
     data, r = _pdf_bytes(db, rechnung_id)
     return Response(
         content=data,
@@ -283,6 +316,7 @@ def rechnung_senden(
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
+    _check_rechnung(db, user, rechnung_id)
     data, r = _pdf_bytes(db, rechnung_id)
     if r["status"] == "storniert":
         raise HTTPException(400, "Stornierte Rechnungen nicht versenden.")

@@ -12,7 +12,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.abo import INTERVALL_MONATE, erstelle_rechnung_aus_abo, naechster_termin
 from ..services.mailer import is_configured
@@ -113,8 +113,13 @@ def _row(db: sqlite3.Connection, abo_id: int) -> dict:
     return d
 
 
-@router.get("", dependencies=[Depends(get_current_user)])
-def list_abos(gewerbe_id: int, db: sqlite3.Connection = Depends(get_db)):
+@router.get("")
+def list_abos(
+    gewerbe_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     ids = [
         r["id"]
         for r in db.execute(
@@ -131,8 +136,7 @@ def create_abo(
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+    check_gewerbe(db, user, body.gewerbe_id)
     if body.auto_senden and not (body.empfaenger_email or "").strip():
         raise HTTPException(400, "Auto-Versand braucht eine Empfänger-E-Mail.")
     cur = db.execute(
@@ -164,10 +168,17 @@ def create_abo(
     return _row(db, cur.lastrowid)
 
 
-@router.patch("/{abo_id}", dependencies=[Depends(get_current_user)])
-def update_abo(abo_id: int, body: AboPatch, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM rechnung_abo WHERE id = ?", (abo_id,)).fetchone() is None:
+@router.patch("/{abo_id}")
+def update_abo(
+    abo_id: int,
+    body: AboPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    row = db.execute("SELECT * FROM rechnung_abo WHERE id = ?", (abo_id,)).fetchone()
+    if row is None:
         raise HTTPException(404, "Abo nicht gefunden.")
+    check_gewerbe(db, user, row["gewerbe_id"])
     fields, values = [], []
     if body.empfaenger_name is not None:
         fields.append("empfaenger_name = ?"); values.append(body.empfaenger_name.strip())
@@ -201,19 +212,31 @@ def update_abo(abo_id: int, body: AboPatch, db: sqlite3.Connection = Depends(get
     return _row(db, abo_id)
 
 
-@router.delete("/{abo_id}", status_code=204, dependencies=[Depends(get_current_user)])
-def delete_abo(abo_id: int, db: sqlite3.Connection = Depends(get_db)):
+@router.delete("/{abo_id}", status_code=204)
+def delete_abo(
+    abo_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    row = db.execute("SELECT * FROM rechnung_abo WHERE id = ?", (abo_id,)).fetchone()
+    if row is not None:
+        check_gewerbe(db, user, row["gewerbe_id"])
     db.execute("DELETE FROM rechnung_abo WHERE id = ?", (abo_id,))
     db.commit()
 
 
-@router.post("/{abo_id}/run", dependencies=[Depends(get_current_user)])
-def run_abo(abo_id: int, db: sqlite3.Connection = Depends(get_db)):
+@router.post("/{abo_id}/run")
+def run_abo(
+    abo_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     """Jetzt ausführen: erstellt sofort die Rechnung für den nächsten Stichtag
     (versendet ggf. automatisch) und schiebt den Stichtag weiter."""
     abo = db.execute("SELECT * FROM rechnung_abo WHERE id = ?", (abo_id,)).fetchone()
     if abo is None:
         raise HTTPException(404, "Abo nicht gefunden.")
+    check_gewerbe(db, user, abo["gewerbe_id"])
     heute = dt.date.today()
     stichtag = min(dt.date.fromisoformat(abo["naechste_am"]), heute)
     ergebnis = erstelle_rechnung_aus_abo(db, abo, stichtag, heute)

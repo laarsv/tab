@@ -219,9 +219,14 @@ der Mapping-Version des Jahres aufgelöst.
   Versand via smtp.gmail.com vom Login-Absender (gmail.com + Workspace). Beim Speichern
   wird der SMTP-Login live verifiziert. **JWT_SECRET ändern macht gespeicherte
   App-Passwörter unlesbar** (Nutzer müssen neu hinterlegen — Meldung kommt automatisch).
-- **Multi-User-Hinweis:** Login erlaubt mehrere Nutzer (Allowlist/Domain), aber es gibt
-  KEINE Mandantentrennung — alle sehen alle Gewerbe/Daten. Nur der Mail-Versand ist
-  personenbezogen.
+- **Mandantentrennung (v12):** `gewerbe.owner_email` — **jede Route** prüft Zugriff über
+  `auth/deps.check_gewerbe` (fremd → 404, keine Existenz verraten); Listen filtern mit
+  `GEWERBE_SICHTBAR_SQL`. `owner_email NULL` = Alt-Bestand, für alle sichtbar, bis manuell
+  zugeordnet (`UPDATE gewerbe SET owner_email=…`). Neue Gewerbe gehören dem Ersteller.
+  Row-Level-Objekte (Buchung/Beleg/Rechnung/Abo/Fahrt/AfA/Kontakt) erben über ihr Gewerbe.
+  **Backup (`/api/export/backup.zip`) nur für Admins** = explizite `ALLOWED_EMAILS`-Einträge
+  (`ist_admin`), Domain-Nutzer nicht. Bei NEUEN Routen mit `gewerbe_id`/Objekt-IDs IMMER
+  `check_gewerbe` einbauen. Ein Nutzer = eine E-Mail (Gmail vs. Workspace nicht mischen).
 
 ## Tests / Validierung
 

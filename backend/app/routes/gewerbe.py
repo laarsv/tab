@@ -6,7 +6,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import get_current_user
+from ..auth.deps import GEWERBE_SICHTBAR_SQL, check_gewerbe, get_current_user
 from ..db import get_db
 
 router = APIRouter(prefix="/api/gewerbe", tags=["gewerbe"], dependencies=[Depends(get_current_user)])
@@ -49,19 +49,27 @@ class GewerbePatch(BaseModel):
 
 
 @router.get("")
-def list_gewerbe(include_inactive: bool = False, db: sqlite3.Connection = Depends(get_db)):
-    sql = "SELECT * FROM gewerbe"
+def list_gewerbe(
+    include_inactive: bool = False,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    sql = f"SELECT * FROM gewerbe WHERE {GEWERBE_SICHTBAR_SQL}"
     if not include_inactive:
-        sql += " WHERE aktiv = 1"
+        sql += " AND aktiv = 1"
     sql += " ORDER BY aktiv DESC, name COLLATE NOCASE"
-    return [dict(r) for r in db.execute(sql)]
+    return [dict(r) for r in db.execute(sql, (user["email"],))]
 
 
 @router.post("", status_code=201)
-def create_gewerbe(body: GewerbeIn, db: sqlite3.Connection = Depends(get_db)):
+def create_gewerbe(
+    body: GewerbeIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     cur = db.execute(
-        "INSERT INTO gewerbe (name, steuernummer, besteuerung, anschrift, iban, rechnung_fusszeile) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO gewerbe (name, steuernummer, besteuerung, anschrift, iban, "
+        "rechnung_fusszeile, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             body.name.strip(),
             (body.steuernummer or "").strip() or None,
@@ -69,6 +77,7 @@ def create_gewerbe(body: GewerbeIn, db: sqlite3.Connection = Depends(get_db)):
             (body.anschrift or "").strip() or None,
             (body.iban or "").strip() or None,
             (body.rechnung_fusszeile or "").strip() or None,
+            user["email"],
         ),
     )
     db.commit()
@@ -76,10 +85,13 @@ def create_gewerbe(body: GewerbeIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{gewerbe_id}")
-def update_gewerbe(gewerbe_id: int, body: GewerbePatch, db: sqlite3.Connection = Depends(get_db)):
-    row = db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
-    if row is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+def update_gewerbe(
+    gewerbe_id: int,
+    body: GewerbePatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     fields, values = [], []
     if body.name is not None:
         fields.append("name = ?"); values.append(body.name.strip())

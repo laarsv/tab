@@ -8,7 +8,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 
 router = APIRouter(prefix="/api/kontakte", tags=["kontakte"], dependencies=[Depends(get_current_user)])
@@ -60,7 +60,12 @@ class KontaktPatch(BaseModel):
 
 
 @router.get("")
-def list_kontakte(gewerbe_id: int, db: sqlite3.Connection = Depends(get_db)):
+def list_kontakte(
+    gewerbe_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     return [
         dict(r)
         for r in db.execute(
@@ -71,9 +76,12 @@ def list_kontakte(gewerbe_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def create_kontakt(body: KontaktIn, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+def create_kontakt(
+    body: KontaktIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, body.gewerbe_id)
     if db.execute(
         "SELECT 1 FROM kontakt WHERE gewerbe_id = ? AND name = ?",
         (body.gewerbe_id, body.name.strip()),
@@ -94,10 +102,16 @@ def create_kontakt(body: KontaktIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{kontakt_id}")
-def update_kontakt(kontakt_id: int, body: KontaktPatch, db: sqlite3.Connection = Depends(get_db)):
+def update_kontakt(
+    kontakt_id: int,
+    body: KontaktPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     cur = db.execute("SELECT * FROM kontakt WHERE id = ?", (kontakt_id,)).fetchone()
     if cur is None:
         raise HTTPException(404, "Kontakt nicht gefunden.")
+    check_gewerbe(db, user, cur["gewerbe_id"])
     fields, values = [], []
     if body.name is not None:
         fields.append("name = ?"); values.append(body.name.strip())
@@ -115,6 +129,13 @@ def update_kontakt(kontakt_id: int, body: KontaktPatch, db: sqlite3.Connection =
 
 
 @router.delete("/{kontakt_id}", status_code=204)
-def delete_kontakt(kontakt_id: int, db: sqlite3.Connection = Depends(get_db)):
+def delete_kontakt(
+    kontakt_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cur = db.execute("SELECT * FROM kontakt WHERE id = ?", (kontakt_id,)).fetchone()
+    if cur is not None:
+        check_gewerbe(db, user, cur["gewerbe_id"])
     db.execute("DELETE FROM kontakt WHERE id = ?", (kontakt_id,))
     db.commit()

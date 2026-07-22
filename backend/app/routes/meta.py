@@ -5,7 +5,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 
 router = APIRouter(prefix="/api", tags=["meta"], dependencies=[Depends(get_current_user)])
@@ -21,7 +21,13 @@ def list_jahre(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.get("/kennzahlen")
-def kennzahlen(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+def kennzahlen(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     # ku_umsatz: Gesamtumsatz i. S. d. §19 Abs. 2 UStG — steuerfreie Umsätze nach
     # §4 Nr. 11 (Courtage) und Verkäufe von Anlagevermögen bleiben außer Ansatz.
     row = db.execute(

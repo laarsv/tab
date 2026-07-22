@@ -7,7 +7,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.afa import jahres_afa_cent, restbuchwert_cent
 
@@ -73,7 +73,13 @@ def _afa_kategorie(db: sqlite3.Connection, kategorie_id: int) -> sqlite3.Row:
 
 
 @router.get("")
-def list_afa(gewerbe_id: int, jahr: int | None = None, db: sqlite3.Connection = Depends(get_db)):
+def list_afa(
+    gewerbe_id: int,
+    jahr: int | None = None,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     rows = db.execute(
         """
         SELECT a.*, k.name AS kategorie_name
@@ -105,9 +111,12 @@ def list_afa(gewerbe_id: int, jahr: int | None = None, db: sqlite3.Connection = 
 
 
 @router.post("", status_code=201)
-def create_afa(body: AfaIn, db: sqlite3.Connection = Depends(get_db)):
-    if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
-        raise HTTPException(404, "Gewerbe nicht gefunden.")
+def create_afa(
+    body: AfaIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, body.gewerbe_id)
     _afa_kategorie(db, body.kategorie_id)
     _check_abgang(body.anschaffungsdatum, body.abgang_datum)
     cur = db.execute(
@@ -133,10 +142,16 @@ def create_afa(body: AfaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{afa_id}")
-def update_afa(afa_id: int, body: AfaPatch, db: sqlite3.Connection = Depends(get_db)):
+def update_afa(
+    afa_id: int,
+    body: AfaPatch,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     cur = db.execute("SELECT * FROM afa_buchung WHERE id = ?", (afa_id,)).fetchone()
     if cur is None:
         raise HTTPException(404, "AfA-Eintrag nicht gefunden.")
+    check_gewerbe(db, user, cur["gewerbe_id"])
     if body.kategorie_id is not None:
         _afa_kategorie(db, body.kategorie_id)
 
@@ -168,6 +183,13 @@ def update_afa(afa_id: int, body: AfaPatch, db: sqlite3.Connection = Depends(get
 
 
 @router.delete("/{afa_id}", status_code=204)
-def delete_afa(afa_id: int, db: sqlite3.Connection = Depends(get_db)):
+def delete_afa(
+    afa_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cur = db.execute("SELECT * FROM afa_buchung WHERE id = ?", (afa_id,)).fetchone()
+    if cur is not None:
+        check_gewerbe(db, user, cur["gewerbe_id"])
     db.execute("DELETE FROM afa_buchung WHERE id = ?", (afa_id,))
     db.commit()

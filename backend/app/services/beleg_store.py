@@ -72,12 +72,21 @@ def speichere_beleg(
 def default_gewerbe_id(conn: sqlite3.Connection, user_email: str) -> int | None:
     """Ziel-Gewerbe für Share/Mail-Import: eingestelltes Import-Gewerbe des Nutzers,
     sonst das erste aktive Gewerbe."""
+    email = user_email.lower()
     row = conn.execute(
-        "SELECT import_gewerbe_id FROM user_mail WHERE email = ?", (user_email.lower(),)
+        "SELECT import_gewerbe_id FROM user_mail WHERE email = ?", (email,)
     ).fetchone()
     if row and row["import_gewerbe_id"]:
         gid = row["import_gewerbe_id"]
-        if conn.execute("SELECT 1 FROM gewerbe WHERE id = ? AND aktiv = 1", (gid,)).fetchone():
+        if conn.execute(
+            "SELECT 1 FROM gewerbe WHERE id = ? AND aktiv = 1 "
+            "AND (owner_email IS NULL OR owner_email = ?)",
+            (gid, email),
+        ).fetchone():
             return gid
-    row = conn.execute("SELECT id FROM gewerbe WHERE aktiv = 1 ORDER BY id LIMIT 1").fetchone()
+    row = conn.execute(
+        "SELECT id FROM gewerbe WHERE aktiv = 1 AND (owner_email IS NULL OR owner_email = ?) "
+        "ORDER BY id LIMIT 1",
+        (email,),
+    ).fetchone()
     return row["id"] if row else None

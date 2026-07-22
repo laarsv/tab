@@ -20,7 +20,7 @@ import logging
 import sqlite3
 
 from ..config import settings
-from .beleg_store import BelegAbgelehnt, speichere_beleg
+from .beleg_store import BelegAbgelehnt, default_gewerbe_id, speichere_beleg
 
 log = logging.getLogger("tab.mail_import")
 
@@ -126,14 +126,7 @@ def run_mail_import(conn: sqlite3.Connection) -> int:
         "SELECT * FROM user_mail WHERE import_aktiv = 1"
     ).fetchall()
     for u in nutzer:
-        gid = u["import_gewerbe_id"]
-        if gid is None or not conn.execute(
-            "SELECT 1 FROM gewerbe WHERE id = ? AND aktiv = 1", (gid,)
-        ).fetchone():
-            row = conn.execute(
-                "SELECT id FROM gewerbe WHERE aktiv = 1 ORDER BY id LIMIT 1"
-            ).fetchone()
-            gid = row["id"] if row else None
+        gid = default_gewerbe_id(conn, u["email"])  # owner-gescoped
         if gid is None:
             continue
         try:

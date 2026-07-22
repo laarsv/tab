@@ -5,7 +5,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from ..auth.deps import get_current_user
+from ..auth.deps import check_gewerbe, get_current_user, ist_admin
 from ..db import get_db
 from ..services.export import (
     BesteuerungNotSupportedError,
@@ -25,7 +25,13 @@ def _slug(name: str) -> str:
 
 
 @router.get("/summenblatt")
-def summenblatt(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+def summenblatt(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     try:
         return build_summenblatt(db, gewerbe_id, jahr)
     except (MappingMissingError, BesteuerungNotSupportedError) as e:
@@ -33,7 +39,13 @@ def summenblatt(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get
 
 
 @router.get("/summenblatt.csv")
-def summenblatt_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+def summenblatt_download(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     try:
         data = summenblatt_csv(db, gewerbe_id, jahr)
     except (MappingMissingError, BesteuerungNotSupportedError) as e:
@@ -48,7 +60,13 @@ def summenblatt_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = De
 
 
 @router.get("/journal.csv")
-def journal_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+def journal_download(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
     try:
         data = journal_csv(db, gewerbe_id, jahr)
     except (MappingMissingError, BesteuerungNotSupportedError) as e:
@@ -63,8 +81,14 @@ def journal_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depend
 
 
 @router.get("/belege.zip")
-def belege_zip_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends(get_db)):
+def belege_zip_download(
+    gewerbe_id: int,
+    jahr: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
     """Jahres-Archiv (Summenblatt + Journal + Beleg-Dateien) — z. B. fürs Finanzamt-Archiv."""
+    check_gewerbe(db, user, gewerbe_id)
     try:
         data = belege_zip(db, gewerbe_id, jahr)
     except (MappingMissingError, BesteuerungNotSupportedError) as e:
@@ -79,8 +103,14 @@ def belege_zip_download(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Dep
 
 
 @router.get("/backup.zip")
-def backup_download(db: sqlite3.Connection = Depends(get_db)):
-    """Komplett-Backup: SQLite-Snapshot + alle Beleg-Dateien."""
+def backup_download(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Komplett-Backup: SQLite-Snapshot + alle Beleg-Dateien — enthält ALLE
+    Mandanten, daher nur für Admins (explizite ALLOWED_EMAILS-Einträge)."""
+    if not ist_admin(user):
+        raise HTTPException(403, "Backup ist Admins vorbehalten.")
     return Response(
         content=backup_zip(db),
         media_type="application/zip",
