@@ -258,6 +258,36 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE rechnung ADD COLUMN steuerhinweis TEXT NOT NULL DEFAULT 'ku19';
         """,
     ),
+    Migration(
+        version=8,
+        sql="""
+        -- v8: Wiederkehrende Rechnungen (Abos). Vorlage inkl. Positionen (JSON);
+        --     der Scheduler erstellt zum Stichtag eine echte Rechnung und versendet
+        --     sie optional automatisch vom hinterlegten Absender (user_mail).
+        CREATE TABLE rechnung_abo (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id           INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            empfaenger_name      TEXT    NOT NULL,
+            empfaenger_anschrift TEXT,
+            empfaenger_email     TEXT,
+            notiz                TEXT,
+            steuerhinweis        TEXT    NOT NULL DEFAULT 'ku19',
+            positionen_json      TEXT    NOT NULL,
+            intervall            TEXT    NOT NULL
+                                 CHECK (intervall IN ('monatlich','vierteljaehrlich','jaehrlich')),
+            naechste_am          TEXT    NOT NULL,
+            auto_senden          INTEGER NOT NULL DEFAULT 0,
+            betreff              TEXT,
+            mail_text            TEXT,
+            absender_email       TEXT    NOT NULL,
+            aktiv                INTEGER NOT NULL DEFAULT 1,
+            created_at           TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at           TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_abo_gewerbe ON rechnung_abo(gewerbe_id);
+        CREATE INDEX idx_abo_faellig ON rechnung_abo(aktiv, naechste_am);
+        """,
+    ),
 ]
 
 

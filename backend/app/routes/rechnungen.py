@@ -16,6 +16,7 @@ from ..auth.deps import get_current_user
 from ..db import get_db
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
 from ..services.rechnung_pdf import STEUERHINWEISE, build_rechnung_pdf
+from ..services.rechnungen import erstelle_rechnung
 
 router = APIRouter(prefix="/api/rechnungen", tags=["rechnungen"])
 
@@ -117,40 +118,17 @@ def list_rechnungen(gewerbe_id: int, jahr: int, db: sqlite3.Connection = Depends
 def create_rechnung(body: RechnungIn, db: sqlite3.Connection = Depends(get_db)):
     if db.execute("SELECT 1 FROM gewerbe WHERE id = ?", (body.gewerbe_id,)).fetchone() is None:
         raise HTTPException(404, "Gewerbe nicht gefunden.")
-    jahr = int(body.datum[:4])
-    lauf = (
-        db.execute(
-            "SELECT COALESCE(MAX(laufnummer), 0) FROM rechnung WHERE gewerbe_id = ? AND jahr = ?",
-            (body.gewerbe_id, jahr),
-        ).fetchone()[0]
-        + 1
-    )
-    cur = db.execute(
-        """
-        INSERT INTO rechnung (gewerbe_id, jahr, laufnummer, nummer, datum, leistungsdatum,
-                              empfaenger_name, empfaenger_anschrift, empfaenger_email, notiz,
-                              steuerhinweis)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            body.gewerbe_id,
-            jahr,
-            lauf,
-            f"{jahr}-{lauf:04d}",
-            body.datum,
-            (body.leistungsdatum or "").strip() or None,
-            body.empfaenger_name.strip(),
-            (body.empfaenger_anschrift or "").strip() or None,
-            (body.empfaenger_email or "").strip() or None,
-            (body.notiz or "").strip() or None,
-            body.steuerhinweis,
-        ),
-    )
-    rid = cur.lastrowid
-    db.executemany(
-        "INSERT INTO rechnung_position (rechnung_id, beschreibung, menge, einzelpreis_cent) "
-        "VALUES (?, ?, ?, ?)",
-        [(rid, p.beschreibung.strip(), p.menge, p.einzelpreis_cent) for p in body.positionen],
+    rid = erstelle_rechnung(
+        db,
+        gewerbe_id=body.gewerbe_id,
+        datum=body.datum,
+        leistungsdatum=body.leistungsdatum,
+        empfaenger_name=body.empfaenger_name,
+        empfaenger_anschrift=body.empfaenger_anschrift,
+        empfaenger_email=body.empfaenger_email,
+        notiz=body.notiz,
+        steuerhinweis=body.steuerhinweis,
+        positionen=[p.model_dump() for p in body.positionen],
     )
     db.commit()
     return _row(db, rid)

@@ -3,6 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+import AboModal from '../components/AboModal.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import Modal from '../components/Modal.jsx';
@@ -50,12 +51,14 @@ export default function Rechnungen() {
   const { gewerbeId, jahr, gewerbe, reloadBadges } = useOutletContext();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
+  const [abos, setAbos] = useState([]);
   const [kategorien, setKategorien] = useState([]);
   const [mail, setMail] = useState(null); // { email, konfiguriert }
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [senden, setSenden] = useState(null); // rechnung
   const [einnahme, setEinnahme] = useState(null); // rechnung -> BuchungModal
+  const [aboModal, setAboModal] = useState(null); // { abo? , prefill? }
 
   const gewerbeRow = gewerbe.find((g) => String(g.id) === String(gewerbeId));
 
@@ -66,14 +69,16 @@ export default function Rechnungen() {
     }
     setLoading(true);
     try {
-      const [r, kat, m] = await Promise.all([
+      const [r, kat, m, a] = await Promise.all([
         api.get('/api/rechnungen', { params: { gewerbe_id: gewerbeId, jahr } }),
         api.get('/api/kategorien', { params: { jahr } }),
         api.get('/api/einstellungen/mail'),
+        api.get('/api/rechnungsabos', { params: { gewerbe_id: gewerbeId } }),
       ]);
       setItems(r.data);
       setKategorien(kat.data);
       setMail(m.data);
+      setAbos(a.data);
     } catch (e) {
       toast.error(apiError(e));
     } finally {
@@ -100,6 +105,43 @@ export default function Rechnungen() {
     try {
       await api.delete(`/api/rechnungen/${r.id}`);
       toast.success('Gelöscht.');
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  // ── Abos (wiederkehrende Rechnungen) ──────────────────────────────────────
+  async function runAbo(a) {
+    try {
+      const res = await api.post(`/api/rechnungsabos/${a.id}/run`);
+      const d = res.data;
+      toast.success(
+        d.versendet
+          ? `Rechnung ${d.nummer} erstellt und versendet.`
+          : `Rechnung ${d.nummer} als Entwurf erstellt.${d.fehler ? ` (${d.fehler})` : ''}`,
+        { duration: 7000 },
+      );
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  async function toggleAbo(a) {
+    try {
+      await api.patch(`/api/rechnungsabos/${a.id}`, { aktiv: !a.aktiv });
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  async function removeAbo(a) {
+    if (!window.confirm(`Abo für „${a.empfaenger_name}" löschen? Bestehende Rechnungen bleiben.`))
+      return;
+    try {
+      await api.delete(`/api/rechnungsabos/${a.id}`);
       await load();
     } catch (e) {
       toast.error(apiError(e));
@@ -143,9 +185,57 @@ export default function Rechnungen() {
         </div>
       )}
 
+      {abos.length > 0 && (
+        <div className="card p-4 space-y-3">
+          <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
+            Wiederkehrende Rechnungen (Abos)
+          </div>
+          <ul className="divide-y divide-ink/5">
+            {abos.map((a) => (
+              <li key={a.id} className="py-2.5 space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0 text-sm">
+                    <span className="font-bold">{a.empfaenger_name}</span>{' '}
+                    <span className="text-ink/60">
+                      · {{ monatlich: 'monatlich', vierteljaehrlich: 'vierteljährlich', jaehrlich: 'jährlich' }[a.intervall]}
+                      {' '}· nächste am {formatDateDE(a.naechste_am)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="tabular-nums font-bold text-sm">{formatEuro(a.summe_cent)}</span>
+                    {!a.aktiv ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-ink/10 text-ink/60 text-[11px] font-bold">Pausiert</span>
+                    ) : a.auto_senden ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal text-paper text-[11px] font-bold">Auto-Versand</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[11px] font-bold">Entwurf</span>
+                    )}
+                  </div>
+                </div>
+                {a.auto_senden && !a.absender_konfiguriert && (
+                  <div className="text-xs text-yellow-900 bg-yellow-100 rounded px-2 py-1">
+                    Absender {a.absender_email} hat kein App-Passwort hinterlegt — Rechnungen
+                    bleiben als Entwurf liegen.
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button className="btn-outline btn-sm" onClick={() => runAbo(a)}>Jetzt ausführen</button>
+                  <button className="btn-ghost btn-sm" onClick={() => setAboModal({ abo: a })}>Bearbeiten</button>
+                  <button className="btn-ghost btn-sm" onClick={() => toggleAbo(a)}>
+                    {a.aktiv ? 'Pausieren' : 'Fortsetzen'}
+                  </button>
+                  <button className="btn-ghost btn-sm text-red-700" onClick={() => removeAbo(a)}>Löschen</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="card p-12 text-center text-ink/60">
-          Noch keine Rechnungen für {jahr}.
+          Noch keine Rechnungen für {jahr}. Tipp: Nach der ersten Rechnung kannst du sie mit
+          „Wiederholen…" als monatliches Abo anlegen.
         </div>
       ) : (
         <div className="space-y-3">
@@ -213,6 +303,15 @@ export default function Rechnungen() {
                     Als Einnahme buchen
                   </button>
                 )}
+                {r.status !== 'storniert' && (
+                  <button
+                    className="btn-ghost btn-sm"
+                    onClick={() => setAboModal({ prefill: r })}
+                    title="Diese Rechnung als wiederkehrendes Abo anlegen"
+                  >
+                    Wiederholen…
+                  </button>
+                )}
                 {r.status !== 'entwurf' && r.status !== 'storniert' && (
                   <button className="btn-ghost btn-sm text-red-700" onClick={() => setStatus(r, 'storniert')}>
                     Stornieren
@@ -241,6 +340,17 @@ export default function Rechnungen() {
 
       {senden && (
         <SendenModal rechnung={senden} user={user} onClose={() => setSenden(null)} onSent={load} />
+      )}
+
+      {aboModal && (
+        <AboModal
+          abo={aboModal.abo}
+          prefill={aboModal.prefill}
+          gewerbeId={gewerbeId}
+          mailKonfiguriert={Boolean(mail?.konfiguriert)}
+          onClose={() => setAboModal(null)}
+          onSaved={load}
+        />
       )}
 
       {einnahme && (

@@ -66,7 +66,8 @@ v1 = Grundschema, v2 = `besteuerung` + `beleg`, v3 = `buchung_position` + Beleg-
 (buchung→Kopf, beleg→gewerbe-bezogen, nullable), v4 = `afa_buchung.abgang_datum`,
 v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnung`,
 `rechnung_position`, `user_mail`) + Gewerbe-Absenderfelder (`anschrift`, `iban`,
-`rechnung_fusszeile`).
+`rechnung_fusszeile`), v7 = `rechnung.steuerhinweis`, v8 = `rechnung_abo`
+(wiederkehrende Rechnungen, Positionen als JSON).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -158,6 +159,16 @@ der Mapping-Version des Jahres aufgelöst.
   keine Nummernlücken); Inhalt editierbar nur im Status `entwurf`. „Als Einnahme buchen"
   öffnet das BuchungModal vorbefüllt — `vers4nr11` → Kategorie `einnahme_steuerfrei`
   (Zeile 16), sonst `einnahme_ku` (Zeile 12); bewusst keine automatische Buchung.
+- **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
+  wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
+  im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via
+  `services/rechnungen.erstelle_rechnung` (gemeinsam mit der Route — Nummernlogik nur
+  dort ändern). Platzhalter `{monat}` → Abrechnungsmonat MM/JJJJ; Leistungsdatum wird
+  automatisch gesetzt; Ausstellungsdatum = Lauf-Tag. **Auto-Versand nur wenn** aktiviert +
+  Empfänger-Mail + Absender-App-Passwort + Stichtag ≤ 7 Tage her (kein Mail-Schwall nach
+  Server-Pause) — sonst bleibt die Rechnung als Entwurf. Verpasste Stichtage werden als
+  Rechnungen nachgeholt. UI: „Wiederholen…" an jeder Rechnung erstellt das Abo vorbefüllt;
+  Abo-Liste mit Jetzt ausführen/Pausieren oben auf der Rechnungen-Seite.
 - **Mail-Versand individuell je Login (`routes/einstellungen.py`, `services/mailer.py`):**
   jeder Nutzer hinterlegt SEIN Gmail-App-Passwort (Profil-Menü „E-Mail-Versand") —
   Fernet-verschlüsselt in `user_mail` (Schlüssel aus JWT_SECRET), NICHT in der .env.

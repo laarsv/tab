@@ -4,6 +4,8 @@ FastAPI + SQLite (eine Datei). Migrationen + idempotenter Seed laufen beim Start
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -15,6 +17,7 @@ from .config import settings
 from .db import _connect, init_pragmas
 from .migrations import run_migrations
 from .routes import (
+    abos,
     afa,
     belege,
     buchungen,
@@ -27,7 +30,28 @@ from .routes import (
     rechnungen,
 )
 from .seed import seed
+from .services.abo import run_faellige_abos
 from .auth.router import router as auth_router
+
+ABO_INTERVALL_SEKUNDEN = 6 * 3600
+
+
+def _abo_lauf() -> None:
+    conn = _connect()
+    try:
+        run_faellige_abos(conn)
+    finally:
+        conn.close()
+
+
+async def _abo_scheduler() -> None:
+    """Wiederkehrende Rechnungen: beim Start und dann alle 6 h fällige Abos ausführen."""
+    while True:
+        try:
+            await asyncio.to_thread(_abo_lauf)
+        except Exception:
+            logging.getLogger("tab.abo").exception("Abo-Lauf fehlgeschlagen")
+        await asyncio.sleep(ABO_INTERVALL_SEKUNDEN)
 
 
 @asynccontextmanager
@@ -40,7 +64,9 @@ async def lifespan(app: FastAPI):
         seed(conn)
     finally:
         conn.close()
+    scheduler = asyncio.create_task(_abo_scheduler())
     yield
+    scheduler.cancel()
 
 
 app = FastAPI(title="Tab", lifespan=lifespan)
@@ -76,6 +102,7 @@ app.include_router(belege.router)
 app.include_router(afa.router)
 app.include_router(fahrten.router)
 app.include_router(rechnungen.router)
+app.include_router(abos.router)
 app.include_router(einstellungen.router)
 app.include_router(export.router)
 app.include_router(meta.router)
