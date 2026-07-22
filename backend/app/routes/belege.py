@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from ..auth.deps import get_current_user
 from ..config import settings
 from ..db import get_db
+from ..services.beleg_extract import parse_e_rechnung, vorschlag_fuer_beleg
 
 router = APIRouter(prefix="/api", tags=["belege"], dependencies=[Depends(get_current_user)])
 
@@ -86,6 +87,12 @@ def upload_beleg(
     os.makedirs(settings.UPLOAD_ROOT, exist_ok=True)
     with open(os.path.join(settings.UPLOAD_ROOT, stored_name), "wb") as fh:
         fh.write(data)
+
+    # E-Rechnung (XML): Fälligkeitsdatum direkt übernehmen, wenn keins angegeben.
+    if ext == ".xml" and not faellig_am:
+        parsed = parse_e_rechnung(data)
+        if parsed and parsed.get("faellig_am"):
+            faellig_am = parsed["faellig_am"]
 
     original = os.path.basename(file.filename or f"beleg{ext}")
     cur = db.execute(
@@ -164,6 +171,24 @@ def patch_beleg(beleg_id: int, body: BelegPatch, db: sqlite3.Connection = Depend
         db.execute(f"UPDATE beleg SET {', '.join(fields)} WHERE id = ?", (*values, beleg_id))
         db.commit()
     return _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone())
+
+
+@router.get("/belege/{beleg_id}/vorschlag")
+def beleg_vorschlag(beleg_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """Beleg auslesen (E-Rechnung/PDF-Text/OCR) und Buchungsfelder vorschlagen —
+    immer nur Vorschlag, das UI markiert die Werte zum Prüfen."""
+    r = db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone()
+    if r is None:
+        raise HTTPException(404, "Beleg nicht gefunden.")
+    path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
+    if not os.path.exists(path):
+        raise HTTPException(410, "Datei nicht mehr vorhanden.")
+    try:
+        return vorschlag_fuer_beleg(db, r, path)
+    except Exception:
+        # Erkennung darf nie das Verbuchen blockieren.
+        return {"quelle": "keine", "betrag_cent": None, "datum": None,
+                "faellig_am": None, "lieferant": None, "kategorie_id": None}
 
 
 @router.get("/belege/{beleg_id}/download")

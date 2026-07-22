@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from './Dropdown.jsx';
@@ -159,6 +159,50 @@ export default function BuchungModal({
         ],
   );
   const [busy, setBusy] = useState(false);
+  const [vorschlag, setVorschlag] = useState(null); // { quelle, ... } | null
+  const [liestBeleg, setLiestBeleg] = useState(false);
+
+  // Beleg-Erkennung: beim Verbuchen eines Eingangs-Belegs Felder vorbefüllen
+  // (E-Rechnung/PDF-Text/OCR) — nur leere Felder, immer als Vorschlag markiert.
+  useEffect(() => {
+    if (isEdit || preBelege.length !== 1) return;
+    let aktiv = true;
+    setLiestBeleg(true);
+    api
+      .get(`/api/belege/${preBelege[0].id}/vorschlag`)
+      .then((res) => {
+        if (!aktiv) return;
+        const v = res.data;
+        if (v.quelle === 'keine' || v.quelle === 'ocr-fehlgeschlagen') {
+          if (v.kategorie_id) {
+            setPositionen((arr) =>
+              arr.map((p, i) => (i === 0 && !p.kategorie_id ? { ...p, kategorie_id: String(v.kategorie_id) } : p)),
+            );
+            setVorschlag(v);
+          }
+          return;
+        }
+        setVorschlag(v);
+        if (v.datum) setDatum(v.datum);
+        if (v.lieferant) setBeschreibung((b) => b || v.lieferant);
+        setPositionen((arr) =>
+          arr.map((p, i) =>
+            i === 0
+              ? {
+                  ...p,
+                  kategorie_id: p.kategorie_id || (v.kategorie_id ? String(v.kategorie_id) : ''),
+                  betragInput: p.betragInput || (v.betrag_cent ? centToInput(v.betrag_cent) : ''),
+                }
+              : p,
+          ),
+        );
+      })
+      .catch(() => {})
+      .finally(() => aktiv && setLiestBeleg(false));
+    return () => {
+      aktiv = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const jahrMismatch = jahr && datum && String(datum).slice(0, 4) !== String(jahr);
 
@@ -256,6 +300,20 @@ export default function BuchungModal({
           </label>
         </div>
 
+        {liestBeleg && (
+          <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/60">
+            Beleg wird gelesen…
+          </div>
+        )}
+        {vorschlag && !liestBeleg && (
+          <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
+            <strong>Vorschlag aus dem Beleg</strong> (
+            {{ 'e-rechnung': 'E-Rechnung, exakt', 'pdf-text': 'PDF-Text', ocr: 'Texterkennung/OCR' }[
+              vorschlag.quelle
+            ] || 'teilweise erkannt'}
+            ) — bitte prüfen, besonders Betrag und Kategorie.
+          </div>
+        )}
         {jahrMismatch && (
           <div className="rounded-lg bg-yellow-100 text-yellow-900 p-2.5 text-xs">
             Das Datum liegt nicht im oben gewählten Jahr <strong>{jahr}</strong> — die Buchung

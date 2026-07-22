@@ -171,6 +171,16 @@ der Mapping-Version des Jahres aufgelöst.
   Server-Pause) — sonst bleibt die Rechnung als Entwurf. Verpasste Stichtage werden als
   Rechnungen nachgeholt. UI: „Wiederholen…" an jeder Rechnung erstellt das Abo vorbefüllt;
   Abo-Liste mit Jetzt ausführen/Pausieren oben auf der Rechnungen-Seite.
+- **Beleg-Erkennung (`services/beleg_extract.py`, GET `/belege/{id}/vorschlag`):**
+  3-stufig lokal — (1) E-Rechnung: XRechnung-XML/ZUGFeRD-XML-im-PDF exakt geparst
+  (tolerant über local-names), (2) PDF-Textebene via PyMuPDF + Heuristiken
+  (Betrag-Keywords, Datumsmuster, erste Zeile = Lieferant), (3) Foto/Scan via
+  Tesseract `deu` (im Dockerfile installiert; fehlt das Binary, degradiert alles
+  still). Kategorie-Vorschlag: erst lernend (frühere Buchung mit Lieferant-Token
+  in der Beschreibung), dann `KEYWORD_KATEGORIEN`. **Immer nur Vorschlag** —
+  BuchungModal befüllt beim Verbuchen leere Felder vor und zeigt einen Prüf-Hinweis;
+  der Endpoint darf das Verbuchen nie blockieren (Fehler → leerer Vorschlag).
+  XML-Upload übernimmt die Fälligkeit automatisch in `beleg.faellig_am`.
 - **Kontakte (`routes/kontakte.py`, Tabelle `kontakt`):** Rechnungsempfänger je Gewerbe,
   Name case-insensitiv eindeutig. **Füllen sich automatisch**: Rechnung/Abo anlegen
   upsertet den Empfänger (`upsert_kontakt` — nur nicht-leere Felder überschreiben).
