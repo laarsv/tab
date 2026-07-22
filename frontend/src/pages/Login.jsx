@@ -31,7 +31,12 @@ export default function Login() {
         <div className="text-center mb-8">
           {/* Produkt-Lockup (standalone) gemäß CI — auf Ink: weiß, _toolname in Royal Soft */}
           <Wordmark onInk className="text-4xl" />
-          <p className="mt-2 text-sm text-paper/70">EÜR-Buchhaltung für Kleinunternehmer</p>
+          <p className="mt-2 text-sm text-paper/70">
+            Die bessere Excel-Liste für deine EÜR (§19 UStG)
+          </p>
+          <p className="mt-1 text-xs text-paper/50">
+            Keine Steuerberatung — Zahlen vor der Abgabe prüfen (lassen).
+          </p>
         </div>
 
         <div className="card p-6 space-y-4">

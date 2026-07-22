@@ -338,8 +338,8 @@ export default function Layout() {
             <Wordmark className="text-base" />
           </a>
           <span>
-            · EÜR für Kleinunternehmer (§19 UStG) · keine Steuerberatung · angemeldet als{' '}
-            {user?.name || user?.email}
+            · die bessere Excel-Liste für die EÜR (§19 UStG) · keine Steuerberatung — im
+            Zweifel prüfen lassen · angemeldet als {user?.name || user?.email}
           </span>
         </div>
       </footer>

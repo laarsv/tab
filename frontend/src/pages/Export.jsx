@@ -93,6 +93,13 @@ export default function Export() {
         </p>
       </div>
 
+      <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-3 text-sm text-ink/80 no-print">
+        <strong>Tab ist die bessere Excel-Liste — keine Steuerberatung.</strong> Die Zuordnungen
+        folgen der amtlichen Anleitung, aber dein Fall kann Besonderheiten haben. Prüfe die
+        Zahlen vor der Abgabe selbst oder lass sie vom Steuerberater gegenchecken — das
+        Beleg-Journal unten ist genau dafür gemacht.
+      </div>
+
       {data?.vorlaeufig && (
         <div className="p-4 rounded flex items-start gap-3 bg-yellow-100 text-yellow-900">
           <div>
@@ -223,6 +230,10 @@ export default function Export() {
               </tr>
             </tfoot>
           </table>
+          </div>
+          <div className="hidden print:block text-xs text-ink/50 pt-2">
+            Erstellt mit vrwb_tab — keine Steuerberatung, Angaben ohne Gewähr. Vor der Abgabe
+            prüfen bzw. prüfen lassen.
           </div>
         </div>
       ) : null}
