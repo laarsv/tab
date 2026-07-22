@@ -226,7 +226,12 @@ der Mapping-Version des Jahres aufgelöst.
   Passwörter unlesbar** (Nutzer hinterlegen neu — Meldung kommt automatisch).
   Faustregel (steht im Wizard): eigene Absender-Domain pro Firma → eigener Login.
 - **Offene Registrierung (`OPEN_SIGNUP=true` in .env):** jedes Google-Konto darf sich
-  anmelden. Die Allowlist bleibt aktiv als **Admin-Liste** (`ALLOWED_EMAILS` → `ist_admin`,
+  anmelden — UND (v14) **E-Mail + Passwort ohne Google**: `nutzer`-Tabelle, scrypt-Hash
+  (stdlib), 6-stellige Verifizierungs-/Reset-Codes über den **System-Mail-Absender**
+  (`SYSTEM_SMTP_*` in .env; ohne diese Werte ist der Passwort-Weg automatisch aus,
+  GET `/api/auth/methoden` steuert das Login-Formular). Brute-Force-Bremse in
+  `auth/local.py` (5 Fehlversuche → 15 min, in-memory). OAuth-Callback verlangt
+  `email_verified` (wichtig für Google-Konten mit externer Adresse). Die Allowlist bleibt aktiv als **Admin-Liste** (`ALLOWED_EMAILS` → `ist_admin`,
   Backup-Zugriff, Sicht auf herrenlose Gewerbe) und als Vertrauenskreis beim Mail-Import.
   Schutz gegen Missbrauch: Beleg-Speicher-**Quota je Nutzer** (`QUOTA_MB`, Default 500,
   geprüft in `beleg_store`), Upload-Größenlimit, Mail-Import nur von eigenen/vertrauten

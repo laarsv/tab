@@ -36,6 +36,18 @@ class Settings(BaseSettings):
     OPEN_SIGNUP: bool = False
     # Speicher-Quota für Beleg-Dateien je Nutzer (Summe über alle seine Gewerbe).
     QUOTA_MB: int = 500
+
+    # ── System-Mail (Absender für Registrierungs-/Reset-Codes) ────────────────
+    # Ohne diese Daten ist die E-Mail+Passwort-Anmeldung deaktiviert (nur Google).
+    SYSTEM_SMTP_HOST: str = ""
+    SYSTEM_SMTP_PORT: int = 587
+    SYSTEM_SMTP_USER: str = ""
+    SYSTEM_SMTP_PASSWORT: str = ""
+    SYSTEM_ABSENDER: str = ""  # leer = SYSTEM_SMTP_USER
+
+    @property
+    def system_mail_konfiguriert(self) -> bool:
+        return bool(self.SYSTEM_SMTP_HOST and self.SYSTEM_SMTP_USER and self.SYSTEM_SMTP_PASSWORT)
     # Wohin nach Login/Logout zurück (Frontend-Origin).
     FRONTEND_URL: str = "https://tab.vrwb.de"
 

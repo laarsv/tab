@@ -364,6 +364,25 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE user_mail ADD COLUMN import_adresse TEXT;
         """,
     ),
+    Migration(
+        version=14,
+        sql="""
+        -- v14: Anmeldung ohne Google — E-Mail + Passwort (scrypt), Verifizierung
+        --      und Passwort-Reset per Code (System-Mail-Absender, SYSTEM_SMTP_*).
+        CREATE TABLE nutzer (
+            email              TEXT PRIMARY KEY,
+            passwort_hash      TEXT NOT NULL,
+            name               TEXT,
+            verifiziert        INTEGER NOT NULL DEFAULT 0,
+            verify_code        TEXT,
+            verify_gueltig_bis TEXT,
+            reset_code         TEXT,
+            reset_gueltig_bis  TEXT,
+            created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        """,
+    ),
 ]
 
 

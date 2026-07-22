@@ -4,6 +4,12 @@
 
 export const NEUIGKEITEN = [
   {
+    id: 16,
+    datum: '2026-07-22',
+    titel: 'Anmelden auch ohne Google',
+    text: 'Registrieren geht jetzt klassisch mit E-Mail und Passwort — Bestätigungscode kommt per Mail, Passwort-Reset inklusive. Der Google-Login bleibt natürlich bestehen.',
+  },
+  {
     id: 15,
     datum: '2026-07-22',
     titel: 'Tab ist offen für alle',
