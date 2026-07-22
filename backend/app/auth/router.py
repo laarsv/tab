@@ -33,7 +33,11 @@ async def callback(request: Request):
     name = userinfo.get("name") or email
     picture = userinfo.get("picture")
 
-    if not settings.is_email_allowed(email):
+    # Bei offener Registrierung nur verifizierte Google-Identitäten (wichtig für
+    # Google-Konten mit externer Adresse, z. B. lars@vrwb.de); sonst Allowlist.
+    if not email or userinfo.get("email_verified") is False:
+        return RedirectResponse(f"{frontend}/login?{urlencode({'error': 'not_allowed'})}")
+    if not settings.OPEN_SIGNUP and not settings.is_email_allowed(email):
         return RedirectResponse(f"{frontend}/login?{urlencode({'error': 'not_allowed'})}")
 
     response = RedirectResponse(settings.FRONTEND_URL or "/")
