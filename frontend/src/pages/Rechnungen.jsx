@@ -10,6 +10,7 @@ import Dropdown from '../components/Dropdown.jsx';
 import Modal from '../components/Modal.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
+import { INTERVALL_LABELS, naechsterTermin } from '../lib/intervall.js';
 
 function NoGewerbe() {
   return (
@@ -345,6 +346,7 @@ export default function Rechnungen() {
           gewerbeId={gewerbeId}
           jahr={jahr}
           kontakte={kontakte}
+          mailKonfiguriert={Boolean(mail?.konfiguriert)}
           onSaved={load}
         />
       )}
@@ -388,7 +390,7 @@ export default function Rechnungen() {
   );
 }
 
-function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onSaved }) {
+function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], mailKonfiguriert, onSaved }) {
   const [busy, setBusy] = useState(false);
   const isEdit = Boolean(editing.id);
   const [form, setForm] = useState(() => ({
@@ -400,6 +402,9 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
     notiz: editing.notiz || '',
     steuerhinweis: editing.steuerhinweis || 'ku19',
     positionen: editing.positionen?.length ? editing.positionen : [emptyRPos()],
+    wiederholen: false,
+    intervall: 'monatlich',
+    auto_senden: false,
   }));
 
   function setPos(i, patch) {
@@ -479,6 +484,8 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
     e.preventDefault();
     const body = baueBody();
     if (!body) return;
+    if (!isEdit && form.wiederholen && form.auto_senden && !body.empfaenger_email)
+      return toast.error('Auto-Versand braucht eine Empfänger-E-Mail.');
     setBusy(true);
     try {
       if (isEdit) {
@@ -486,7 +493,35 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
         toast.success('Gespeichert.');
       } else {
         const res = await api.post('/api/rechnungen', { gewerbe_id: Number(gewerbeId), ...body });
-        toast.success(`Rechnung ${res.data.nummer} angelegt.`);
+        if (form.wiederholen) {
+          // Diese Rechnung ist die erste — das Abo übernimmt ab der nächsten Periode.
+          const start = naechsterTermin(body.datum, form.intervall);
+          try {
+            await api.post('/api/rechnungsabos', {
+              gewerbe_id: Number(gewerbeId),
+              empfaenger_name: body.empfaenger_name,
+              empfaenger_anschrift: body.empfaenger_anschrift,
+              empfaenger_email: body.empfaenger_email,
+              notiz: body.notiz,
+              steuerhinweis: body.steuerhinweis,
+              intervall: form.intervall,
+              naechste_am: start,
+              auto_senden: form.auto_senden,
+              positionen: body.positionen,
+            });
+            toast.success(
+              `Rechnung ${res.data.nummer} angelegt — wiederholt sich ${INTERVALL_LABELS[form.intervall]}, nächste am ${formatDateDE(start)}.`,
+              { duration: 7000 },
+            );
+          } catch (aboErr) {
+            toast.error(
+              `Rechnung ${res.data.nummer} angelegt, aber das Abo konnte nicht erstellt werden: ${apiError(aboErr)}`,
+              { duration: 10000 },
+            );
+          }
+        } else {
+          toast.success(`Rechnung ${res.data.nummer} angelegt.`);
+        }
       }
       setEditing(null);
       await onSaved();
@@ -616,6 +651,56 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
             onChange={(e) => setForm({ ...form, notiz: e.target.value })}
             placeholder="z. B. Zahlbar innerhalb von 14 Tagen." />
         </label>
+
+        {!isEdit && (
+          <div className="rounded-lg border border-ink/10 p-3 space-y-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
+                checked={form.wiederholen}
+                onChange={(e) => setForm({ ...form, wiederholen: e.target.checked })}
+              />
+              <span>
+                <span className="font-bold">Rechnung wiederholt sich</span>
+                <span className="block text-xs text-ink/60">
+                  Diese Rechnung ist die erste — Tab erstellt die folgenden automatisch als Abo.
+                </span>
+              </span>
+            </label>
+            {form.wiederholen && (
+              <div className="pl-6 space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Dropdown
+                    value={form.intervall}
+                    onChange={(v) => setForm({ ...form, intervall: String(v) })}
+                    options={Object.entries(INTERVALL_LABELS).map(([value, label]) => ({ value, label }))}
+                    variant="ghost"
+                  />
+                  <span className="text-xs text-ink/60 tabular-nums">
+                    nächste Rechnung am {formatDateDE(naechsterTermin(form.datum, form.intervall))}
+                  </span>
+                </div>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
+                    checked={form.auto_senden}
+                    onChange={(e) => setForm({ ...form, auto_senden: e.target.checked })}
+                  />
+                  <span>
+                    <span className="font-bold">Folge-Rechnungen automatisch senden</span>
+                    <span className="block text-xs text-ink/60">
+                      Sonst entstehen sie als Entwurf. Braucht die Empfänger-E-Mail oben
+                      {!mailKonfiguriert && ' und dein Mail-Konto (Profil-Menü → E-Mail-Versand)'}.
+                      Tipp: {'{monat}'} in der Positions-Beschreibung wird zum Abrechnungsmonat.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/70">
           Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen

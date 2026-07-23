@@ -3,7 +3,8 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
-import { formatEuro, parseEuroToCent, centToInput } from '../lib/format.js';
+import { formatEuro, formatDateDE, parseEuroToCent, centToInput } from '../lib/format.js';
+import { naechsterTermin } from '../lib/intervall.js';
 
 const INTERVALL_OPTIONS = [
   { value: 'monatlich', label: 'monatlich' },
@@ -39,7 +40,11 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
     notiz: src.notiz || '',
     steuerhinweis: src.steuerhinweis || 'ku19',
     intervall: abo?.intervall || 'monatlich',
-    naechste_am: abo?.naechste_am || ersterDesNaechstenMonats(),
+    // Aus bestehender Rechnung: die deckt den aktuellen Zeitraum ab — das Abo
+    // startet daher eine Periode nach ihrem Rechnungsdatum.
+    naechste_am:
+      abo?.naechste_am ||
+      (prefill?.datum ? naechsterTermin(prefill.datum, 'monatlich') : ersterDesNaechstenMonats()),
     auto_senden: Boolean(abo?.auto_senden),
     betreff: abo?.betreff || '',
     mail_text: abo?.mail_text || '',
@@ -122,6 +127,14 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
       maxWidth="max-w-2xl"
     >
       <form onSubmit={save} className="space-y-4">
+        {prefill && !isEdit && (
+          <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
+            <strong>Wichtig:</strong> Das Abo erstellt zum Stichtag jeweils eine <strong>neue</strong>{' '}
+            Rechnung — die bestehende Rechnung ({formatDateDE(prefill.datum)}) wird dadurch nicht
+            versendet, sie deckt den aktuellen Zeitraum ab. Der Start ist deshalb eine Periode
+            später vorbelegt.
+          </div>
+        )}
         {kontakte.length > 0 && (
           <div className="block">
             <span className="field-label">Aus Kontakten übernehmen</span>

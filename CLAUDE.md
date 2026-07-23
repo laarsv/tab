@@ -184,7 +184,11 @@ der Mapping-Version des Jahres aufgelöst.
   automatisch gesetzt; Ausstellungsdatum = Lauf-Tag. **Auto-Versand nur wenn** aktiviert +
   Empfänger-Mail + Absender-App-Passwort + Stichtag ≤ 7 Tage her (kein Mail-Schwall nach
   Server-Pause) — sonst bleibt die Rechnung als Entwurf. Verpasste Stichtage werden als
-  Rechnungen nachgeholt. UI: „Wiederholen…" an jeder Rechnung erstellt das Abo vorbefüllt;
+  Rechnungen nachgeholt. **Das Abo erstellt immer NEUE Rechnungen** — bestehende
+  Entwürfe versendet es nie (Duplikat-Falle!). UI: Haken „Rechnung wiederholt sich"
+  direkt im Anlege-Formular (Rechnung = erste Instanz, Abo startet eine Periode
+  später, `lib/intervall.js` spiegelt naechster_termin); „Wiederholen…" an
+  bestehenden Rechnungen ist ebenfalls eine Periode nach deren Datum vorbelegt.
   Abo-Liste mit Jetzt ausführen/Pausieren oben auf der Rechnungen-Seite.
 - **Beleg-Erkennung (`services/beleg_extract.py`, GET `/belege/{id}/vorschlag`):**
   3-stufig lokal — (1) E-Rechnung: XRechnung-XML/ZUGFeRD-XML-im-PDF exakt geparst
