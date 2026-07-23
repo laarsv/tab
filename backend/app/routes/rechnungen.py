@@ -130,6 +130,40 @@ def list_rechnungen(
     return [_row(db, i) for i in ids]
 
 
+@router.post("/vorschau")
+def rechnung_vorschau(
+    body: RechnungIn,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """PDF-Vorschau aus ungespeicherten Formulardaten — legt NICHTS an und
+    verbraucht keine Nummer (zeigt die voraussichtliche)."""
+    g = check_gewerbe(db, user, body.gewerbe_id)
+    jahr = int(body.datum[:4])
+    lauf = (
+        db.execute(
+            "SELECT COALESCE(MAX(laufnummer), 0) FROM rechnung WHERE gewerbe_id = ? AND jahr = ?",
+            (body.gewerbe_id, jahr),
+        ).fetchone()[0]
+        + 1
+    )
+    rechnung = {
+        "nummer": f"{jahr}-{lauf:04d}",
+        "datum": body.datum,
+        "leistungsdatum": (body.leistungsdatum or "").strip() or None,
+        "empfaenger_name": body.empfaenger_name.strip(),
+        "empfaenger_anschrift": (body.empfaenger_anschrift or "").strip() or None,
+        "notiz": (body.notiz or "").strip() or None,
+        "steuerhinweis": body.steuerhinweis,
+    }
+    pdf = rechnungs_pdf(rechnung, [p.model_dump() for p in body.positionen], g)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="rechnung-vorschau.pdf"'},
+    )
+
+
 @router.post("", status_code=201)
 def create_rechnung(
     body: RechnungIn,

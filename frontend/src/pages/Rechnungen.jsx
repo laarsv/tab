@@ -419,19 +419,31 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
     [form.positionen],
   );
 
-  async function save(e) {
-    e.preventDefault();
-    if (!form.empfaenger_name.trim()) return toast.error('Empfänger ist Pflicht.');
+  // Gemeinsamer Payload für Speichern + Vorschau; null = Validierungsfehler (getoastet).
+  function baueBody() {
+    if (!form.empfaenger_name.trim()) {
+      toast.error('Empfänger ist Pflicht.');
+      return null;
+    }
     const payloadPos = [];
     for (const p of form.positionen) {
       const preis = parseEuroToCent(p.preisInput);
       const menge = Number(String(p.menge).replace(',', '.'));
-      if (!p.beschreibung.trim()) return toast.error('Jede Position braucht eine Beschreibung.');
-      if (!preis || preis <= 0) return toast.error(`Bitte gültigen Preis für „${p.beschreibung}" angeben.`);
-      if (!Number.isFinite(menge) || menge <= 0) return toast.error('Bitte gültige Menge angeben.');
+      if (!p.beschreibung.trim()) {
+        toast.error('Jede Position braucht eine Beschreibung.');
+        return null;
+      }
+      if (!preis || preis <= 0) {
+        toast.error(`Bitte gültigen Preis für „${p.beschreibung}" angeben.`);
+        return null;
+      }
+      if (!Number.isFinite(menge) || menge <= 0) {
+        toast.error('Bitte gültige Menge angeben.');
+        return null;
+      }
       payloadPos.push({ beschreibung: p.beschreibung.trim(), menge, einzelpreis_cent: preis });
     }
-    const body = {
+    return {
       datum: form.datum,
       leistungsdatum: form.leistungsdatum.trim() || null,
       empfaenger_name: form.empfaenger_name.trim(),
@@ -441,6 +453,32 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
       steuerhinweis: form.steuerhinweis,
       positionen: payloadPos,
     };
+  }
+
+  async function vorschau() {
+    const body = baueBody();
+    if (!body) return;
+    setBusy(true);
+    try {
+      const res = await api.post(
+        '/api/rechnungen/vorschau',
+        { gewerbe_id: Number(gewerbeId), ...body },
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(res.data);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      toast.error(apiError(err, 'Vorschau konnte nicht erstellt werden.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    const body = baueBody();
+    if (!body) return;
     setBusy(true);
     try {
       if (isEdit) {
@@ -586,9 +624,20 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], on
           der Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
-          <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>Abbrechen</button>
-          <button type="submit" className="btn-primary" disabled={busy}>Speichern</button>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={vorschau}
+            disabled={busy}
+            title="PDF aus den aktuellen Eingaben ansehen — speichert nichts, verbraucht keine Nummer"
+          >
+            Vorschau (PDF)
+          </button>
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
+            <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>Abbrechen</button>
+            <button type="submit" className="btn-primary" disabled={busy}>Speichern</button>
+          </div>
         </div>
       </form>
     </Modal>
