@@ -226,6 +226,7 @@ def beleg_vorschlag(
 @router.get("/belege/{beleg_id}/download")
 def download_beleg(
     beleg_id: int,
+    inline: bool = False,  # inline=1 -> im Browser anzeigen (Vorschau) statt Download
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
@@ -233,7 +234,12 @@ def download_beleg(
     path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
     if not os.path.exists(path):
         raise HTTPException(410, "Datei nicht mehr vorhanden.")
-    return FileResponse(path, media_type=r["content_type"], filename=r["original_name"])
+    return FileResponse(
+        path,
+        media_type=r["content_type"],
+        filename=r["original_name"],
+        content_disposition_type="inline" if inline else "attachment",
+    )
 
 
 @router.delete("/belege/{beleg_id}", status_code=204)

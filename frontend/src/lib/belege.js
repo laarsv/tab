@@ -20,3 +20,22 @@ export function fileSize(bytes) {
 }
 
 export const ACCEPT = 'application/pdf,image/jpeg,image/png,application/xml,text/xml,.xml';
+
+// Dateityp eines Belegs bestimmen (für Icon/Vorschau): 'pdf' | 'bild' | 'xml' | 'sonst'.
+export function belegTyp(beleg) {
+  const ct = (beleg?.content_type || '').toLowerCase();
+  const name = (beleg?.original_name || '').toLowerCase();
+  if (ct.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+  if (ct.startsWith('image/') || /\.(jpe?g|png)$/.test(name)) return 'bild';
+  if (ct.includes('xml') || name.endsWith('.xml')) return 'xml';
+  return 'sonst';
+}
+
+export const TYP_LABEL = { pdf: 'PDF', bild: 'Bild', xml: 'XML', sonst: 'Datei' };
+
+// Inline-URL (Anzeige im Browser statt Download) — same-origin, Session-Cookie wird
+// automatisch mitgeschickt.
+export function belegInlineUrl(id) {
+  const base = import.meta.env.VITE_API_BASE_URL || '';
+  return `${base}/api/belege/${id}/download?inline=1`;
+}

@@ -4,8 +4,15 @@ import { api, apiError } from '../api/client.js';
 import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
+import BelegVorschau from './BelegVorschau.jsx';
 import { openBeleg } from '../lib/belege.js';
-import { formatEuro, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
+import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
+
+const QUELLE_LABEL = {
+  'e-rechnung': 'E-Rechnung, exakt',
+  'pdf-text': 'aus PDF-Text',
+  ocr: 'Texterkennung/OCR',
+};
 
 const BELEG_PLACEHOLDER = {
   bewirtung: 'Pflichtangaben: Ort, Tag, Teilnehmer, Anlass (ab 150 € mit Namen).',
@@ -128,6 +135,8 @@ export default function BuchungModal({
   onSaved,
 }) {
   const isEdit = Boolean(buchung?.id);
+  // Split-View: genau ein Eingangs-Beleg wird verbucht -> Dokument links, Felder rechts.
+  const einBeleg = !isEdit && preBelege.length === 1 ? preBelege[0] : null;
   const katById = useMemo(() => Object.fromEntries(kategorien.map((k) => [String(k.id), k])), [kategorien]);
   const options = useMemo(
     () =>
@@ -281,9 +290,11 @@ export default function BuchungModal({
             : 'Neue Buchung'
       }
       onClose={onClose}
-      maxWidth="max-w-2xl"
+      maxWidth={einBeleg ? 'max-w-5xl' : 'max-w-2xl'}
     >
-      <form onSubmit={save} className="space-y-4">
+      <div className={einBeleg ? 'grid grid-cols-1 lg:grid-cols-2 gap-5 items-start' : ''}>
+        {einBeleg && <BelegVorschau beleg={einBeleg} className="lg:sticky lg:top-0" />}
+      <form onSubmit={save} className="space-y-4 min-w-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Datum (Zahlung)</span>
@@ -305,15 +316,33 @@ export default function BuchungModal({
             Beleg wird gelesen…
           </div>
         )}
-        {vorschlag && !liestBeleg && (
-          <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
-            <strong>Vorschlag aus dem Beleg</strong> (
-            {{ 'e-rechnung': 'E-Rechnung, exakt', 'pdf-text': 'PDF-Text', ocr: 'Texterkennung/OCR' }[
-              vorschlag.quelle
-            ] || 'teilweise erkannt'}
-            ) — bitte prüfen, besonders Betrag und Kategorie.
-          </div>
-        )}
+        {vorschlag && !liestBeleg && (() => {
+          const erkannteKat = vorschlag.kategorie_id ? katById[String(vorschlag.kategorie_id)] : null;
+          const chips = [
+            vorschlag.betrag_cent != null && formatEuro(vorschlag.betrag_cent),
+            vorschlag.datum && formatDateDE(vorschlag.datum),
+            vorschlag.lieferant,
+            erkannteKat?.name,
+          ].filter(Boolean);
+          return (
+            <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 space-y-1.5">
+              <div className="text-xs font-bold text-ink/70">
+                Erkannt ({QUELLE_LABEL[vorschlag.quelle] || 'teilweise'}) — bitte prüfen:
+              </div>
+              {chips.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {chips.map((c, i) => (
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full bg-paper border border-royal-soft/50 text-xs text-ink/80 max-w-full truncate">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-ink/60">Nichts Eindeutiges erkannt — bitte manuell ausfüllen.</div>
+              )}
+            </div>
+          );
+        })()}
         {jahrMismatch && (
           <div className="rounded-lg bg-yellow-100 text-yellow-900 p-2.5 text-xs">
             Das Datum liegt nicht im oben gewählten Jahr <strong>{jahr}</strong> — die Buchung
@@ -473,7 +502,7 @@ export default function BuchungModal({
           <div className="pt-2 border-t border-ink/10">
             <BelegeManager buchungId={buchung.id} gewerbeId={gewerbeId} onChange={onSaved} />
           </div>
-        ) : preBelege.length > 0 ? (
+        ) : einBeleg ? null : preBelege.length > 0 ? (
           <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
             Wird angehängt:{' '}
             {preBelege.map((b, i) => (
@@ -510,6 +539,7 @@ export default function BuchungModal({
           </button>
         </div>
       </form>
+      </div>
     </Modal>
   );
 }

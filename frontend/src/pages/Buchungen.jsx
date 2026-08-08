@@ -6,6 +6,7 @@ import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
+import { BelegTypBadge } from '../components/BelegVorschau.jsx';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
 
 const MONATE = [
@@ -286,18 +287,26 @@ export default function Buchungen() {
           <input ref={uploadRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={uploadBelege} />
         </div>
         {belege.length > 0 && (
-          <ul className="divide-y divide-ink/5 rounded-lg bg-royal-soft/5">
+          <div className="space-y-2">
             {belege.map((b) => {
               const ueberfaellig = b.faellig_am && b.faellig_am < todayISO();
               return (
-                <li key={b.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 text-sm">
+                <div
+                  key={b.id}
+                  className={`rounded-lg border p-3 flex flex-wrap items-center gap-x-3 gap-y-2
+                    ${ueberfaellig ? 'border-red-300 bg-red-50/50' : 'border-ink/10 bg-paper'}`}
+                >
+                  <BelegTypBadge beleg={b} />
                   <button
                     type="button"
                     onClick={() => openBeleg(b.id)}
-                    className="min-w-0 text-left text-royal font-medium hover:underline truncate"
-                    title={b.original_name}
+                    className="min-w-0 flex-1 text-left"
+                    title={`${b.original_name} — ansehen`}
                   >
-                    {b.original_name}
+                    <div className="font-medium text-royal hover:underline truncate">{b.original_name}</div>
+                    <div className="text-xs text-ink/50">
+                      {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
+                    </div>
                   </button>
                   <div className="flex items-center gap-2 shrink-0">
                     {ueberfaellig && (
@@ -314,10 +323,7 @@ export default function Buchungen() {
                         onChange={(e) => setFaellig(b, e.target.value)}
                       />
                     </label>
-                    <span className="text-xs text-ink/50 hidden lg:inline">
-                      {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
-                    </span>
-                    <button className="btn-outline btn-sm" onClick={() => setVerbuchen(b)}>
+                    <button className="btn-primary btn-sm" onClick={() => setVerbuchen(b)}>
                       Verbuchen
                     </button>
                     {andereGewerbe.length > 0 && (
@@ -333,10 +339,10 @@ export default function Buchungen() {
                       Löschen
                     </button>
                   </div>
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </div>
 
