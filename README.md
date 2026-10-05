@@ -6,7 +6,9 @@ Anlage-EÜR-Zeile** + **Beleg-Journal (CSV)** exportieren — zum Übertragen in
 Steuerprogramm/ELSTER. **Kein** ELSTER-Direktversand, **kein** Bankabruf.
 
 - **Multi-Gewerbe**: eine EÜR pro Gewerbe (z. B. Makler + App).
-- **Single-User** (Phase 1), JWT-Bearer-Login.
+- **Anmeldung:** Google OAuth, Session als JWT im HttpOnly-Cookie (kein Bearer-Token);
+  optional zusätzlich E-Mail + Passwort. Zugang über Allowlist oder offene Registrierung
+  (siehe „Auth“). Jedes Gewerbe gehört seinem Ersteller.
 - Mapping **jahres-versioniert** (2025 verifiziert, 2026 vorläufig).
 
 > Tab ist eine technische Hilfe, **keine Steuerberatung**.
@@ -16,7 +18,9 @@ Steuerprogramm/ELSTER. **Kein** ELSTER-Direktversand, **kein** Bankabruf.
 - **Backend:** FastAPI + SQLite (eine Datei, kein DB-Container). Migrationen als simple
   Liste (`app/migrations.py`), idempotenter Seed (`app/seed.py`). Kein Alembic.
 - **Frontend:** React 18 + Vite + Tailwind (JS). UI strikt gemäß `DESIGN.md`
-  (Mint/Ink/Paper, Roboto self-hosted via `@fontsource`, Custom-Dropdowns).
+  (VRWB CI v1.0: Royal/Ink/Paper, Wortmarke `vrwb_tab`, Roboto + Roboto Mono self-hosted
+  via `@fontsource`, Custom-Dropdowns). Dichte und Komponentenmaße stammen aus
+  `DESIGN.shared.md`, die Palette bleibt Royal.
 - **Fachliche Quelle:** `EUER_KATEGORIEN.md` (Kategorien, Zeilen-Mapping, Sonderfälle).
 
 ## Lokale Entwicklung
@@ -44,8 +48,15 @@ cd frontend && npm install && npm run dev
 
 ## Auth (Google OAuth)
 
-Login läuft über **Google OAuth** (wie die anderen Tools); Session als HttpOnly-Cookie.
-Single-User über E-Mail-Allowlist — nur `ALLOWED_EMAILS` dürfen rein.
+Login läuft über **Google OAuth**; die Session ist ein **JWT im HttpOnly-Cookie**
+(`COOKIE_NAME`). Das Frontend arbeitet mit Cookies (`withCredentials`), es gibt kein
+Bearer-Token und kein Token im `localStorage`.
+
+Zugang: nur Adressen aus `ALLOWED_EMAILS` bzw. `ALLOWED_EMAIL_DOMAINS` dürfen rein. Mit
+`OPEN_SIGNUP=true` darf sich jedes verifizierte Google-Konto anmelden, `ALLOWED_EMAILS`
+bleibt dann die Admin-Liste. Zusätzlich gibt es eine Anmeldung mit E-Mail + Passwort
+(Bestätigungs- und Reset-Codes per Mail); sie ist nur aktiv, wenn der System-Mail-Absender
+(`SYSTEM_SMTP_*`) konfiguriert ist.
 
 Einmalig einrichten:
 1. **Google Cloud Console** → OAuth-2.0-Client, Typ „Web application".
