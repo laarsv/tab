@@ -1,7 +1,27 @@
-# Sync — Design system
+# vrwb_tab — Design-System (Royal-Blau, VRWB CI v1.0)
 
-A small, self-consistent design system in **royal blue**. Roboto, self-hosted
-via `@fontsource/roboto` (no Google Fonts CDN).
+Verbindliche Marken- und Farbnorm von **Tab**: Wortmarke **`vrwb_tab`**, Favicon
+**`t_`**, Palette **Royal** auf Ink und Paper. Roboto + Roboto Mono, selbst gehostet
+über `@fontsource` (kein Google-Fonts-CDN).
+
+## 0. Stand und Bezug zu den anderen Design-Dokumenten
+
+- **Referenz der VRWB-CI** ist `DESIGN.md` im Repo `Suite` (vrwb_suite, Stand
+  04.10.2026, Design v3). Tab setzt die Marke nach CI v1.0 und die Dichte-Norm v2
+  um (§1–§4). Der v3-Tokensatz der Suite (Canvas-Fläche, `--pos`/`--neg`/`--warn`,
+  Schatten- und Radien-Tokens, `--control-height`) ist in Tab **nicht** umgesetzt.
+  Abweichungen vom Stand v3, ehrlich gezählt: 7 native `window.confirm`-Dialoge;
+  30 Schriftgrößen unter 12 px (`text-[8px]`–`text-[11px]`, u. a. `.eyebrow` mit
+  11 px); Überschriften mit −0,01 em statt −0,035 em; Signal- und Grautöne als
+  Tailwind-Klassen (`bg-red-600`, `ink/NN`) statt als Tokens. Die Angleichung an
+  v3 steht aus.
+- **`DESIGN.shared.md`** ist das Fin.Co-Design-System (Mint, Dichte v2) und nur
+  als Vorlage übernommen. In Tab gilt es **ausschließlich für Dichte und
+  Komponentenmaße** (44 px Touch mobil, kompakt ab `sm:`, `.btn`, `.input`,
+  `.field-label`, `.eyebrow`, Dropdown, Modal, Formular-Raster). **Palette,
+  Kontrastregel und Marke gelten daraus nicht**: Mint, das Fin.Co-Schwarz und die
+  Fin.Co-Wortmarke sind in Tab durch Royal, Ink `#161a24` und `vrwb_tab`
+  ersetzt. Bei Widerspruch gewinnt dieses Dokument (Farbe, Kontrast, Marke).
 
 ## 1. Tokens (`frontend/tailwind.config.js`)
 
@@ -17,9 +37,9 @@ colors: {
 
 ## 1b. Wortmarke, Produkt-Lockup & Bildmarke — VRWB CI v1.0 (verbindlich)
 
-Quelle (Source of Truth): claude.ai-Design-Projekt **„VRWB Markenidentität"**
-(`VRWB Corporate Identity.dc.html`, per DesignSync erreichbar; die Kopie in der
-Synology-Ablage kann älter sein — das Design-Projekt gewinnt). Konvention:
+Quelle (Source of Truth) der Konvention: claude.ai-Design-Projekt **„VRWB
+Markenidentität"** (`VRWB Corporate Identity.dc.html`; das Design-Projekt
+gewinnt). Den umgesetzten Stand der CI beschreibt `Suite/DESIGN.md`. Konvention:
 
 - **Wortmarke** `vrwb` = gesetzter Text, **immer klein**, Roboto **900**, Laufweite
   **−4,5 %** (`tracking-wordmark`). Cursor `_` in Royal = einziges grafisches Element.
@@ -61,10 +81,10 @@ So: blue buttons/fills use white text, and blue may be used as a text color.
 
 ## 4. Rules
 
-- **No native `<select>`** — use the custom `Select` (`components/ui/Select.jsx`),
-  keyboard-operable.
-- Icons: inline SVG, `stroke-2`, `currentColor` (`components/ui/Icons.jsx`).
-  No icon package.
-- Modals: `role="dialog"`, `aria-modal`, ESC closes (`components/ui/Modal.jsx`).
+- **No native `<select>`** — use the custom `Dropdown` (`components/Dropdown.jsx`,
+  `variant="ghost"` für Inline-Werte), keyboard-operable.
+- Icons: inline SVG, `stroke-2`, `currentColor`, je Komponente inline (keine
+  gemeinsame Icon-Datei). No icon package.
+- Modals: `role="dialog"`, `aria-modal`, ESC closes (`components/Modal.jsx`).
 - Headings: Roboto **900**, `tracking-tight`; an `.eyebrow` kicker above the H1.
 - Responsive: card layout on mobile; nothing scrolls horizontally.
