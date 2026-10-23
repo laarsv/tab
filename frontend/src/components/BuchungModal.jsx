@@ -121,6 +121,7 @@ function emptyPos() {
 // preBelege: Eingangs-Belege, die beim Anlegen verknüpft werden.
 // presetKategorieId/-BetragCent/-Beschreibung: starten die neue Buchung vorausgefüllt
 // (Jahres-Check, Fahrten-Liste). wizard: { pos, total, onSkip } — Eingang-Abarbeiten-Modus.
+// rechnungId: verknüpft die neue Buchung mit der Rechnung („Als Einnahme buchen").
 export default function BuchungModal({
   buchung,
   preBelege = [],
@@ -130,6 +131,7 @@ export default function BuchungModal({
   presetKategorieId,
   presetBetragCent,
   presetBeschreibung,
+  rechnungId,
   wizard,
   onClose,
   onSaved,
@@ -268,6 +270,7 @@ export default function BuchungModal({
           beschreibung: beschreibung.trim() || null,
           positionen: payloadPos,
           beleg_ids: preBelege.map((b) => b.id),
+          ...(rechnungId ? { rechnung_id: rechnungId } : {}),
         });
         toast.success('Buchung angelegt.');
       }

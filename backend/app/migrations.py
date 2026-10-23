@@ -383,6 +383,23 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=15,
+        sql="""
+        -- v15: Rechnung → Einnahme-Buchung verknüpfen, damit „Als Einnahme buchen" nach dem
+        --      Verbuchen verschwindet (und nach Löschen der Buchung wieder erscheint).
+        ALTER TABLE rechnung ADD COLUMN buchung_id INTEGER REFERENCES buchung(id) ON DELETE SET NULL;
+
+        -- Bestand: bisher vorbefüllte Buchungen heißen „Rechnung {nummer} – {Empfänger}".
+        UPDATE rechnung SET buchung_id = (
+            SELECT b.id FROM buchung b
+            WHERE b.gewerbe_id = rechnung.gewerbe_id
+              AND (b.beschreibung = 'Rechnung ' || rechnung.nummer
+                   OR b.beschreibung LIKE 'Rechnung ' || rechnung.nummer || ' %')
+            ORDER BY b.id LIMIT 1
+        );
+        """,
+    ),
 ]
 
 

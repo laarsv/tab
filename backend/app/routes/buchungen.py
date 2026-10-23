@@ -39,6 +39,7 @@ class BuchungIn(BaseModel):
     beschreibung: str | None = None
     positionen: list[PositionIn] = Field(min_length=1)
     beleg_ids: list[int] = Field(default_factory=list)  # Eingangs-Belege verknüpfen
+    rechnung_id: int | None = None  # „Als Einnahme buchen" aus einer Rechnung
 
     @field_validator("datum")
     @classmethod
@@ -163,6 +164,18 @@ def create_buchung(
         if bel["gewerbe_id"] != body.gewerbe_id:
             raise HTTPException(400, "Beleg gehört zu einem anderen Gewerbe.")
 
+    # Rechnung, aus der gebucht wird: gleiches Gewerbe, noch nicht verbucht (kein Doppel-Ertrag).
+    if body.rechnung_id is not None:
+        rech = db.execute(
+            "SELECT gewerbe_id, buchung_id FROM rechnung WHERE id = ?", (body.rechnung_id,)
+        ).fetchone()
+        if rech is None:
+            raise HTTPException(404, f"Rechnung {body.rechnung_id} nicht gefunden.")
+        if rech["gewerbe_id"] != body.gewerbe_id:
+            raise HTTPException(400, "Rechnung gehört zu einem anderen Gewerbe.")
+        if rech["buchung_id"] is not None:
+            raise HTTPException(409, "Diese Rechnung ist bereits als Einnahme gebucht.")
+
     cur = db.execute(
         "INSERT INTO buchung (gewerbe_id, datum, beschreibung) VALUES (?, ?, ?)",
         (body.gewerbe_id, body.datum, (body.beschreibung or "").strip() or None),
@@ -178,6 +191,8 @@ def create_buchung(
     )
     for bid in body.beleg_ids:
         db.execute("UPDATE beleg SET buchung_id = ? WHERE id = ?", (buchung_id, bid))
+    if body.rechnung_id is not None:
+        db.execute("UPDATE rechnung SET buchung_id = ? WHERE id = ?", (buchung_id, body.rechnung_id))
     db.commit()
     return _row(db, buchung_id)
 

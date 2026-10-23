@@ -7,6 +7,9 @@ import AboModal from '../components/AboModal.jsx';
 import KontakteModal from '../components/KontakteModal.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
+import {
+  IconBan, IconBookIn, IconCheck, IconCircleCheck, IconFileText, IconPencil, IconRepeat, IconSend, IconTrash, IconButton,
+} from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
@@ -251,87 +254,90 @@ export default function Rechnungen() {
       ) : (
         <div className="space-y-3">
           {items.map((r) => (
-            <div key={r.id} className="card p-4 space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-black tabular-nums">{r.nummer}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUS_CHIP[r.status]}`}>
-                      {STATUS_LABEL[r.status]}
+            <div key={r.id} className="card px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="min-w-0 flex-1 basis-[14rem]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black tabular-nums">{r.nummer}</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUS_CHIP[r.status]}`}>
+                    {STATUS_LABEL[r.status]}
+                  </span>
+                  {r.buchung_id && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[11px] font-bold"
+                      title="Als Einnahme gebucht"
+                    >
+                      <IconCheck className="h-3 w-3" /> Gebucht
                     </span>
-                    {r.steuerhinweis === 'vers4nr11' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
-                        §4 Nr. 11
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-ink/70 mt-0.5 truncate">
-                    {r.empfaenger_name} · {formatDateDE(r.datum)}
-                    {r.versendet_am && ` · versendet ${formatDateDE(r.versendet_am)}`}
-                    {r.bezahlt_am && ` · bezahlt ${formatDateDE(r.bezahlt_am)}`}
-                  </div>
+                  )}
+                  {r.steuerhinweis === 'vers4nr11' && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
+                      §4 Nr. 11
+                    </span>
+                  )}
                 </div>
-                <div className="tabular-nums font-black shrink-0">{formatEuro(r.summe_cent)}</div>
+                <div className="text-sm text-ink/70 mt-0.5">
+                  {r.empfaenger_name} · {formatDateDE(r.datum)}
+                  {r.versendet_am && ` · versendet ${formatDateDE(r.versendet_am)}`}
+                  {r.bezahlt_am && ` · bezahlt ${formatDateDE(r.bezahlt_am)}`}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button className="btn-outline btn-sm" onClick={() => openPdf(r.id)}>PDF</button>
+              <div className="tabular-nums font-black shrink-0">{formatEuro(r.summe_cent)}</div>
+              {/* feste Breite ab sm: Beträge bleiben bündig, PDF/Senden sitzen immer am selben Platz */}
+              <div className="flex items-center gap-0.5 shrink-0 ml-auto sm:ml-0 sm:w-[12.75rem]">
+                <IconButton icon={IconFileText} label="PDF ansehen" onClick={() => openPdf(r.id)} />
                 {r.status !== 'storniert' && (
-                  <button
-                    className="btn-outline btn-sm"
+                  <IconButton
+                    icon={IconSend}
+                    label={
+                      !mail?.konfiguriert
+                        ? 'Erst E-Mail-Versand im Profil-Menü einrichten'
+                        : r.status === 'versendet' || r.versendet_am
+                          ? 'Erneut senden'
+                          : 'Per E-Mail senden'
+                    }
                     onClick={() => setSenden(r)}
                     disabled={!mail?.konfiguriert}
-                    title={mail?.konfiguriert ? '' : 'Erst E-Mail-Versand im Profil-Menü einrichten'}
-                  >
-                    {r.status === 'versendet' || r.versendet_am ? 'Erneut senden' : 'Per E-Mail senden'}
-                  </button>
+                  />
                 )}
                 {r.status === 'entwurf' && (
-                  <button className="btn-ghost btn-sm" onClick={() => setEditing({
-                    id: r.id,
-                    datum: r.datum,
-                    leistungsdatum: r.leistungsdatum || '',
-                    empfaenger_name: r.empfaenger_name,
-                    empfaenger_anschrift: r.empfaenger_anschrift || '',
-                    empfaenger_email: r.empfaenger_email || '',
-                    notiz: r.notiz || '',
-                    steuerhinweis: r.steuerhinweis || 'ku19',
-                    positionen: r.positionen.map((p) => ({
-                      beschreibung: p.beschreibung,
-                      menge: String(p.menge).replace('.', ','),
-                      preisInput: centToInput(p.einzelpreis_cent),
-                    })),
-                  })}>
-                    Bearbeiten
-                  </button>
+                  <IconButton
+                    icon={IconPencil}
+                    label="Bearbeiten"
+                    onClick={() => setEditing({
+                      id: r.id,
+                      datum: r.datum,
+                      leistungsdatum: r.leistungsdatum || '',
+                      empfaenger_name: r.empfaenger_name,
+                      empfaenger_anschrift: r.empfaenger_anschrift || '',
+                      empfaenger_email: r.empfaenger_email || '',
+                      notiz: r.notiz || '',
+                      steuerhinweis: r.steuerhinweis || 'ku19',
+                      positionen: r.positionen.map((p) => ({
+                        beschreibung: p.beschreibung,
+                        menge: String(p.menge).replace('.', ','),
+                        preisInput: centToInput(p.einzelpreis_cent),
+                      })),
+                    })}
+                  />
                 )}
                 {(r.status === 'entwurf' || r.status === 'versendet') && (
-                  <button className="btn-ghost btn-sm" onClick={() => setStatus(r, 'bezahlt')}>
-                    Als bezahlt markieren
-                  </button>
+                  <IconButton icon={IconCircleCheck} label="Als bezahlt markieren" onClick={() => setStatus(r, 'bezahlt')} />
                 )}
-                {r.status === 'bezahlt' && einnahmeKat && (
-                  <button className="btn-primary btn-sm" onClick={() => setEinnahme(r)}>
-                    Als Einnahme buchen
-                  </button>
+                {r.status === 'bezahlt' && !r.buchung_id && einnahmeKat && (
+                  <IconButton icon={IconBookIn} variant="primary" label="Als Einnahme buchen" onClick={() => setEinnahme(r)} />
                 )}
                 {r.status !== 'storniert' && (
-                  <button
-                    className="btn-ghost btn-sm"
+                  <IconButton
+                    icon={IconRepeat}
+                    label="Als wiederkehrendes Abo anlegen…"
                     onClick={() => setAboModal({ prefill: r })}
-                    title="Diese Rechnung als wiederkehrendes Abo anlegen"
-                  >
-                    Wiederholen…
-                  </button>
+                  />
                 )}
                 {r.status !== 'entwurf' && r.status !== 'storniert' && (
-                  <button className="btn-ghost btn-sm text-red-700" onClick={() => setStatus(r, 'storniert')}>
-                    Stornieren
-                  </button>
+                  <IconButton icon={IconBan} variant="danger" label="Stornieren" onClick={() => setStatus(r, 'storniert')} />
                 )}
                 {r.status === 'entwurf' && (
-                  <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(r)}>
-                    Löschen
-                  </button>
+                  <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(r)} />
                 )}
               </div>
             </div>
@@ -379,6 +385,7 @@ export default function Rechnungen() {
           presetKategorieId={einnahmeKatFuer(einnahme)?.id}
           presetBetragCent={einnahme.summe_cent}
           presetBeschreibung={`Rechnung ${einnahme.nummer} – ${einnahme.empfaenger_name}`}
+          rechnungId={einnahme.id}
           onClose={() => setEinnahme(null)}
           onSaved={async () => {
             await load();

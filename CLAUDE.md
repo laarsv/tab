@@ -28,7 +28,9 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
   (iOS-Zoom-Schutz nie brechen). `.field-label` (dezent), `.eyebrow`, Formular-Grids `gap-x-5 gap-y-2`,
   Ghost-Select für Inline-Werte. Zentrale Klassen in `src/index.css`
   (`.btn/.btn-sm/.input/.field-label/.eyebrow/.card`), Select in `components/Dropdown.jsx`
-  (`variant="ghost"`). **Diese Muster gelten weiter — nur die Palette ist Royal statt Mint** (DESIGN.md gewinnt bei Farbe/Kontrast).
+  (`variant="ghost"`). **Karten-Aktionen = Icon-Buttons** (`components/Icons.jsx` → `IconButton` mit
+  `title`+`aria-label`, Klassen `.btn-icon-*` in `index.css`; Klassennamen nie dynamisch zusammensetzen —
+  Tailwind findet sie sonst nicht). **Diese Muster gelten weiter — nur die Palette ist Royal statt Mint** (DESIGN.md gewinnt bei Farbe/Kontrast).
 - **`EUER_KATEGORIEN.md`** — fachliche Quelle für Kategorien, Kategorie→Zeile-Mapping,
   KU-Regeln, Sonderfälle (AfA, GWG, Bewirtung 70 %, Geschenke). Bei Mapping-Fragen zuerst hier lesen.
 
@@ -70,7 +72,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 (wiederkehrende Rechnungen, Positionen als JSON), v9 = `kontakt` (inkl. Backfill
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
-v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`).
+v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -176,6 +178,8 @@ der Mapping-Version des Jahres aufgelöst.
   keine Nummernlücken); Inhalt editierbar nur im Status `entwurf`. „Als Einnahme buchen"
   öffnet das BuchungModal vorbefüllt — `vers4nr11` → Kategorie `einnahme_steuerfrei`
   (Zeile 16), sonst `einnahme_ku` (Zeile 12); bewusst keine automatische Buchung.
+  Das Modal schickt `rechnung_id` mit (BuchungModal-Prop `rechnungId`) → `rechnung.buchung_id`; danach
+  verschwindet der Button (Chip „Gebucht"), 409 bei Doppelbuchung, Buchung löschen → Button kommt zurück.
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via

@@ -29,6 +29,16 @@
   .btn-danger  { @apply btn bg-red-600 text-paper hover:bg-red-700 shadow-sm; }
   /* NACH den Varianten definiert, damit es im Cascade gewinnt: class="btn-outline btn-sm". */
   .btn-sm      { @apply px-2.5 py-1 text-xs; }
+  /* Icon-Buttons (Karten-Aktionen): mobil 44px-Touch, ab sm: 32px. Immer mit title + aria-label
+     nutzen (components/Icons.jsx → IconButton). Farbe je Variante, nicht in der Basis. */
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg h-11 w-11 sm:h-8 sm:w-8 transition
+           focus:outline-none focus:ring-2 focus:ring-royal/40
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-icon-ghost   { @apply btn-icon text-ink/60 hover:bg-ink/5 hover:text-ink; }
+  .btn-icon-primary { @apply btn-icon bg-royal text-paper hover:bg-royal/90 shadow-sm; }
+  .btn-icon-danger  { @apply btn-icon text-red-700/70 hover:bg-red-50 hover:text-red-700; }
   .card        { @apply rounded-2xl border border-ink/10 bg-paper shadow-sm; }
   /* Tipp-Felder: mobil text-base (iOS-Zoom-Schutz) + py-2.5 (44px), ab sm: dicht. */
   .input {

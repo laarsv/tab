@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
+import { IconButton, IconCopy, IconPencil, IconTrash } from '../components/Icons.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
 import { BelegTypBadge } from '../components/BelegVorschau.jsx';
@@ -13,6 +14,12 @@ const MONATE = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
 ];
+
+// „Rechnung 2026-0003 – Lisa Dietrich" (aus dem Rechnungsmodul vorbefüllt) → Herkunft + kleine Nummer.
+function herkunft(beschreibung) {
+  const m = /^Rechnung\s+(\S+)\s+[–-]\s+(.+)$/.exec(beschreibung || '');
+  return m ? { titel: m[2], nummer: m[1] } : { titel: beschreibung || '', nummer: null };
+}
 
 function NoGewerbe() {
   return (
@@ -394,52 +401,51 @@ export default function Buchungen() {
       ) : filtered.length === 0 ? (
         <div className="card p-12 text-center text-ink/60">Keine Treffer für die aktuelle Suche/Filter.</div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((b) => (
-            <div key={b.id} className="card p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">{formatDateDE(b.datum)}</span>
+        <div className="space-y-2">
+          {filtered.map((b) => {
+            const { titel, nummer } = herkunft(b.beschreibung);
+            const einzel = b.positionen.length === 1;
+            const typen = new Set(b.positionen.map((p) => p.kategorie_typ));
+            const typ = typen.size === 1 ? [...typen][0] : null; // gemischt → Summe ohne Vorzeichen
+            // Ohne Beschreibung ist die Kategorie die einzige Herkunft → nicht doppelt zeigen.
+            const hauptzeile = titel || (einzel ? b.positionen[0].kategorie_name : '');
+            return (
+              <div key={b.id} className="card px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <div className="min-w-0 flex-1 basis-[14rem]">
+                  <div className="flex items-baseline gap-x-2 flex-wrap">
+                    <span className="text-sm font-bold tabular-nums whitespace-nowrap">{formatDateDE(b.datum)}</span>
+                    {hauptzeile && <span className="text-sm font-semibold">{hauptzeile}</span>}
+                    {nummer && <span className="text-[11px] text-ink/50 tabular-nums">Rechnung {nummer}</span>}
                     {b.beleg_count > 0 && <Paperclip count={b.beleg_count} />}
                   </div>
-                  {b.beschreibung && <div className="text-sm text-ink/70 mt-0.5">{b.beschreibung}</div>}
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="tabular-nums font-black">{formatEuro(b.summe_cent)}</div>
-                  {b.positionen.length > 1 && (
-                    <div className="text-[11px] text-ink/50">{b.positionen.length} Positionen</div>
+                  {einzel ? (
+                    titel && <div className="text-[11px] text-ink/50 leading-snug">{b.positionen[0].kategorie_name}</div>
+                  ) : (
+                    <ul className="mt-0.5 space-y-px w-fit max-w-full">
+                      {b.positionen.map((p) => (
+                        <li key={p.id} className="flex items-baseline justify-between gap-4 text-[11px] text-ink/50 leading-snug">
+                          <span>{p.kategorie_name}</span>
+                          <span className="tabular-nums whitespace-nowrap">
+                            {p.kategorie_typ === 'einnahme' ? '+' : '−'}
+                            {formatEuro(p.betrag_cent)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
+                <div className={`tabular-nums font-black shrink-0 ${typ === 'einnahme' ? 'text-royal' : ''}`}>
+                  {typ && (typ === 'einnahme' ? '+' : '−')}
+                  {formatEuro(b.summe_cent)}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0 ml-auto sm:ml-0">
+                  <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setModal({ buchung: b })} />
+                  <IconButton icon={IconCopy} label="Duplizieren" onClick={() => duplicate(b)} />
+                  <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(b.id)} />
+                </div>
               </div>
-
-              <ul className="divide-y divide-ink/5 rounded-lg bg-royal-soft/5">
-                {b.positionen.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                    <span className={p.kategorie_typ === 'einnahme' ? 'text-royal font-bold' : ''}>
-                      {p.kategorie_name}
-                    </span>
-                    <span className="tabular-nums whitespace-nowrap">
-                      {p.kategorie_typ === 'einnahme' ? '+' : '−'}
-                      {formatEuro(p.betrag_cent)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="flex gap-2">
-                <button className="btn-outline btn-sm" onClick={() => setModal({ buchung: b })}>
-                  Bearbeiten
-                </button>
-                <button className="btn-ghost btn-sm" onClick={() => duplicate(b)}>
-                  Duplizieren
-                </button>
-                <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(b.id)}>
-                  Löschen
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
