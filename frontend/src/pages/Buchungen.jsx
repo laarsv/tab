@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
-import { IconButton, IconCopy, IconPencil, IconTrash } from '../components/Icons.jsx';
+import { IconBookIn, IconButton, IconCopy, IconPencil, IconTrash } from '../components/Icons.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
 import { BelegTypBadge } from '../components/BelegVorschau.jsx';
@@ -330,9 +330,7 @@ export default function Buchungen() {
                         onChange={(e) => setFaellig(b, e.target.value)}
                       />
                     </label>
-                    <button className="btn-primary btn-sm" onClick={() => setVerbuchen(b)}>
-                      Verbuchen
-                    </button>
+                    <IconButton icon={IconBookIn} variant="primary" label="Verbuchen" onClick={() => setVerbuchen(b)} />
                     {andereGewerbe.length > 0 && (
                       <Dropdown
                         value=""
@@ -342,9 +340,7 @@ export default function Buchungen() {
                         variant="ghost"
                       />
                     )}
-                    <button className="btn-ghost btn-sm text-red-700" onClick={() => removeBeleg(b)}>
-                      Löschen
-                    </button>
+                    <IconButton icon={IconTrash} variant="danger" label="Beleg löschen" onClick={() => removeBeleg(b)} />
                   </div>
                 </div>
               );

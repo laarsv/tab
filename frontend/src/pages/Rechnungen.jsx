@@ -8,7 +8,8 @@ import KontakteModal from '../components/KontakteModal.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
-  IconBan, IconBookIn, IconCheck, IconCircleCheck, IconFileText, IconPencil, IconRepeat, IconSend, IconTrash, IconButton,
+  IconBan, IconBookIn, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil, IconPlay,
+  IconRepeat, IconSend, IconTrash, IconZap,
 } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -206,9 +207,9 @@ export default function Rechnungen() {
           </div>
           <ul className="divide-y divide-ink/5">
             {abos.map((a) => (
-              <li key={a.id} className="py-2.5 space-y-1.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0 text-sm">
+              <li key={a.id} className="py-2 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <div className="min-w-0 flex-1 basis-[14rem] text-sm">
                     <span className="font-bold">{a.empfaenger_name}</span>{' '}
                     <span className="text-ink/60">
                       · {{ monatlich: 'monatlich', vierteljaehrlich: 'vierteljährlich', jaehrlich: 'jährlich' }[a.intervall]}
@@ -225,21 +226,23 @@ export default function Rechnungen() {
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[11px] font-bold">Entwurf</span>
                     )}
                   </div>
+                  <div className="flex items-center gap-0.5 shrink-0 ml-auto sm:ml-0">
+                    <IconButton icon={IconZap} label="Jetzt ausführen" onClick={() => runAbo(a)} />
+                    <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setAboModal({ abo: a })} />
+                    <IconButton
+                      icon={a.aktiv ? IconPause : IconPlay}
+                      label={a.aktiv ? 'Pausieren' : 'Fortsetzen'}
+                      onClick={() => toggleAbo(a)}
+                    />
+                    <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => removeAbo(a)} />
+                  </div>
                 </div>
-                {a.auto_senden && !a.absender_konfiguriert && (
+                {Boolean(a.auto_senden) && !a.absender_konfiguriert && (
                   <div className="text-xs text-yellow-900 bg-yellow-100 rounded px-2 py-1">
                     Absender {a.absender_email} hat kein App-Passwort hinterlegt — Rechnungen
                     bleiben als Entwurf liegen.
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2">
-                  <button className="btn-outline btn-sm" onClick={() => runAbo(a)}>Jetzt ausführen</button>
-                  <button className="btn-ghost btn-sm" onClick={() => setAboModal({ abo: a })}>Bearbeiten</button>
-                  <button className="btn-ghost btn-sm" onClick={() => toggleAbo(a)}>
-                    {a.aktiv ? 'Pausieren' : 'Fortsetzen'}
-                  </button>
-                  <button className="btn-ghost btn-sm text-red-700" onClick={() => removeAbo(a)}>Löschen</button>
-                </div>
               </li>
             ))}
           </ul>

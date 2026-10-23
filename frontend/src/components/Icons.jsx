@@ -84,6 +84,23 @@ export const IconCopy = (p) => (
   </Svg>
 );
 
+export const IconZap = (p) => (
+  <Svg {...p}>
+    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+  </Svg>
+);
+export const IconPlay = (p) => (
+  <Svg {...p}>
+    <path d="M6 3l14 9-14 9z" />
+  </Svg>
+);
+export const IconPause = (p) => (
+  <Svg {...p}>
+    <rect x="14" y="4" width="4" height="16" rx="1" />
+    <rect x="6" y="4" width="4" height="16" rx="1" />
+  </Svg>
+);
+
 // Volle Klassennamen (nicht zusammensetzen) — sonst findet Tailwind sie im Source-Scan nicht.
 const VARIANT = {
   ghost: 'btn-icon-ghost',
