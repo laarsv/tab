@@ -3,17 +3,11 @@ import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from '../components/Dropdown.jsx';
+import { IconButton, IconPencil, IconPlus, IconTrash, IconTrendDown } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
+import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
-
-function NoGewerbe() {
-  return (
-    <div className="card p-12 text-center text-ink/60">
-      Kein Gewerbe gewählt. Lege unter „Gewerbe" zuerst ein Gewerbe an.
-    </div>
-  );
-}
 
 export default function Afa() {
   const { gewerbeId, jahr } = useOutletContext();
@@ -77,136 +71,79 @@ export default function Afa() {
     });
   }
 
-  if (!gewerbeId) return <NoGewerbe />;
+  if (!gewerbeId) return <KeinGewerbe />;
   if (loading) return <PageSpinner />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="page-title">Abschreibungen (AfA)</h1>
-          <p className="text-xs text-ink/60 mt-0.5">
-            Teure Anschaffungen über mehrere Jahre absetzen · Jahres-AfA {jahr} fließt in Zeile 33.
-          </p>
-        </div>
-        <button className="btn-primary w-full sm:w-auto" onClick={openNew}>
-          + Anschaffung
+    <div>
+      <PageHeader
+        title="Abschreibungen (AfA)"
+        sub={`Teure Anschaffungen über mehrere Jahre absetzen · Jahres-AfA ${jahr} fließt in Zeile 33.`}
+      >
+        <button className="btn-primary" onClick={openNew}>
+          <IconPlus className="mr-1 h-4 w-4" /> Anschaffung
         </button>
-      </div>
+      </PageHeader>
 
-      <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-3 text-sm text-ink/80 space-y-1">
-        <div className="font-bold">Wann gehört etwas hierher?</div>
+      <Hinweis titel="Wann gehört etwas hierher?" className="mt-5 space-y-1">
         <p>
-          Kostet eine Anschaffung <strong>mehr als 800 € netto</strong> (≈ 952 € brutto), darfst du
-          sie nicht auf einmal absetzen, sondern verteilst sie über die Nutzungsdauer — die
-          Jahresrate heißt <strong>Abschreibung (AfA)</strong>. Du legst die Anschaffung hier einmal
-          an, Tab rechnet die Jahresbeträge automatisch und nimmt sie in jeden Export mit.
+          Kostet eine Anschaffung <strong>mehr als 800 € netto</strong> (≈ 952 € brutto), darfst du sie nicht auf
+          einmal absetzen, sondern verteilst sie über die Nutzungsdauer — die Jahresrate heißt{' '}
+          <strong>Abschreibung (AfA)</strong>. Du legst die Anschaffung hier einmal an, Tab rechnet die
+          Jahresbeträge automatisch und nimmt sie in jeden Export mit.
         </p>
         <p>
-          <strong>Ausnahme:</strong> Computer, Laptop &amp; Software dürfen mit Nutzungsdauer 1 Jahr
-          sofort komplett abgesetzt werden — dafür gibt's den Haken „Sofortabzug". Günstigeres
-          (≤ 800 € netto) buchst du einfach als <strong>GWG</strong> direkt bei den Buchungen.
-          Verkauft oder ausgemustert? Beim Bearbeiten das Abgangsdatum setzen.
+          <strong>Ausnahme:</strong> Computer, Laptop &amp; Software dürfen mit Nutzungsdauer 1 Jahr sofort komplett
+          abgesetzt werden — dafür gibt's den Haken „Sofortabzug". Günstigeres (≤ 800 € netto) buchst du einfach
+          als <strong>GWG</strong> direkt bei den Buchungen. Verkauft oder ausgemustert? Beim Bearbeiten das
+          Abgangsdatum setzen.
         </p>
+      </Hinweis>
+
+      <Kennzahlen cols={1} className="mt-6">
+        <Kennzahl label={`Summe Jahres-AfA ${jahr} (Zeile 33)`} value={formatEuro(sumJahresAfa)} />
+      </Kennzahlen>
+
+      <div className="mt-2">
+        {items.length === 0 ? (
+          <Leer>Noch keine Anschaffungen erfasst. Nur nötig für Käufe über 800 € netto.</Leer>
+        ) : (
+          items.map((a) => (
+            <Row
+              key={a.id}
+              icon={IconTrendDown}
+              title={a.bezeichnung}
+              sub={
+                <>
+                  <span className="tabular-nums">{formatDateDE(a.anschaffungsdatum)}</span>
+                  {PUNKT}
+                  <span className="tabular-nums">{formatEuro(a.anschaffungskosten_cent)}</span>
+                  {PUNKT}
+                  <span>{a.nutzungsdauer_jahre === 1 ? 'Sofortabzug' : `${a.nutzungsdauer_jahre} Jahre`}</span>
+                  {a.abgang_datum && (
+                    <>
+                      {PUNKT}
+                      <span>
+                        Abgang {formatDateDE(a.abgang_datum)}
+                        {a.restbuchwert_cent > 0 && (
+                          <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → als Buchung Zeile 38 erfassen</>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </>
+              }
+              amount={formatEuro(a.jahres_afa_cent || 0)}
+              actions={
+                <>
+                  <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setEditing(toEdit(a))} />
+                  <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(a.id)} />
+                </>
+              }
+            />
+          ))
+        )}
       </div>
-
-      <div className="card p-4">
-        <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
-          Summe Jahres-AfA {jahr} (Zeile 33)
-        </div>
-        <div className="text-xl font-black tabular-nums mt-1">{formatEuro(sumJahresAfa)}</div>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">
-          Noch keine Anschaffungen erfasst. Nur nötig für Käufe über 800 € netto.
-        </div>
-      ) : (
-        <>
-          <div className="hidden md:block overflow-x-auto card">
-            <table className="w-full text-sm">
-              <thead className="text-left text-ink/60 text-xs uppercase tracking-wider">
-                <tr className="border-b border-ink/10">
-                  <th className="px-4 py-3">Bezeichnung</th>
-                  <th className="px-4 py-3">Anschaffung</th>
-                  <th className="px-4 py-3 text-right">Kosten</th>
-                  <th className="px-4 py-3 text-right">ND</th>
-                  <th className="px-4 py-3 text-right">AfA {jahr}</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((a) => (
-                  <tr key={a.id} className="border-b border-ink/5 last:border-b-0">
-                    <td className="px-4 py-3 font-medium">
-                      {a.bezeichnung}
-                      {a.abgang_datum && (
-                        <div className="text-xs text-ink/50 font-normal mt-0.5">
-                          Abgang {formatDateDE(a.abgang_datum)}
-                          {a.restbuchwert_cent > 0 && (
-                            <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → als Buchung Zeile 38 erfassen</>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-ink/70 whitespace-nowrap">
-                      {formatDateDE(a.anschaffungsdatum)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
-                      {formatEuro(a.anschaffungskosten_cent)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {a.nutzungsdauer_jahre === 1 ? 'Sofort' : `${a.nutzungsdauer_jahre} J.`}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-bold whitespace-nowrap">
-                      {formatEuro(a.jahres_afa_cent || 0)}
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button className="btn-ghost btn-sm" onClick={() => setEditing(toEdit(a))}>
-                        Bearbeiten
-                      </button>
-                      <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(a.id)}>
-                        Löschen
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="md:hidden space-y-3">
-            {items.map((a) => (
-              <div key={a.id} className="card p-4 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-sm">{a.bezeichnung}</span>
-                  <span className="tabular-nums font-bold">{formatEuro(a.jahres_afa_cent || 0)}</span>
-                </div>
-                <div className="text-xs text-ink/60">
-                  {formatDateDE(a.anschaffungsdatum)} · {formatEuro(a.anschaffungskosten_cent)} ·{' '}
-                  {a.nutzungsdauer_jahre === 1 ? 'Sofort (1 J.)' : `${a.nutzungsdauer_jahre} Jahre`}
-                </div>
-                {a.abgang_datum && (
-                  <div className="text-xs text-ink/50">
-                    Abgang {formatDateDE(a.abgang_datum)}
-                    {a.restbuchwert_cent > 0 && (
-                      <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → Buchung Zeile 38</>
-                    )}
-                  </div>
-                )}
-                <div className="flex gap-2 pt-1">
-                  <button className="btn-outline btn-sm" onClick={() => setEditing(toEdit(a))}>
-                    Bearbeiten
-                  </button>
-                  <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(a.id)}>
-                    Löschen
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
 
       {editing && (
         <AfaModal

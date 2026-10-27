@@ -156,9 +156,12 @@ der Mapping-Version des Jahres aufgelöst.
   der PWA-Share-Toast. Hochladen steckt im Layout (`uploadBelege` im Outlet-Context, danach zählt
   `eingangTick` hoch und die Seite lädt neu). Der Beleg-Eingang ist **in die Buchungen-Seite
   integriert** (Zeilen, „Jetzt abarbeiten", Upload); `/eingang` redirectet auf `/buchungen`.
-  **Zeilen statt Karten:** `components/PageParts.jsx` (`PageHeader`, `SectionHead`, `Row`, `Leer`),
-  `.page-title`, `.card` ist flach (ohne Schatten). Nur Buchungen ist auf Zeilen umgestellt;
-  Rechnungen/Jahres-Check/AfA/Fahrten/Export/Gewerbe/Einrichtung nutzen noch `.card`.
+  **Zeilen statt Karten (alle Seiten):** `components/PageParts.jsx` (`PageHeader`, `SectionHead`,
+  `Row` mit `kind`/`leading`/`children`/`muted`, `Zustand`, `Hinweis`, `Kennzahlen`/`Kennzahl`,
+  `Fortschritt`, `Leer`, `KeinGewerbe`), `.page-title`, `.card` ist flach. Zustände sind Wörter in
+  Zustandsfarbe in der Zustandszeile (`Zustand`), keine Chips; Aktionen Icon-Knöpfe, Text nur bei
+  der einen Hauptaktion oder wenn das Icon mehrdeutig ist (z. B. „+ Einnahme buchen" im
+  Jahres-Check). Neue Seiten/Listen nur noch mit diesen Bausteinen bauen.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.

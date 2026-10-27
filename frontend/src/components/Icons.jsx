@@ -272,3 +272,36 @@ export const IconSearch = (p) => (
     <path d="m20 20-3.5-3.5" />
   </Svg>
 );
+
+// ── weitere Zeilen-Icons ─────────────────────────────────────────────────────
+export const IconCircle = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8" />
+  </Svg>
+);
+export const IconUsers = (p) => (
+  <Svg {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+    <path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" />
+  </Svg>
+);
+export const IconPin = (p) => (
+  <Svg {...p}>
+    <path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" />
+    <circle cx="12" cy="11" r="2" />
+  </Svg>
+);
+export const IconPrinter = (p) => (
+  <Svg {...p}>
+    <path d="M6 9V3h12v6" />
+    <path d="M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2" />
+    <path d="M6 14h12v7H6z" />
+  </Svg>
+);
+export const IconArchive = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="5" rx="1" />
+    <path d="M5 9v10h14V9M10 13h4" />
+  </Svg>
+);

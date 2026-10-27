@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
+import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
+import { Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 
 export default function Gewerbe() {
@@ -67,85 +69,80 @@ export default function Gewerbe() {
 
   if (loading) return <PageSpinner />;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="page-title">Gewerbe</h1>
-          <p className="text-xs text-ink/60 mt-0.5">Eine EÜR pro Gewerbe. Deaktivieren statt löschen.</p>
-        </div>
-        <button
-          className="btn-primary w-full sm:w-auto"
-          onClick={() =>
-            setEditing({
-              name: '',
-              steuernummer: '',
-              besteuerung: 'kleinunternehmer',
-              anschrift: '',
-              iban: '',
-              rechnung_fusszeile: '',
-            })
-          }
-        >
-          + Gewerbe
-        </button>
-      </div>
+  function neu() {
+    setEditing({
+      name: '',
+      steuernummer: '',
+      besteuerung: 'kleinunternehmer',
+      anschrift: '',
+      iban: '',
+      rechnung_fusszeile: '',
+    });
+  }
 
-      {items.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">
-          Noch kein Gewerbe angelegt. Lege dein erstes Gewerbe an (z. B. „Makler" oder „App").
-        </div>
-      ) : (
-        <div className="card divide-y divide-ink/5">
-          {items.map((g) => (
-            <div key={g.id} className="flex items-center justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <div className="font-bold flex items-center gap-2">
-                  <span className="truncate">{g.name}</span>
-                  {!g.aktiv && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
-                      inaktiv
-                    </span>
-                  )}
+  return (
+    <div>
+      <PageHeader title="Gewerbe" sub="Eine EÜR pro Gewerbe. Deaktivieren statt löschen.">
+        <button className="btn-primary" onClick={neu}>
+          <IconPlus className="mr-1 h-4 w-4" /> Gewerbe
+        </button>
+      </PageHeader>
+
+      <div className="mt-6">
+        {items.length === 0 ? (
+          <Leer>Noch kein Gewerbe angelegt. Lege dein erstes Gewerbe an (z. B. „Makler" oder „App").</Leer>
+        ) : (
+          items.map((g) => (
+            <Row
+              key={g.id}
+              icon={IconBriefcase}
+              title={g.name}
+              muted={!g.aktiv}
+              sub={
+                <>
                   {g.besteuerung === 'regelbesteuerung' ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-900 text-[10px] font-bold uppercase tracking-wider">
-                      Regelbest.
-                    </span>
+                    <Zustand ton="warn">Regelbesteuerung</Zustand>
                   ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
-                      §19 KU
-                    </span>
+                    <span>Kleinunternehmer §19</span>
                   )}
-                </div>
-                <div className="text-xs text-ink/60 mt-0.5">
-                  {g.steuernummer ? `St.-Nr. ${g.steuernummer}` : 'keine Steuernummer'}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  className="btn-outline btn-sm"
-                  onClick={() =>
-                    setEditing({
-                      id: g.id,
-                      name: g.name,
-                      steuernummer: g.steuernummer || '',
-                      besteuerung: g.besteuerung || 'kleinunternehmer',
-                      anschrift: g.anschrift || '',
-                      iban: g.iban || '',
-                      rechnung_fusszeile: g.rechnung_fusszeile || '',
-                    })
-                  }
-                >
-                  Bearbeiten
-                </button>
-                <button className="btn-ghost btn-sm" onClick={() => toggleAktiv(g)}>
-                  {g.aktiv ? 'Deaktivieren' : 'Aktivieren'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                  {PUNKT}
+                  <span>{g.steuernummer ? `St.-Nr. ${g.steuernummer}` : 'keine Steuernummer'}</span>
+                  {!g.aktiv && (
+                    <>
+                      {PUNKT}
+                      <span className="font-bold">inaktiv</span>
+                    </>
+                  )}
+                </>
+              }
+              actions={
+                <>
+                  <IconButton
+                    icon={IconPencil}
+                    label="Bearbeiten"
+                    onClick={() =>
+                      setEditing({
+                        id: g.id,
+                        name: g.name,
+                        steuernummer: g.steuernummer || '',
+                        besteuerung: g.besteuerung || 'kleinunternehmer',
+                        anschrift: g.anschrift || '',
+                        iban: g.iban || '',
+                        rechnung_fusszeile: g.rechnung_fusszeile || '',
+                      })
+                    }
+                  />
+                  <IconButton
+                    icon={g.aktiv ? IconPause : IconPlay}
+                    label={g.aktiv ? 'Deaktivieren' : 'Aktivieren'}
+                    onClick={() => toggleAktiv(g)}
+                  />
+                </>
+              }
+            />
+          ))
+        )}
+      </div>
 
       {editing && (
         <Modal

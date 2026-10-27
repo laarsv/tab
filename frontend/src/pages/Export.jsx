@@ -2,16 +2,10 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
+import { IconArchive, IconButton, IconDownload, IconFileText, IconPrinter } from '../components/Icons.jsx';
+import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, Row, SectionHead } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro } from '../lib/format.js';
-
-function NoGewerbe() {
-  return (
-    <div className="card p-12 text-center text-ink/60">
-      Kein Gewerbe gewählt. Lege unter „Gewerbe" zuerst ein Gewerbe an.
-    </div>
-  );
-}
 
 export default function Export() {
   const { gewerbeId, jahr, gewerbe } = useOutletContext();
@@ -80,160 +74,144 @@ export default function Export() {
     }
   }
 
-  if (!gewerbeId) return <NoGewerbe />;
+  if (!gewerbeId) return <KeinGewerbe />;
   if (loading) return <PageSpinner />;
 
+  const laedt = downloading !== '';
+  const AKTIONEN = [
+    {
+      key: 'summenblatt',
+      icon: IconFileText,
+      titel: 'Summenblatt (CSV)',
+      text: 'Die Summen je Zeile der Anlage EÜR — zum Übertragen ins Steuerprogramm.',
+      disabled: laedt || !data,
+      primary: true,
+      run: () => download('summenblatt'),
+    },
+    {
+      key: 'journal',
+      icon: IconFileText,
+      titel: 'Beleg-Journal (CSV)',
+      text: 'Jede Buchung mit Kategorie und Zeile — zum Gegenprüfen, auch durch den Steuerberater.',
+      disabled: laedt,
+      run: () => download('journal'),
+    },
+    {
+      key: 'druck',
+      icon: IconPrinter,
+      titel: 'Drucken / PDF',
+      text: 'Druck-Ansicht des Summenblatts.',
+      disabled: !data || data.zeilen.length === 0,
+      run: () => window.print(),
+    },
+    {
+      key: 'archiv',
+      icon: IconArchive,
+      titel: 'Jahres-Archiv (ZIP)',
+      text: 'Summenblatt, Journal und alle Beleg-Dateien des Jahres.',
+      disabled: laedt || !data,
+      run: () => download('archiv'),
+    },
+    {
+      key: 'backup',
+      icon: IconArchive,
+      titel: 'Backup',
+      text: 'Komplett-Backup: Datenbank und alle Beleg-Dateien (alle Jahre).',
+      disabled: laedt,
+      run: () => download('backup'),
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-title">EÜR-Export {jahr}</h1>
-        <p className="text-xs text-ink/60 mt-0.5">
-          {gewerbeName} · Summen zum Übertragen ins Steuerprogramm/ELSTER. Kein Direktversand ·
-          Abgabefrist für {jahr} (ohne Steuerberater): 31.07.{jahr + 1}
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="EÜR-Export"
+        accent={jahr}
+        sub={`${gewerbeName} · Summen zum Übertragen ins Steuerprogramm/ELSTER. Kein Direktversand · Abgabefrist für ${jahr} (ohne Steuerberater): 31.07.${jahr + 1}`}
+      />
 
-      <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-3 text-sm text-ink/80 no-print">
-        <strong>Tab ist die bessere Excel-Liste — keine Steuerberatung.</strong> Die Zuordnungen
-        folgen der amtlichen Anleitung, aber dein Fall kann Besonderheiten haben. Prüfe die
-        Zahlen vor der Abgabe selbst oder lass sie vom Steuerberater gegenchecken — das
-        Beleg-Journal unten ist genau dafür gemacht.
-      </div>
+      <div className="no-print mt-5 space-y-3">
+        <Hinweis titel="Tab ist die bessere Excel-Liste — keine Steuerberatung.">
+          Die Zuordnungen folgen der amtlichen Anleitung, aber dein Fall kann Besonderheiten haben. Prüfe die
+          Zahlen vor der Abgabe selbst oder lass sie vom Steuerberater gegenchecken — das Beleg-Journal unten ist
+          genau dafür gemacht.
+        </Hinweis>
 
-      {data?.vorlaeufig && (
-        <div className="p-4 rounded flex items-start gap-3 bg-yellow-100 text-yellow-900">
-          <div>
-            <div className="font-bold">Vorläufiges Mapping für {jahr}</div>
-            <div className="text-sm mt-0.5">
-              Der amtliche Vordruck {jahr} liegt noch nicht final vor — die Zeilen sind eine Kopie
-              von 2025. Vor Abgabe gegen den aktuellen Vordruck abgleichen. ({data.quelle})
-            </div>
-            <div className="text-sm mt-1.5 font-medium">
+        {data?.vorlaeufig && (
+          <Hinweis ton="warn" titel={`Vorläufiges Mapping für ${jahr}`}>
+            Der amtliche Vordruck {jahr} liegt noch nicht final vor — die Zeilen sind eine Kopie von 2025. Vor
+            Abgabe gegen den aktuellen Vordruck abgleichen. ({data.quelle})
+            <div className="mt-1.5 font-medium">
               {new Date() >= new Date(jahr, 9, 1)
                 ? `Die amtliche Anleitung ${jahr} sollte inzwischen veröffentlicht sein (BMF/ELSTER, üblicherweise ab Herbst) — jetzt Mapping abgleichen und scharfstellen.`
                 : `Die amtliche Anleitung ${jahr} erscheint erfahrungsgemäß im Herbst ${jahr}; abgeben musst du erst ${jahr + 1} — bis dahin ist das vorläufige Mapping okay.`}
             </div>
-          </div>
-        </div>
-      )}
+          </Hinweis>
+        )}
+      </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 no-print">
-        <button
-          className="btn-primary w-full sm:w-auto"
-          onClick={() => download('summenblatt')}
-          disabled={downloading !== '' || !data}
-        >
-          {downloading === 'summenblatt' ? 'Lädt…' : 'Summenblatt als CSV'}
-        </button>
-        <button
-          className="btn-outline w-full sm:w-auto"
-          onClick={() => download('journal')}
-          disabled={downloading !== ''}
-        >
-          {downloading === 'journal' ? 'Lädt…' : 'Beleg-Journal als CSV'}
-        </button>
-        <button
-          className="btn-outline w-full sm:w-auto"
-          onClick={() => window.print()}
-          disabled={!data || data.zeilen.length === 0}
-        >
-          Drucken / PDF
-        </button>
-        <button
-          className="btn-outline w-full sm:w-auto"
-          onClick={() => download('archiv')}
-          disabled={downloading !== '' || !data}
-          title="Summenblatt + Journal + alle Beleg-Dateien des Jahres als ZIP"
-        >
-          {downloading === 'archiv' ? 'Lädt…' : 'Jahres-Archiv (ZIP)'}
-        </button>
-        <button
-          className="btn-ghost w-full sm:w-auto"
-          onClick={() => download('backup')}
-          disabled={downloading !== ''}
-          title="Komplett-Backup: Datenbank + alle Beleg-Dateien"
-        >
-          {downloading === 'backup' ? 'Lädt…' : 'Backup'}
-        </button>
+      <div className="no-print">
+        <SectionHead label="Herunterladen" />
+        {AKTIONEN.map((a) => (
+          <Row
+            key={a.key}
+            icon={a.icon}
+            title={a.titel}
+            sub={<span>{downloading === a.key ? 'Lädt…' : a.text}</span>}
+            actions={
+              <IconButton
+                icon={a.key === 'druck' ? IconPrinter : IconDownload}
+                variant={a.primary ? 'primary' : 'ghost'}
+                label={a.key === 'druck' ? 'Drucken / PDF' : `${a.titel} herunterladen`}
+                onClick={a.run}
+                disabled={a.disabled}
+              />
+            }
+          />
+        ))}
       </div>
 
       {error ? (
-        <div className="p-4 rounded flex items-start gap-3 bg-red-50 border-l-4 border-red-500 text-red-900">
-          <div>
-            <div className="font-bold">Kein Summenblatt</div>
-            <div className="text-sm mt-0.5">{error}</div>
-          </div>
-        </div>
+        <Hinweis ton="neg" titel="Kein Summenblatt" className="no-print mt-6">
+          {error}
+        </Hinweis>
       ) : data && data.zeilen.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">
-          Keine befüllten Zeilen für {jahr}. Erfasse zuerst Buchungen oder AfA.
-        </div>
+        <Leer>Keine befüllten Zeilen für {jahr}. Erfasse zuerst Buchungen oder AfA.</Leer>
       ) : data ? (
-        <div className="print-area space-y-3">
+        <div className="print-area">
+          <SectionHead label={`Summenblatt ${jahr}`} count={data.zeilen.length} className="no-print" />
           <div className="hidden print:block">
             <h2 className="text-xl font-black">EÜR-Summenblatt {jahr}</h2>
             <div className="text-sm text-ink/70">
               {gewerbeName}
-              {data.gewerbe.steuernummer ? ` · St.-Nr. ${data.gewerbe.steuernummer}` : ''} ·
-              Kleinunternehmer §19 UStG
+              {data.gewerbe.steuernummer ? ` · St.-Nr. ${data.gewerbe.steuernummer}` : ''} · Kleinunternehmer §19
+              UStG
               {data.vorlaeufig ? ' · vorläufiges Mapping' : ''}
             </div>
           </div>
-          <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-ink/60 text-xs uppercase tracking-wider">
-              <tr className="border-b border-ink/10">
-                <th className="px-4 py-3 w-20">Zeile</th>
-                <th className="px-4 py-3">Bezeichnung</th>
-                <th className="px-4 py-3 text-right">Betrag</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.zeilen.map((z) => (
-                <tr key={z.nummer} className="border-b border-ink/5">
-                  <td className="px-4 py-3 tabular-nums font-bold">{z.nummer}</td>
-                  <td className="px-4 py-3">
-                    {z.bezeichnung}
-                    {z.typ === 'einnahme' && (
-                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-royal-soft/40 text-ink text-[10px] font-bold uppercase tracking-wider">
-                        Einnahme
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
-                    {formatEuro(z.betrag_cent)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="border-t border-ink/10">
-              <tr>
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3 font-bold">Summe Betriebseinnahmen (Zeile 23)</td>
-                <td className="px-4 py-3 text-right tabular-nums font-bold">
-                  {formatEuro(data.summe_einnahmen_cent)}
-                </td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3 font-bold">Summe Betriebsausgaben</td>
-                <td className="px-4 py-3 text-right tabular-nums font-bold">
-                  {formatEuro(data.summe_ausgaben_cent)}
-                </td>
-              </tr>
-              <tr className="bg-royal-soft/10">
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3 font-black">Gewinn / Verlust</td>
-                <td className="px-4 py-3 text-right tabular-nums font-black">
-                  {formatEuro(data.gewinn_cent)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-          </div>
-          <div className="hidden print:block text-xs text-ink/50 pt-2">
-            Erstellt mit vrwb_tab — keine Steuerberatung, Angaben ohne Gewähr. Vor der Abgabe
-            prüfen bzw. prüfen lassen.
+
+          <Kennzahlen className="mb-1 print:mt-3">
+            <Kennzahl label="Betriebseinnahmen (Z. 23)" value={formatEuro(data.summe_einnahmen_cent)} royal />
+            <Kennzahl label="Betriebsausgaben" value={formatEuro(data.summe_ausgaben_cent)} />
+            <Kennzahl label="Gewinn / Verlust" value={formatEuro(data.gewinn_cent)} />
+          </Kennzahlen>
+
+          {data.zeilen.map((z) => (
+            <Row
+              key={z.nummer}
+              kind={z.typ === 'einnahme' ? 'in' : 'out'}
+              leading={<span className="font-mono text-[13px] font-bold tabular-nums">{z.nummer}</span>}
+              title={z.bezeichnung}
+              wrapTitle
+              sub={<span>{z.typ === 'einnahme' ? `Zeile ${z.nummer} · Einnahme` : `Zeile ${z.nummer}`}</span>}
+              amount={formatEuro(z.betrag_cent)}
+              amountIn={z.typ === 'einnahme'}
+            />
+          ))}
+
+          <div className="hidden print:block pt-2 text-xs text-ink/50">
+            Erstellt mit vrwb_tab — keine Steuerberatung, Angaben ohne Gewähr. Vor der Abgabe prüfen bzw. prüfen
+            lassen.
           </div>
         </div>
       ) : null}

@@ -3,16 +3,27 @@ import { Link, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
+import { IconButton, IconPin, IconTrash } from '../components/Icons.jsx';
+import {
+  Hinweis,
+  KeinGewerbe,
+  Kennzahl,
+  Kennzahlen,
+  Leer,
+  PageHeader,
+  PUNKT,
+  Row,
+  SectionHead,
+} from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
 
-function NoGewerbe() {
-  return (
-    <div className="card p-12 text-center text-ink/60">
-      Kein Gewerbe gewählt. Lege unter „Gewerbe" zuerst ein Gewerbe an.
-    </div>
-  );
-}
+const MONATE = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
+
+const kmText = (km) => String(km).replace('.', ',');
 
 function emptyForm() {
   return { datum: todayISO(), ziel: '', anlass: '', km: '' };
@@ -83,56 +94,62 @@ export default function Fahrten() {
     }
   }
 
-  if (!gewerbeId) return <NoGewerbe />;
+  if (!gewerbeId) return <KeinGewerbe />;
   if (loading) return <PageSpinner />;
 
   const fahrtKat = kategorien.find((k) => k.key === 'fahrtkosten_kfz');
 
+  // Nach Monat gruppieren (neueste zuerst), je Monat die Summe km.
+  const gruppen = [];
+  for (const f of data.fahrten) {
+    const k = f.datum.slice(0, 7);
+    let g = gruppen.find((x) => x.k === k);
+    if (!g) {
+      g = { k, liste: [], km: 0 };
+      gruppen.push(g);
+    }
+    g.liste.push(f);
+    g.km += Number(f.km) || 0;
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-title">Fahrten-Liste {jahr}</h1>
-        <p className="text-xs text-ink/60 mt-0.5">
-          Betriebliche Fahrten mit dem Privatwagen sammeln (Datum, Ziel, Anlass, km) — der
-          Nachweis für die km-Pauschale. Kein Fahrtenbuch für die 1 %-Regelung.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Fahrten-Liste"
+        accent={jahr}
+        sub="Betriebliche Fahrten mit dem Privatwagen sammeln (Datum, Ziel, Anlass, km) — der Nachweis für die km-Pauschale. Kein Fahrtenbuch für die 1 %-Regelung."
+      >
+        <button
+          className="btn-primary btn-sm"
+          disabled={!data.fahrten.length || !fahrtKat}
+          onClick={() => setUebernehmen(true)}
+        >
+          Summe als Buchung übernehmen
+        </button>
+      </PageHeader>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="card p-4">
-          <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
-            Summe {jahr}
-          </div>
-          <div className="text-xl font-black tabular-nums mt-1">
-            {String(data.summe_km).replace('.', ',')} km · {formatEuro(data.betrag_cent)}
-          </div>
-          <div className="text-[11px] text-ink/50 mt-0.5">× 0,30 €/km</div>
-        </div>
-        <div className="card p-4 flex flex-col justify-center items-start gap-2">
-          <button
-            className="btn-primary btn-sm"
-            disabled={!data.fahrten.length || !fahrtKat}
-            onClick={() => setUebernehmen(true)}
-          >
-            Summe als Buchung übernehmen
-          </button>
-          <span className="text-xs text-ink/60">
-            Am besten einmal am Jahresende — nicht zusätzlich zu schon gebuchten Fahrtkosten
-            (sonst doppelt).
-          </span>
-        </div>
-      </div>
+      <Kennzahlen cols={1} className="mt-6">
+        <Kennzahl
+          label={`Summe ${jahr}`}
+          value={`${kmText(data.summe_km)} km · ${formatEuro(data.betrag_cent)}`}
+          hint="× 0,30 €/km — am besten einmal am Jahresende übernehmen, nicht zusätzlich zu schon gebuchten Fahrtkosten (sonst doppelt)"
+        />
+      </Kennzahlen>
 
-      <form onSubmit={add} className="card p-4 grid grid-cols-2 sm:grid-cols-5 gap-x-5 gap-y-2 items-end">
+      <SectionHead label="Neue Fahrt" />
+      <form
+        onSubmit={add}
+        className="grid grid-cols-2 items-end gap-x-5 gap-y-2 rounded-xl bg-surface p-4 sm:grid-cols-5"
+      >
         <label className="block">
           <span className="field-label">Datum</span>
           <input type="date" className="input" value={form.datum} onChange={(e) => setForm({ ...form, datum: e.target.value })} />
         </label>
-        <label className="block col-span-2 sm:col-span-1">
+        <label className="col-span-2 block sm:col-span-1">
           <span className="field-label">Ziel / Strecke</span>
           <input className="input" value={form.ziel} onChange={(e) => setForm({ ...form, ziel: e.target.value })} placeholder="z. B. Kunde Meier, HH" />
         </label>
-        <label className="block col-span-2 sm:col-span-1">
+        <label className="col-span-2 block sm:col-span-1">
           <span className="field-label">Anlass (optional)</span>
           <input className="input" value={form.anlass} onChange={(e) => setForm({ ...form, anlass: e.target.value })} placeholder="z. B. Beratung" />
         </label>
@@ -146,45 +163,47 @@ export default function Fahrten() {
       </form>
 
       {data.fahrten.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">
-          Noch keine Fahrten für {jahr}. Tipp: direkt nach der Fahrt eintragen — auf dem Handy
-          dauert's zehn Sekunden.
-        </div>
+        <Leer>
+          Noch keine Fahrten für {jahr}. Tipp: direkt nach der Fahrt eintragen — auf dem Handy dauert's zehn
+          Sekunden.
+        </Leer>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-ink/60 text-xs uppercase tracking-wider">
-              <tr className="border-b border-ink/10">
-                <th className="px-4 py-3">Datum</th>
-                <th className="px-4 py-3">Ziel / Strecke</th>
-                <th className="px-4 py-3 hidden sm:table-cell">Anlass</th>
-                <th className="px-4 py-3 text-right">km</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.fahrten.map((f) => (
-                <tr key={f.id} className="border-b border-ink/5 last:border-b-0">
-                  <td className="px-4 py-2.5 whitespace-nowrap">{formatDateDE(f.datum)}</td>
-                  <td className="px-4 py-2.5">{f.ziel}</td>
-                  <td className="px-4 py-2.5 text-ink/60 hidden sm:table-cell">{f.anlass || '—'}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{String(f.km).replace('.', ',')}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(f)}>
-                      Löschen
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        gruppen.map((g) => (
+          <section key={g.k} aria-label={`${MONATE[Number(g.k.slice(5, 7)) - 1]} ${g.k.slice(0, 4)}`}>
+            <SectionHead label={`${MONATE[Number(g.k.slice(5, 7)) - 1]} ${g.k.slice(0, 4)}`} count={g.liste.length}>
+              <span className="text-sm font-bold tabular-nums text-ink/60">{kmText(g.km)} km</span>
+            </SectionHead>
+            {g.liste.map((f) => (
+              <Row
+                key={f.id}
+                icon={IconPin}
+                title={f.ziel}
+                sub={
+                  <>
+                    <span className="tabular-nums">{formatDateDE(f.datum)}</span>
+                    {f.anlass && (
+                      <>
+                        {PUNKT}
+                        <span>{f.anlass}</span>
+                      </>
+                    )}
+                  </>
+                }
+                amount={`${kmText(f.km)} km`}
+                actions={<IconButton icon={IconTrash} variant="danger" label="Fahrt löschen" onClick={() => remove(f)} />}
+              />
+            ))}
+          </section>
+        ))
       )}
 
-      <p className="text-xs text-ink/50">
+      <Hinweis className="mt-8">
         Die Liste wandert automatisch als <code>fahrten-{jahr}.csv</code> ins{' '}
-        <Link to="/export" className="text-royal hover:underline">Jahres-Archiv (ZIP)</Link>.
-      </p>
+        <Link to="/export" className="font-medium text-royal hover:underline">
+          Jahres-Archiv (ZIP)
+        </Link>
+        .
+      </Hinweis>
 
       {uebernehmen && (
         <BuchungModal

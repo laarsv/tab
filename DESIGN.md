@@ -113,7 +113,11 @@ das Web übertragen. **Ohne Welle** (die ist recap-Sprache, Lars 2026-10-27).
 - **Neue Tokens:** `canvas` `#f3f5fa` (Fläche der Beleg-Vorschau) und `surface` `#f7f8fc`
   (Träger des Umschalters). Der Umschalter „Ausgabe | Einnahme" im Verbuchen-Fenster folgt
   `VrwbSwitch` (Träger `surface`, aktiv weiß mit Royal-Text).
-- **Stand der Umstellung:** Buchungen und das Verbuchen-Fenster (Beleg links auf `canvas`, Felder
-  rechts) sind umgestellt. Rechnungen, Jahres-Check, AfA, Fahrten, Export, Gewerbe, Einrichtung
-  sitzen im neuen Rahmen, nutzen innen aber noch `.card` (flach) — als nächstes auf Zeilen
-  umstellen.
+- **Stand der Umstellung (2026-10-27):** Alle Seiten sind auf Zeilen umgestellt (Buchungen,
+  Rechnungen mit Abos, Jahres-Check, AfA, Fahrten, Export, Gewerbe, Einrichtung). Zustände stehen
+  als Wort in Zustandsfarbe (`Zustand`: leise, Royal, Warnung `#9a5900`, Fehler `#c0392b`,
+  positiv `#177245` für bezahlt/erledigt), Hinweise als Band (`Hinweis`: Info Royal-Tint, Warnung
+  gelb, Fehler rot), Kennzahlen als flache Reihe mit Haarlinien (`Kennzahlen`). Der Export bietet
+  seine Downloads als Zeilen mit Beschreibung und einem Icon-Knopf an, das Summenblatt als Zeilen
+  (Zeilennummer im Kreis). Die Einrichtung ist eine Liste aufklappbarer Zeilen. Dialoge (Gewerbe,
+  AfA, Rechnung, Abo, Mail) sind noch die alten Modals ohne den Recap-Zuschnitt.

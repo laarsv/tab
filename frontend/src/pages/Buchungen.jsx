@@ -22,7 +22,7 @@ import {
   IconTrash,
   IconUpload,
 } from '../components/Icons.jsx';
-import { Leer, PageHeader, Row, SectionHead } from '../components/PageParts.jsx';
+import { Hinweis, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, SectionHead } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, belegTyp, ACCEPT } from '../lib/belege.js';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
@@ -46,12 +46,6 @@ function kurz(iso) {
 function NoGewerbe() {
   return <Leer>Kein Gewerbe gewählt. Lege unter „Gewerbe" zuerst ein Gewerbe an.</Leer>;
 }
-
-const PUNKT = (
-  <span aria-hidden="true" className="text-ink/45">
-    ·
-  </span>
-);
 
 // Fälligkeit des Eingangs-Belegs: leise Zustandszeile, Klick öffnet das Datumsfeld.
 function FaelligZeile({ beleg, ueberfaellig, onChange }) {
@@ -356,15 +350,15 @@ export default function Buchungen() {
       )}
 
       {kennzahlen && (
-        <div className="mt-6 grid grid-cols-3 border-y border-ink/[0.08]">
-          <Kennzahl label="Einnahmen" cent={kennzahlen.einnahmen_cent} royal />
-          <Kennzahl label="Ausgaben" cent={kennzahlen.ausgaben_cent} />
+        <Kennzahlen className="mt-6">
+          <Kennzahl label="Einnahmen" value={formatEuro(kennzahlen.einnahmen_cent)} royal />
+          <Kennzahl label="Ausgaben" value={formatEuro(kennzahlen.ausgaben_cent)} />
           <Kennzahl
             label="Saldo"
-            cent={kennzahlen.einnahmen_cent - kennzahlen.ausgaben_cent}
+            value={formatEuro(kennzahlen.einnahmen_cent - kennzahlen.ausgaben_cent)}
             hint="vor AfA und Abzugsquoten"
           />
-        </div>
+        </Kennzahlen>
       )}
 
       {/* Beleg-Eingang: sammeln, später verbuchen — integriert statt eigener Seite */}
@@ -586,20 +580,6 @@ function Paperclip({ count }) {
   );
 }
 
-function Kennzahl({ label, cent, hint, royal = false }) {
-  return (
-    <div className="border-l border-ink/[0.08] py-3 pl-3 first:border-l-0 first:pl-0 sm:pl-6 sm:first:pl-0">
-      <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink/60 sm:text-xs">{label}</div>
-      <div
-        className={`text-lg font-black leading-tight tabular-nums tracking-tight sm:text-[26px] ${royal ? 'text-royal' : ''}`}
-      >
-        {formatEuro(cent)}
-      </div>
-      {hint && <div className="mt-0.5 hidden text-[11px] leading-snug text-ink/60 sm:block">{hint}</div>}
-    </div>
-  );
-}
-
 // „Wohin ging das Geld" — Summen je Kategorie (das Pivot der Excel-Liste).
 function KategorieSummen({ items, jahr }) {
   const [open, setOpen] = useState(false);
@@ -672,31 +652,21 @@ function KategorieSummen({ items, jahr }) {
 function KuGuard({ k }) {
   if (k.ku_warn_laufend) {
     return (
-      <div className="p-4 rounded flex items-start gap-3 bg-red-50 border-l-4 border-red-500 text-red-900">
-        <div>
-          <div className="font-bold">Kleinunternehmer-Grenze gerissen</div>
-          <div className="text-sm mt-0.5">
-            Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
-            Anlagenverkäufe, §19 Abs. 2 UStG) überschreiten die laufende Grenze von{' '}
-            {formatEuro(k.ku_grenze_laufend_cent)}. Der KU-Status entfällt — bitte Steuerberater
-            kontaktieren. Tab deckt die Regelbesteuerung nicht ab.
-          </div>
-        </div>
-      </div>
+      <Hinweis ton="neg" titel="Kleinunternehmer-Grenze gerissen">
+        Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
+        Anlagenverkäufe, §19 Abs. 2 UStG) überschreiten die laufende Grenze von{' '}
+        {formatEuro(k.ku_grenze_laufend_cent)}. Der KU-Status entfällt — bitte Steuerberater
+        kontaktieren. Tab deckt die Regelbesteuerung nicht ab.
+      </Hinweis>
     );
   }
   if (k.ku_warn_vorjahr) {
     return (
-      <div className="p-4 rounded flex items-start gap-3 bg-yellow-100 text-yellow-900">
-        <div>
-          <div className="font-bold">Vorjahresgrenze überschritten</div>
-          <div className="text-sm mt-0.5">
-            Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
-            Anlagenverkäufe) liegen über {formatEuro(k.ku_grenze_vorjahr_cent)}. Für das Folgejahr ggf.
-            kein KU mehr — im Blick behalten, im Zweifel Steuerberater fragen.
-          </div>
-        </div>
-      </div>
+      <Hinweis ton="warn" titel="Vorjahresgrenze überschritten">
+        Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
+        Anlagenverkäufe) liegen über {formatEuro(k.ku_grenze_vorjahr_cent)}. Für das Folgejahr ggf.
+        kein KU mehr — im Blick behalten, im Zweifel Steuerberater fragen.
+      </Hinweis>
     );
   }
   return null;
