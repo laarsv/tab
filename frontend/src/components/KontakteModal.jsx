@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
+import { DialogFuss } from './DialogParts.jsx';
+import { IconButton, IconPencil, IconPlus, IconTrash, IconUsers } from './Icons.jsx';
 import Modal from './Modal.jsx';
+import { Row } from './PageParts.jsx';
 
 function emptyForm() {
   return { name: '', anschrift: '', email: '', notiz: '' };
@@ -66,46 +69,55 @@ export default function KontakteModal({ gewerbeId, onClose, onChanged }) {
   }
 
   return (
-    <Modal title="Kontakte" onClose={onClose} maxWidth="max-w-2xl">
+    <Modal
+      title="Kontakte"
+      subtitle={'Füllt sich automatisch: Jede erstellte Rechnung merkt sich ihren Empfänger. In Rechnung und Abo dann einfach „Aus Kontakten übernehmen“.'}
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+    >
       <div className="space-y-4">
-        <p className="text-sm text-ink/60">
-          Füllt sich automatisch: Jede erstellte Rechnung merkt sich ihren Empfänger. In
-          Rechnung und Abo dann einfach „Aus Kontakten übernehmen".
-        </p>
-
-        {items.length === 0 ? (
-          <div className="card p-8 text-center text-ink/60 text-sm">
-            Noch keine Kontakte — sie entstehen mit deiner ersten Rechnung.
-          </div>
-        ) : (
-          <ul className="divide-y divide-ink/5 rounded-lg border border-ink/10">
-            {items.map((k) => (
-              <li key={k.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
-                <div className="min-w-0 text-sm">
-                  <div className="font-bold truncate">{k.name}</div>
-                  <div className="text-xs text-ink/60 truncate">
+        <div className="border-t border-ink/[0.08]">
+          {items.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink/60">
+              Noch keine Kontakte — sie entstehen mit deiner ersten Rechnung.
+            </p>
+          ) : (
+            items.map((k) => (
+              <Row
+                key={k.id}
+                icon={IconUsers}
+                title={k.name}
+                sub={
+                  <span className="truncate">
                     {[k.email, (k.anschrift || '').split('\n').join(', ')].filter(Boolean).join(' · ') || '—'}
-                  </div>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <button className="btn-ghost btn-sm" onClick={() => setForm({
-                    id: k.id, name: k.name, anschrift: k.anschrift || '',
-                    email: k.email || '', notiz: k.notiz || '',
-                  })}>
-                    Bearbeiten
-                  </button>
-                  <button className="btn-ghost btn-sm text-red-700" onClick={() => remove(k)}>
-                    Löschen
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                  </span>
+                }
+                actions={
+                  <>
+                    <IconButton
+                      icon={IconPencil}
+                      label="Bearbeiten"
+                      onClick={() =>
+                        setForm({
+                          id: k.id,
+                          name: k.name,
+                          anschrift: k.anschrift || '',
+                          email: k.email || '',
+                          notiz: k.notiz || '',
+                        })
+                      }
+                    />
+                    <IconButton icon={IconTrash} variant="danger" label="Kontakt löschen" onClick={() => remove(k)} />
+                  </>
+                }
+              />
+            ))
+          )}
+        </div>
 
         {form ? (
-          <form onSubmit={save} className="rounded-lg border border-ink/10 p-3 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
+          <form onSubmit={save} className="space-y-3 rounded-xl bg-surface p-4">
+            <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
               <label className="block">
                 <span className="field-label">Name/Firma</span>
                 <input className="input" value={form.name} autoFocus
@@ -137,9 +149,15 @@ export default function KontakteModal({ gewerbeId, onClose, onChanged }) {
             </div>
           </form>
         ) : (
-          <button className="btn-outline btn-sm" onClick={() => setForm(emptyForm())}>
-            + Kontakt manuell anlegen
-          </button>
+          <DialogFuss links={
+            <button className="btn-ghost btn-sm" onClick={() => setForm(emptyForm())}>
+              <IconPlus className="mr-1 h-3.5 w-3.5" /> Kontakt manuell anlegen
+            </button>
+          }>
+            <button className="btn-primary" onClick={onClose}>
+              Fertig
+            </button>
+          </DialogFuss>
         )}
       </div>
     </Modal>

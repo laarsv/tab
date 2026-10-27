@@ -161,7 +161,9 @@ der Mapping-Version des Jahres aufgelöst.
   `Fortschritt`, `Leer`, `KeinGewerbe`), `.page-title`, `.card` ist flach. Zustände sind Wörter in
   Zustandsfarbe in der Zustandszeile (`Zustand`), keine Chips; Aktionen Icon-Knöpfe, Text nur bei
   der einen Hauptaktion oder wenn das Icon mehrdeutig ist (z. B. „+ Einnahme buchen" im
-  Jahres-Check). Neue Seiten/Listen nur noch mit diesen Bausteinen bauen.
+  Jahres-Check). Neue Seiten/Listen nur noch mit diesen Bausteinen bauen. **Dialoge:** `Modal`
+  (Titel 26/900, `subtitle`, Kreuz) + `components/DialogParts.jsx` (`SchalterZeile` statt Häkchen,
+  `DialogFuss`, `Gruppe`, `PositionenEditor`) — keine nativen Checkboxen und keine Rahmen-Kästen mehr.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.

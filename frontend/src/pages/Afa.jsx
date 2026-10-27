@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from '../components/Dropdown.jsx';
 import { IconButton, IconPencil, IconPlus, IconTrash, IconTrendDown } from '../components/Icons.jsx';
+import { DialogFuss, SchalterZeile } from '../components/DialogParts.jsx';
 import Modal from '../components/Modal.jsx';
 import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -270,15 +271,12 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
           </div>
         )}
 
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="rounded border-ink/30 text-royal focus:ring-royal"
-            checked={editing.sofort}
-            onChange={(e) => setEditing({ ...editing, sofort: e.target.checked })}
-          />
-          <span>Sofortabzug (Nutzungsdauer 1 Jahr) — Computer-Hardware / Software</span>
-        </label>
+        <SchalterZeile
+          titel="Sofortabzug (Nutzungsdauer 1 Jahr)"
+          hinweis="Für Computer-Hardware und Software."
+          checked={editing.sofort}
+          onChange={(an) => setEditing({ ...editing, sofort: an })}
+        />
 
         {!editing.sofort && (
           <label className="block">
@@ -297,18 +295,14 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
           </label>
         )}
 
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="rounded border-ink/30 text-royal focus:ring-royal"
-              checked={editing.abgang}
-              onChange={(e) => setEditing({ ...editing, abgang: e.target.checked })}
-            />
-            <span>Abgang (Verkauf / Entnahme / Verschrottung)</span>
-          </label>
+        <div>
+          <SchalterZeile
+            titel="Abgang (Verkauf / Entnahme / Verschrottung)"
+            checked={editing.abgang}
+            onChange={(an) => setEditing({ ...editing, abgang: an })}
+          />
           {editing.abgang && (
-            <>
+            <div className="mt-3 space-y-3">
               <label className="block">
                 <span className="field-label">Abgangsdatum</span>
                 <input
@@ -318,12 +312,12 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
                   onChange={(e) => setEditing({ ...editing, abgang_datum: e.target.value })}
                 />
               </label>
-              <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
-                Die AfA endet mit dem Abgangsmonat. Den Restbuchwert (wird in der Liste angezeigt)
-                als Buchung „Restbuchwert" (Zeile 38) erfassen, einen Verkaufserlös als
-                „Veräußerung Anlagevermögen" (Zeile 19).
-              </div>
-            </>
+              <Hinweis>
+                Die AfA endet mit dem Abgangsmonat. Den Restbuchwert (wird in der Liste angezeigt) als Buchung
+                „Restbuchwert" (Zeile 38) erfassen, einen Verkaufserlös als „Veräußerung Anlagevermögen"
+                (Zeile 19).
+              </Hinweis>
+            </div>
           )}
         </div>
 
@@ -336,14 +330,14 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
           />
         </label>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+        <DialogFuss>
           <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
             Abbrechen
           </button>
           <button type="submit" className="btn-primary" disabled={busy}>
             Speichern
           </button>
-        </div>
+        </DialogFuss>
       </form>
     </Modal>
   );

@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus } from '../components/Icons.jsx';
+import { DialogFuss, SchalterZeile } from '../components/DialogParts.jsx';
 import Modal from '../components/Modal.jsx';
 import { Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -201,35 +202,23 @@ export default function Gewerbe() {
               </label>
             </div>
 
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
-                checked={(editing.besteuerung || 'kleinunternehmer') === 'kleinunternehmer'}
-                onChange={(e) =>
-                  setEditing({
-                    ...editing,
-                    besteuerung: e.target.checked ? 'kleinunternehmer' : 'regelbesteuerung',
-                  })
-                }
-              />
-              <span>
-                <span className="font-bold">Kleinunternehmer §19 UStG</span>
-                <span className="block text-xs text-ink/60">
-                  Aktiv = alles brutto, EÜR-Export verfügbar. Deaktiviert (Regelbesteuerung) wird
-                  der Export noch nicht unterstützt.
-                </span>
-              </span>
-            </label>
+            <SchalterZeile
+              titel="Kleinunternehmer §19 UStG"
+              hinweis="An = alles brutto, EÜR-Export verfügbar. Aus (Regelbesteuerung) wird der Export noch nicht unterstützt."
+              checked={(editing.besteuerung || 'kleinunternehmer') === 'kleinunternehmer'}
+              onChange={(an) =>
+                setEditing({ ...editing, besteuerung: an ? 'kleinunternehmer' : 'regelbesteuerung' })
+              }
+            />
 
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <DialogFuss>
               <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
                 Abbrechen
               </button>
               <button type="submit" className="btn-primary">
                 Speichern
               </button>
-            </div>
+            </DialogFuss>
           </form>
         </Modal>
       )}

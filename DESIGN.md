@@ -119,5 +119,13 @@ das Web übertragen. **Ohne Welle** (die ist recap-Sprache, Lars 2026-10-27).
   positiv `#177245` für bezahlt/erledigt), Hinweise als Band (`Hinweis`: Info Royal-Tint, Warnung
   gelb, Fehler rot), Kennzahlen als flache Reihe mit Haarlinien (`Kennzahlen`). Der Export bietet
   seine Downloads als Zeilen mit Beschreibung und einem Icon-Knopf an, das Summenblatt als Zeilen
-  (Zeilennummer im Kreis). Die Einrichtung ist eine Liste aufklappbarer Zeilen. Dialoge (Gewerbe,
-  AfA, Rechnung, Abo, Mail) sind noch die alten Modals ohne den Recap-Zuschnitt.
+  (Zeilennummer im Kreis). Die Einrichtung ist eine Liste aufklappbarer Zeilen.
+- **Dialoge (2026-10-27):** `components/Modal.jsx` ist der Recap-Dialog: weiße Karte, Radius 16,
+  Titel 26/900 (−0,035 em) links mit leiser Zeile darunter (`subtitle`), rechts das Schließen-Kreuz
+  (Icon-Knopf, 44 px am Handy), `flush` für Dialoge, die sich selbst gestalten (Verbuchen-Fenster).
+  `components/DialogParts.jsx`: **`Schalter`/`SchalterZeile`** statt Häkchen (Royal an, Ink-Tint
+  aus; Zeile mit Haarlinie oben, Titel 15/700 + Erklärsatz 13), **`DialogFuss`** (Haarlinie, Aktionen
+  rechts, Nebenaktion links, am Handy gestapelt), **`Gruppe`** (Eyebrow + Inhalt),
+  **`PositionenEditor`** (Rechnung + Abo: je Position eine `surface`-Fläche statt Rahmen).
+  Info-Kästen sind `Hinweis`. Gewerbe, AfA, Rechnung, Senden, Abo, Mail, Kontakte (Zeilen mit
+  Icon-Knöpfen) und Neuigkeiten folgen dem; keine Chips, keine Kartenrahmen im Dialog.

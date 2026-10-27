@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
+import { DialogFuss, Gruppe, SchalterZeile } from './DialogParts.jsx';
 import Dropdown from './Dropdown.jsx';
+import { IconButton, IconCircleCheck, IconSend, IconTrash } from './Icons.jsx';
 import Modal from './Modal.jsx';
+import { Row } from './PageParts.jsx';
 
 const PROVIDER_OPTIONS = [
   { value: 'google', label: 'Google / Gmail (App-Passwort)' },
@@ -119,21 +122,38 @@ export default function MailSetupModal({ onClose }) {
   }
 
   return (
-    <Modal title="E-Mail-Versand & Beleg-Import" onClose={onClose} maxWidth="max-w-2xl">
-      <div className="space-y-4">
+    <Modal
+      title="E-Mail-Versand & Beleg-Import"
+      subtitle="Rechnungen von deiner eigenen Adresse senden und Belege per Mail einsammeln."
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+    >
+      <div className="space-y-5">
         {status?.konfiguriert && (
-          <div className="rounded-lg bg-royal-soft/15 p-3 text-sm text-ink/80 flex items-center justify-between gap-2">
-            <span>
-              ✓ Konto aktiv — Rechnungen gehen von <strong>{status.absender}</strong> raus.
-            </span>
-            <div className="flex gap-2 shrink-0">
-              <button className="btn-outline btn-sm" onClick={test} disabled={busy !== ''}>
-                {busy === 'test' ? 'Sendet…' : 'Test-Mail'}
-              </button>
-              <button className="btn-ghost btn-sm text-red-700" onClick={remove} disabled={busy !== ''}>
-                Entfernen
-              </button>
-            </div>
+          <div className="border-t border-ink/[0.08]">
+            <Row
+              kind="pos"
+              icon={IconCircleCheck}
+              title="Konto aktiv"
+              sub={<span>Rechnungen gehen von {status.absender} raus.</span>}
+              actions={
+                <>
+                  <IconButton
+                    icon={IconSend}
+                    label={busy === 'test' ? 'Sendet…' : 'Test-Mail an dich senden'}
+                    onClick={test}
+                    disabled={busy !== ''}
+                  />
+                  <IconButton
+                    icon={IconTrash}
+                    variant="danger"
+                    label="Mail-Konto entfernen"
+                    onClick={remove}
+                    disabled={busy !== ''}
+                  />
+                </>
+              }
+            />
           </div>
         )}
 
@@ -220,42 +240,37 @@ export default function MailSetupModal({ onClose }) {
               Wird verschlüsselt gespeichert und beim Speichern direkt am Mail-Server getestet.
             </span>
           </label>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <DialogFuss>
             <button type="button" className="btn-ghost" onClick={onClose}>
               Schließen
             </button>
             <button type="submit" className="btn-primary" disabled={busy !== ''}>
               {busy === 'save' ? 'Prüft…' : 'Speichern & prüfen'}
             </button>
-          </div>
+          </DialogFuss>
         </form>
 
-        <div className="pt-4 border-t border-ink/10 space-y-3">
-          <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
-            Beleg-Eingang per E-Mail
-          </div>
-          <p className="text-sm text-ink/70">
+        <Gruppe titel="Beleg-Eingang per E-Mail">
+          <p className="text-sm leading-snug text-ink/70">
             Belege einfach weiterleiten an{' '}
-            <code className="font-mono text-royal font-medium break-all">
-              {status?.import_ziel || '…'}
-            </code>{' '}
-            — Tab holt sie alle 10 Minuten ab und legt die Anhänge (PDF/JPG/PNG/XML) in den
-            Eingang. Importiert werden nur Mails von dir selbst bzw. freigeschalteten Absendern;
-            an deinem Postfach wird nichts verändert.
+            <code className="font-mono font-medium text-royal break-all">{status?.import_ziel || '…'}</code> — Tab
+            holt sie alle 10 Minuten ab und legt die Anhänge (PDF/JPG/PNG/XML) in den Eingang. Importiert werden nur
+            Mails von dir selbst bzw. freigeschalteten Absendern; an deinem Postfach wird nichts verändert.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="rounded border-ink/30 text-royal focus:ring-royal"
-                checked={Boolean(status?.import_aktiv)}
-                disabled={!status?.konfiguriert || busy !== ''}
-                onChange={(e) => saveImport(e.target.checked, status?.import_gewerbe_id)}
-              />
-              <span className="font-bold">Mail-Import aktiv</span>
-            </label>
+          <div>
+            <SchalterZeile
+              titel="Mail-Import aktiv"
+              hinweis={
+                status?.konfiguriert
+                  ? 'Abruf alle 10 Minuten.'
+                  : 'Voraussetzung: Mail-Konto oben hinterlegen (der Abruf läuft über IMAP mit denselben Zugangsdaten).'
+              }
+              checked={Boolean(status?.import_aktiv)}
+              disabled={!status?.konfiguriert || busy !== ''}
+              onChange={(an) => saveImport(an, status?.import_gewerbe_id)}
+            />
             {status?.import_aktiv && gewerbe.length > 1 && (
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 pt-3 text-sm">
                 <span className="text-ink/60">in Gewerbe:</span>
                 <Dropdown
                   value={String(status?.import_gewerbe_id || gewerbe[0]?.id || '')}
@@ -266,13 +281,7 @@ export default function MailSetupModal({ onClose }) {
               </div>
             )}
           </div>
-          {!status?.konfiguriert && (
-            <p className="text-xs text-ink/50">
-              Voraussetzung: Mail-Konto oben hinterlegen (der Abruf läuft über IMAP mit
-              denselben Zugangsdaten).
-            </p>
-          )}
-        </div>
+        </Gruppe>
       </div>
     </Modal>
   );

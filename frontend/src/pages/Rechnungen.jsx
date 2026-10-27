@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import AboModal from '../components/AboModal.jsx';
 import KontakteModal from '../components/KontakteModal.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
+import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
   IconBan, IconBookIn, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil, IconPlay,
@@ -438,13 +439,6 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
     auto_senden: false,
   }));
 
-  function setPos(i, patch) {
-    setForm((f) => ({
-      ...f,
-      positionen: f.positionen.map((p, idx) => (idx === i ? { ...p, ...patch } : p)),
-    }));
-  }
-
   const total = useMemo(
     () =>
       form.positionen.reduce((s, p) => {
@@ -566,7 +560,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
   const jahrMismatch = form.datum && String(form.datum).slice(0, 4) !== String(jahr);
 
   return (
-    <Modal title={isEdit ? `Rechnung bearbeiten` : 'Neue Rechnung'} onClose={() => setEditing(null)} maxWidth="max-w-2xl">
+    <Modal title={isEdit ? 'Rechnung bearbeiten' : 'Neue Rechnung'} onClose={() => setEditing(null)} maxWidth="max-w-2xl">
       <form onSubmit={save} className="space-y-4">
         {kontakte.length > 0 && (
           <div className="block">
@@ -621,51 +615,18 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
           </label>
         </div>
         {jahrMismatch && !isEdit && (
-          <div className="rounded-lg bg-yellow-100 text-yellow-900 p-2.5 text-xs">
-            Das Datum liegt nicht im gewählten Jahr {jahr} — die Rechnung bekommt eine Nummer des
-            Jahres {String(form.datum).slice(0, 4)} und erscheint dort.
-          </div>
+          <Hinweis ton="warn" className="!py-2 text-xs">
+            Das Datum liegt nicht im gewählten Jahr {jahr} — die Rechnung bekommt eine Nummer des Jahres{' '}
+            {String(form.datum).slice(0, 4)} und erscheint dort.
+          </Hinweis>
         )}
 
-        <div className="space-y-2">
-          <span className="field-label mb-0">Positionen</span>
-          {form.positionen.map((p, i) => (
-            <div key={i} className="rounded-lg border border-ink/10 p-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <input className="input flex-1" value={p.beschreibung} placeholder="Leistung, z. B. Beratung März 2026"
-                  onChange={(e) => setPos(i, { beschreibung: e.target.value })} />
-                {form.positionen.length > 1 && (
-                  <button type="button" className="p-2 rounded-md hover:bg-ink/5 text-ink/50 shrink-0"
-                    onClick={() => setForm((f) => ({ ...f, positionen: f.positionen.filter((_, idx) => idx !== i) }))}
-                    aria-label="Position entfernen">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="field-label">Menge</span>
-                  <input className="input tabular-nums" inputMode="decimal" value={p.menge}
-                    onChange={(e) => setPos(i, { menge: e.target.value })} />
-                </label>
-                <label className="block">
-                  <span className="field-label">Einzelpreis (€)</span>
-                  <input className="input tabular-nums" inputMode="decimal" value={p.preisInput} placeholder="0,00"
-                    onChange={(e) => setPos(i, { preisInput: e.target.value })} />
-                </label>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center justify-between">
-            <button type="button" className="btn-ghost btn-sm"
-              onClick={() => setForm((f) => ({ ...f, positionen: [...f.positionen, emptyRPos()] }))}>
-              + Position
-            </button>
-            <span className="text-sm text-ink/60 tabular-nums">Summe {formatEuro(total)}</span>
-          </div>
-        </div>
+        <PositionenEditor
+          positionen={form.positionen}
+          onChange={(positionen) => setForm((f) => ({ ...f, positionen }))}
+          summeCent={total}
+          platzhalter="Leistung, z. B. Beratung März 2026"
+        />
 
         <div className="block">
           <span className="field-label">Steuer-Hinweis (warum keine USt)</span>
@@ -684,23 +645,15 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
         </label>
 
         {!isEdit && (
-          <div className="rounded-lg border border-ink/10 p-3 space-y-2">
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
-                checked={form.wiederholen}
-                onChange={(e) => setForm({ ...form, wiederholen: e.target.checked })}
-              />
-              <span>
-                <span className="font-bold">Rechnung wiederholt sich</span>
-                <span className="block text-xs text-ink/60">
-                  Diese Rechnung ist die erste — Tab erstellt die folgenden automatisch als Abo.
-                </span>
-              </span>
-            </label>
+          <div>
+            <SchalterZeile
+              titel="Rechnung wiederholt sich"
+              hinweis="Diese Rechnung ist die erste — Tab erstellt die folgenden automatisch als Abo."
+              checked={form.wiederholen}
+              onChange={(an) => setForm({ ...form, wiederholen: an })}
+            />
             {form.wiederholen && (
-              <div className="pl-6 space-y-2">
+              <div className="space-y-1 pt-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <Dropdown
                     value={form.intervall}
@@ -708,53 +661,47 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
                     options={Object.entries(INTERVALL_LABELS).map(([value, label]) => ({ value, label }))}
                     variant="ghost"
                   />
-                  <span className="text-xs text-ink/60 tabular-nums">
+                  <span className="text-[13px] tabular-nums text-ink/60">
                     nächste Rechnung am {formatDateDE(naechsterTermin(form.datum, form.intervall))}
                   </span>
                 </div>
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
-                    checked={form.auto_senden}
-                    onChange={(e) => setForm({ ...form, auto_senden: e.target.checked })}
-                  />
-                  <span>
-                    <span className="font-bold">Folge-Rechnungen automatisch senden</span>
-                    <span className="block text-xs text-ink/60">
-                      Sonst entstehen sie als Entwurf. Braucht die Empfänger-E-Mail oben
-                      {!mailKonfiguriert && ' und dein Mail-Konto (Profil-Menü → E-Mail-Versand)'}.
-                      Tipp: {'{monat}'} in der Positions-Beschreibung wird zum Abrechnungsmonat.
-                    </span>
-                  </span>
-                </label>
+                <SchalterZeile
+                  titel="Folge-Rechnungen automatisch senden"
+                  hinweis={`Sonst entstehen sie als Entwurf. Braucht die Empfänger-E-Mail oben${!mailKonfiguriert ? ' und dein Mail-Konto (Profilzeile → E-Mail-Versand)' : ''}. Tipp: {monat} in der Positions-Beschreibung wird zum Abrechnungsmonat.`}
+                  checked={form.auto_senden}
+                  onChange={(an) => setForm({ ...form, auto_senden: an })}
+                />
               </div>
             )}
           </div>
         )}
 
-        <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/70">
-          Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen
-          automatisch aufs PDF — das zugleich eine <strong>E-Rechnung</strong> ist
-          (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden bei „Als Einnahme buchen"
-          der Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
-        </div>
+        <Hinweis className="text-xs">
+          Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen automatisch aufs PDF —
+          das zugleich eine <strong>E-Rechnung</strong> ist (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden
+          bei „Als Einnahme buchen" der Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
+        </Hinweis>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
-          <button
-            type="button"
-            className="btn-outline"
-            onClick={vorschau}
-            disabled={busy}
-            title="PDF aus den aktuellen Eingaben ansehen — speichert nichts, verbraucht keine Nummer"
-          >
-            Vorschau (PDF)
+        <DialogFuss
+          links={
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={vorschau}
+              disabled={busy}
+              title="PDF aus den aktuellen Eingaben ansehen — speichert nichts, verbraucht keine Nummer"
+            >
+              Vorschau (PDF)
+            </button>
+          }
+        >
+          <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
+            Abbrechen
           </button>
-          <div className="flex flex-col-reverse sm:flex-row gap-2">
-            <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>Abbrechen</button>
-            <button type="submit" className="btn-primary" disabled={busy}>Speichern</button>
-          </div>
-        </div>
+          <button type="submit" className="btn-primary" disabled={busy}>
+            Speichern
+          </button>
+        </DialogFuss>
       </form>
     </Modal>
   );
@@ -799,16 +746,18 @@ function SendenModal({ rechnung, user, onClose, onSent }) {
           <span className="field-label">Nachricht</span>
           <textarea className="input min-h-[140px]" value={text} onChange={(e) => setText(e.target.value)} />
         </label>
-        <div className="text-xs text-ink/60">
-          PDF (E-Rechnung, ZUGFeRD) hängt automatisch an · Absender: {user?.email} (landet in
-          deinem „Gesendet"-Ordner)
-        </div>
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>Abbrechen</button>
+        <p className="text-[13px] leading-snug text-ink/60">
+          PDF (E-Rechnung, ZUGFeRD) hängt automatisch an · Absender: {user?.email} (landet in deinem
+          „Gesendet"-Ordner)
+        </p>
+        <DialogFuss>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Abbrechen
+          </button>
           <button type="submit" className="btn-primary" disabled={busy}>
             {busy ? 'Sendet…' : 'Senden'}
           </button>
-        </div>
+        </DialogFuss>
       </form>
     </Modal>
   );

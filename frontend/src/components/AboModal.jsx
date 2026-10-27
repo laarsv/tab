@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
+import { DialogFuss, PositionenEditor, SchalterZeile } from './DialogParts.jsx';
 import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
+import { Hinweis } from './PageParts.jsx';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput } from '../lib/format.js';
 import { naechsterTermin } from '../lib/intervall.js';
 
@@ -57,13 +59,6 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
       : [emptyPos()],
   }));
   const [busy, setBusy] = useState(false);
-
-  function setPos(i, patch) {
-    setForm((f) => ({
-      ...f,
-      positionen: f.positionen.map((p, idx) => (idx === i ? { ...p, ...patch } : p)),
-    }));
-  }
 
   const total = useMemo(
     () =>
@@ -128,12 +123,11 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
     >
       <form onSubmit={save} className="space-y-4">
         {prefill && !isEdit && (
-          <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
-            <strong>Wichtig:</strong> Das Abo erstellt zum Stichtag jeweils eine <strong>neue</strong>{' '}
-            Rechnung — die bestehende Rechnung ({formatDateDE(prefill.datum)}) wird dadurch nicht
-            versendet, sie deckt den aktuellen Zeitraum ab. Der Start ist deshalb eine Periode
-            später vorbelegt.
-          </div>
+          <Hinweis className="text-xs">
+            <strong>Wichtig:</strong> Das Abo erstellt zum Stichtag jeweils eine <strong>neue</strong> Rechnung — die
+            bestehende Rechnung ({formatDateDE(prefill.datum)}) wird dadurch nicht versendet, sie deckt den aktuellen
+            Zeitraum ab. Der Start ist deshalb eine Periode später vorbelegt.
+          </Hinweis>
         )}
         {kontakte.length > 0 && (
           <div className="block">
@@ -187,51 +181,17 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
           </label>
         </div>
 
-        <div className="space-y-2">
-          <span className="field-label mb-0">Positionen</span>
-          {form.positionen.map((p, i) => (
-            <div key={i} className="rounded-lg border border-ink/10 p-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <input className="input flex-1" value={p.beschreibung}
-                  placeholder="z. B. Betreuung {monat}"
-                  onChange={(e) => setPos(i, { beschreibung: e.target.value })} />
-                {form.positionen.length > 1 && (
-                  <button type="button" className="p-2 rounded-md hover:bg-ink/5 text-ink/50 shrink-0"
-                    onClick={() => setForm((f) => ({ ...f, positionen: f.positionen.filter((_, idx) => idx !== i) }))}
-                    aria-label="Position entfernen">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="field-label">Menge</span>
-                  <input className="input tabular-nums" inputMode="decimal" value={p.menge}
-                    onChange={(e) => setPos(i, { menge: e.target.value })} />
-                </label>
-                <label className="block">
-                  <span className="field-label">Einzelpreis (€)</span>
-                  <input className="input tabular-nums" inputMode="decimal" value={p.preisInput} placeholder="0,00"
-                    onChange={(e) => setPos(i, { preisInput: e.target.value })} />
-                </label>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center justify-between">
-            <button type="button" className="btn-ghost btn-sm"
-              onClick={() => setForm((f) => ({ ...f, positionen: [...f.positionen, emptyPos()] }))}>
-              + Position
-            </button>
-            <span className="text-sm text-ink/60 tabular-nums">Summe {formatEuro(total)}</span>
-          </div>
-          <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/70">
-            Platzhalter <code>{'{monat}'}</code> wird durch den Abrechnungsmonat ersetzt
-            (z. B. „Betreuung 08/2026") — funktioniert in Positionen, Notiz, Betreff und Mail-Text.
-            Das Leistungsdatum setzt Tab automatisch auf den Abrechnungsmonat.
-          </div>
-        </div>
+        <PositionenEditor
+          positionen={form.positionen}
+          onChange={(positionen) => setForm((f) => ({ ...f, positionen }))}
+          summeCent={total}
+          platzhalter="z. B. Betreuung {monat}"
+        />
+        <Hinweis className="text-xs">
+          Platzhalter <code>{'{monat}'}</code> wird durch den Abrechnungsmonat ersetzt (z. B. „Betreuung 08/2026") —
+          funktioniert in Positionen, Notiz, Betreff und Mail-Text. Das Leistungsdatum setzt Tab automatisch auf den
+          Abrechnungsmonat.
+        </Hinweis>
 
         <div className="block">
           <span className="field-label">Steuer-Hinweis</span>
@@ -239,18 +199,12 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
             options={STEUERHINWEIS_OPTIONS} />
         </div>
 
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-0.5 rounded border-ink/30 text-royal focus:ring-royal"
-            checked={form.auto_senden}
-            onChange={(e) => setForm({ ...form, auto_senden: e.target.checked })} />
-          <span>
-            <span className="font-bold">Automatisch per E-Mail senden</span>
-            <span className="block text-xs text-ink/60">
-              Sonst wird die Rechnung nur als Entwurf angelegt und du klickst selbst auf Senden.
-              {!mailKonfiguriert && ' Achtung: Für dein Login ist noch kein App-Passwort hinterlegt (Profil-Menü → E-Mail-Versand) — bis dahin bleiben Rechnungen als Entwurf liegen.'}
-            </span>
-          </span>
-        </label>
+        <SchalterZeile
+          titel="Automatisch per E-Mail senden"
+          hinweis={`Sonst wird die Rechnung nur als Entwurf angelegt und du klickst selbst auf Senden.${!mailKonfiguriert ? ' Achtung: Für dein Login ist noch kein App-Passwort hinterlegt (Profilzeile → E-Mail-Versand) — bis dahin bleiben Rechnungen als Entwurf liegen.' : ''}`}
+          checked={form.auto_senden}
+          onChange={(an) => setForm({ ...form, auto_senden: an })}
+        />
 
         {form.auto_senden && (
           <div className="grid grid-cols-1 gap-y-2">
@@ -269,10 +223,14 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
           </div>
         )}
 
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>Abbrechen</button>
-          <button type="submit" className="btn-primary" disabled={busy}>Speichern</button>
-        </div>
+        <DialogFuss>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Abbrechen
+          </button>
+          <button type="submit" className="btn-primary" disabled={busy}>
+            Speichern
+          </button>
+        </DialogFuss>
       </form>
     </Modal>
   );
