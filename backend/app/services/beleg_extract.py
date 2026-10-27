@@ -48,6 +48,22 @@ KEYWORD_KATEGORIEN: list[tuple[str, str]] = [
     ("deutsche post", "buerobedarf"), ("dhl", "buerobedarf"),
 ]
 
+# Richtungs-Signale (Einnahme vs. Ausgabe) auf dem Belegtext: Stichwort -> Gewicht.
+# Eingang-Belege sind fast immer Ausgaben (Default); Einnahme muss überwiegen.
+EINNAHME_SIGNALE: list[tuple[str, int]] = [
+    ("provisionsabrechnung", 3), ("courtageabrechnung", 3), ("courtagenabrechnung", 3),
+    ("vergütungsabrechnung", 3), ("provisionsgutschrift", 3), ("gutschriftsanzeige", 3),
+    ("auszahlungsbeleg", 3), ("auszahlung", 2), ("zahlungsbericht", 3), ("finanzbericht", 3),
+    ("payout", 3), ("gutschrift", 2), ("courtage", 1), ("honorar", 1),
+]
+AUSGABE_SIGNALE: list[tuple[str, int]] = [
+    ("bescheid", 3), ("gebührenbescheid", 3), ("mahnung", 3), ("zahlungserinnerung", 3),
+    ("zahlbar bis", 3), ("zahlungsbedingungen", 3), ("bitte überweisen", 3),
+    ("überweisen sie", 3), ("fällig", 2), ("zu zahlen", 2),
+    ("lastschrift", 2), ("abbuchung", 2), ("bestellbestätigung", 2), ("kassenbon", 3),
+    ("kassenbeleg", 3), ("tankbeleg", 3), ("verwaltungsgebühr", 3), ("beitragsrechnung", 3),
+]
+
 MONATE = {
     "januar": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4, "mai": 5, "juni": 6,
     "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
@@ -248,12 +264,53 @@ def _felder_aus_text(text: str) -> dict:
     return {"betrag_cent": betrag, "datum": datum, "faellig_am": faellig, "lieferant": lieferant}
 
 
+# ── Richtung (Einnahme/Ausgabe) ───────────────────────────────────────────────
+
+def _eigene_namen(conn: sqlite3.Connection, gewerbe_id: int) -> list[str]:
+    """Namen des eigenen Gewerbes (Gewerbename + erste Zeile der Absender-Anschrift)."""
+    row = conn.execute(
+        "SELECT name, anschrift FROM gewerbe WHERE id = ?", (gewerbe_id,)
+    ).fetchone()
+    if row is None:
+        return []
+    namen = [row["name"] or ""]
+    if row["anschrift"]:
+        namen.append(row["anschrift"].splitlines()[0])
+    return [n.strip().lower() for n in namen if len(n.strip()) >= 4]
+
+
+def _richtung_score(conn: sqlite3.Connection, gewerbe_id: int, text: str,
+                    lieferant: str | None, exakt: bool = False) -> int:
+    """Positiv = spricht für Einnahme, negativ = für Ausgabe, 0 = keine Signale.
+
+    Ist der Aussteller der eigene Gewerbename, ist es eine eigene Ausgangsrechnung/
+    Einnahme. Bei E-Rechnungen (exakt) ist der Verkäufer verlässlich, bei OCR/PDF-Text
+    ist „erste Zeile = Lieferant" nur geraten (kann auch die Empfänger-Anschrift sein)
+    und zählt daher weniger — ein klares Ausgabe-Stichwort (Bescheid, Mahnung …) gewinnt.
+    Dazu Stichworte (Provisions-/Courtage-Abrechnung, Auszahlung, Gutschrift …)
+    gegen Ausgabe-Stichworte."""
+    lower = text.lower()
+    score = 0
+    absender = (lieferant or "").strip().lower()
+    if len(absender) >= 4 and any(
+        n in absender or absender in n for n in _eigene_namen(conn, gewerbe_id)
+    ):
+        score += 5 if exakt else 3
+    score += sum(w for kw, w in EINNAHME_SIGNALE if kw in lower)
+    score -= sum(w for kw, w in AUSGABE_SIGNALE if kw in lower)
+    return score
+
+
 # ── Kategorie-Vorschlag ───────────────────────────────────────────────────────
 
 def _kategorie_vorschlag(
-    conn: sqlite3.Connection, gewerbe_id: int, text: str, lieferant: str | None
+    conn: sqlite3.Connection, gewerbe_id: int, text: str, lieferant: str | None,
+    typ: str | None = None,
 ) -> int | None:
+    """typ ('einnahme'|'ausgabe') schränkt den Vorschlag auf die erkannte Richtung ein."""
     lower = text.lower()
+    typ_sql = " AND k.typ = ?" if typ else ""
+    typ_arg = (typ,) if typ else ()
     # 1) Lernend: frühere Buchung, deren Beschreibung den Lieferanten enthält.
     if lieferant:
         token = lieferant.lower().split()[0][:24] if lieferant.split() else ""
@@ -261,9 +318,10 @@ def _kategorie_vorschlag(
             row = conn.execute(
                 "SELECT p.kategorie_id FROM buchung b "
                 "JOIN buchung_position p ON p.buchung_id = b.id "
-                "WHERE b.gewerbe_id = ? AND lower(b.beschreibung) LIKE ? "
+                "JOIN kategorie k ON k.id = p.kategorie_id "
+                f"WHERE b.gewerbe_id = ? AND lower(b.beschreibung) LIKE ?{typ_sql} "
                 "ORDER BY b.datum DESC, b.id DESC LIMIT 1",
-                (gewerbe_id, f"%{token}%"),
+                (gewerbe_id, f"%{token}%", *typ_arg),
             ).fetchone()
             if row:
                 return row["kategorie_id"]
@@ -271,7 +329,8 @@ def _kategorie_vorschlag(
     for keyword, kat_key in KEYWORD_KATEGORIEN:
         if keyword in lower:
             row = conn.execute(
-                "SELECT id FROM kategorie WHERE key = ? AND aktiv = 1", (kat_key,)
+                f"SELECT k.id FROM kategorie k WHERE k.key = ? AND k.aktiv = 1{typ_sql}",
+                (kat_key, *typ_arg),
             ).fetchone()
             if row:
                 return row["id"]
@@ -284,7 +343,8 @@ def vorschlag_fuer_beleg(conn: sqlite3.Connection, beleg: sqlite3.Row, pfad: str
     ct = (beleg["content_type"] or "").lower()
     text = None
     ergebnis: dict = {"quelle": "keine", "betrag_cent": None, "datum": None,
-                      "faellig_am": None, "lieferant": None, "kategorie_id": None}
+                      "faellig_am": None, "lieferant": None, "kategorie_id": None,
+                      "richtung": "ausgabe", "richtung_erkannt": False}
 
     if ct in ("application/xml", "text/xml") or beleg["stored_name"].endswith(".xml"):
         with open(pfad, "rb") as fh:
@@ -309,7 +369,22 @@ def vorschlag_fuer_beleg(conn: sqlite3.Connection, beleg: sqlite3.Row, pfad: str
         ergebnis["quelle"] = quelle
 
     such_text = " ".join(filter(None, [text, ergebnis.get("lieferant"), beleg["original_name"]]))
+    lieferant = ergebnis.get("lieferant")
+
+    # Richtung: Textsignale entscheiden; ohne Signal (Score 0) bleibt Ausgabe der Default
+    # (Eingang-Belege sind meist Ausgaben), es sei denn eine gelernte Kategorie sagt anders.
+    score = _richtung_score(conn, beleg["gewerbe_id"], such_text, lieferant,
+                            exakt=ergebnis["quelle"] == "e-rechnung")
+    typ = ("einnahme" if score > 0 else "ausgabe") if score != 0 else None
     ergebnis["kategorie_id"] = _kategorie_vorschlag(
-        conn, beleg["gewerbe_id"], such_text, ergebnis.get("lieferant")
+        conn, beleg["gewerbe_id"], such_text, lieferant, typ=typ
     )
+    if typ:
+        ergebnis.update(richtung=typ, richtung_erkannt=True)
+    elif ergebnis["kategorie_id"]:
+        kat = conn.execute(
+            "SELECT typ FROM kategorie WHERE id = ?", (ergebnis["kategorie_id"],)
+        ).fetchone()
+        if kat:
+            ergebnis.update(richtung=kat["typ"], richtung_erkannt=True)
     return ergebnis

@@ -140,15 +140,28 @@ export default function BuchungModal({
   // Split-View: genau ein Eingangs-Beleg wird verbucht -> Dokument links, Felder rechts.
   const einBeleg = !isEdit && preBelege.length === 1 ? preBelege[0] : null;
   const katById = useMemo(() => Object.fromEntries(kategorien.map((k) => [String(k.id), k])), [kategorien]);
+  // Richtung der Buchung: 'ausgabe' | 'einnahme' | null (= gemischte Alt-Buchung, alle Kategorien).
+  // Start: bestehende Positionen > vorgewählte Kategorie (Jahres-Check, Rechnung) > Ausgabe.
+  // Bei einem Eingangs-Beleg setzt die Beleg-Erkennung (s. u.) die Richtung per OCR.
+  const [richtung, setRichtung] = useState(() => {
+    const typen = new Set(
+      (buchung?.positionen || [])
+        .map((p) => p.kategorie_typ || katById[String(p.kategorie_id)]?.typ)
+        .filter(Boolean),
+    );
+    if (typen.size === 1) return [...typen][0];
+    if (typen.size > 1) return null;
+    return katById[String(presetKategorieId)]?.typ || 'ausgabe';
+  });
   const options = useMemo(
     () =>
       kategorien
-        .filter((k) => !k.ist_afa)
+        .filter((k) => !k.ist_afa && (!richtung || k.typ === richtung))
         .map((k) => ({
           value: String(k.id),
           label: k.euer_zeile ? `${k.name} · Zeile ${k.euer_zeile}` : k.name,
         })),
-    [kategorien],
+    [kategorien, richtung],
   );
 
   const [datum, setDatum] = useState(buchung?.datum || todayISO());
@@ -178,12 +191,19 @@ export default function BuchungModal({
   useEffect(() => {
     if (isEdit || preBelege.length !== 1) return;
     let aktiv = true;
+    // Richtung nur übernehmen, wenn noch keine Kategorie gewählt ist (z. B. per Preset).
+    const richtungUebernehmen = (v) => {
+      if (v.richtung_erkannt && v.richtung && !positionen.some((p) => p.kategorie_id)) {
+        setRichtung(v.richtung);
+      }
+    };
     setLiestBeleg(true);
     api
       .get(`/api/belege/${preBelege[0].id}/vorschlag`)
       .then((res) => {
         if (!aktiv) return;
         const v = res.data;
+        richtungUebernehmen(v);
         if (v.quelle === 'keine' || v.quelle === 'ocr-fehlgeschlagen') {
           if (v.kategorie_id) {
             setPositionen((arr) =>
@@ -219,6 +239,16 @@ export default function BuchungModal({
 
   function setPos(i, patch) {
     setPositionen((arr) => arr.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  }
+  // Richtung wechseln: Kategorien der anderen Richtung werden zurückgesetzt (nicht mehr wählbar).
+  function wechsleRichtung(r) {
+    if (r === richtung) return;
+    setRichtung(r);
+    setPositionen((arr) =>
+      arr.map((p) =>
+        p.kategorie_id && katById[p.kategorie_id]?.typ !== r ? { ...p, kategorie_id: '', calc: {} } : p,
+      ),
+    );
   }
   function setCalcField(i, pos, calcDef, key, value) {
     const calc = { ...pos.calc, [key]: value };
@@ -322,6 +352,7 @@ export default function BuchungModal({
         {vorschlag && !liestBeleg && (() => {
           const erkannteKat = vorschlag.kategorie_id ? katById[String(vorschlag.kategorie_id)] : null;
           const chips = [
+            vorschlag.richtung_erkannt && (vorschlag.richtung === 'einnahme' ? 'Einnahme' : 'Ausgabe'),
             vorschlag.betrag_cent != null && formatEuro(vorschlag.betrag_cent),
             vorschlag.datum && formatDateDE(vorschlag.datum),
             vorschlag.lieferant,
@@ -353,6 +384,37 @@ export default function BuchungModal({
           </div>
         )}
 
+        <div>
+          <span className="field-label">Art der Buchung</span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div role="group" aria-label="Art der Buchung" className="inline-flex rounded-lg border border-ink/15 bg-paper p-0.5">
+              {[
+                ['ausgabe', 'Ausgabe'],
+                ['einnahme', 'Einnahme'],
+              ].map(([wert, label]) => (
+                <button
+                  key={wert}
+                  type="button"
+                  aria-pressed={richtung === wert}
+                  onClick={() => wechsleRichtung(wert)}
+                  className={
+                    richtung === wert
+                      ? 'px-4 py-2.5 sm:px-3 sm:py-1 text-sm font-medium rounded-md bg-royal text-paper'
+                      : 'px-4 py-2.5 sm:px-3 sm:py-1 text-sm font-medium rounded-md text-ink/70 hover:bg-ink/5'
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-ink/60">
+              {richtung === null
+                ? 'Gemischte Buchung — alle Kategorien wählbar.'
+                : `Es werden nur ${richtung === 'einnahme' ? 'Einnahme' : 'Ausgabe'}-Kategorien angezeigt.`}
+            </span>
+          </div>
+        </div>
+
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="field-label mb-0">Positionen</span>
@@ -377,7 +439,7 @@ export default function BuchungModal({
                       value={p.kategorie_id}
                       onChange={(v) => setPos(i, { kategorie_id: String(v), calc: {} })}
                       options={options}
-                      placeholder="Kategorie suchen…"
+                      placeholder={richtung ? `${richtung === 'einnahme' ? 'Einnahme' : 'Ausgabe'}-Kategorie suchen…` : 'Kategorie suchen…'}
                       searchable
                     />
                   </div>

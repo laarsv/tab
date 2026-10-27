@@ -220,7 +220,8 @@ def beleg_vorschlag(
     except Exception:
         # Erkennung darf nie das Verbuchen blockieren.
         return {"quelle": "keine", "betrag_cent": None, "datum": None,
-                "faellig_am": None, "lieferant": None, "kategorie_id": None}
+                "faellig_am": None, "lieferant": None, "kategorie_id": None,
+                "richtung": "ausgabe", "richtung_erkannt": False}
 
 
 @router.get("/belege/{beleg_id}/download")

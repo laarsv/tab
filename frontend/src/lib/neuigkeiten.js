@@ -4,6 +4,12 @@
 
 export const NEUIGKEITEN = [
   {
+    id: 17,
+    datum: '2026-10-27',
+    titel: 'Einnahme oder Ausgabe — erkennt Tab selbst',
+    text: 'Beim Verbuchen eines Belegs liest Tab jetzt auch heraus, ob es eine Einnahme oder eine Ausgabe ist, und zeigt dann nur die passenden Kategorien. Lag die Erkennung daneben, schaltest du oben im Fenster mit einem Klick um.',
+  },
+  {
     id: 16,
     datum: '2026-07-22',
     titel: 'Anmelden auch ohne Google',
