@@ -203,6 +203,12 @@ der Mapping-Version des Jahres aufgelöst.
   in der Beschreibung), dann `KEYWORD_KATEGORIEN`. **Immer nur Vorschlag** —
   BuchungModal befüllt beim Verbuchen leere Felder vor und zeigt einen Prüf-Hinweis;
   der Endpoint darf das Verbuchen nie blockieren (Fehler → leerer Vorschlag).
+  **Richtung (Einnahme/Ausgabe):** der Vorschlag liefert `richtung` + `richtung_erkannt`
+  (Score aus `EINNAHME_SIGNALE`/`AUSGABE_SIGNALE`, eigener Gewerbename als Aussteller,
+  sonst gelernte Kategorie; ohne Signal Default Ausgabe). BuchungModal hat dafür den
+  Ausgabe/Einnahme-Umschalter und zeigt nur Kategorien dieser Richtung (`kategorie.typ`);
+  Alt-Buchungen mit gemischten Positionen = alle Kategorien. Wechsel setzt nicht
+  passende Kategorien zurück.
   XML-Upload übernimmt die Fälligkeit automatisch in `beleg.faellig_am`.
 - **Beleg-Zugänge außer Upload:** (1) **Mail-Import** (`services/mail_import.py`,
   Scheduler alle 10 min): holt per IMAP (imap.gmail.com, gleiches App-Passwort)
