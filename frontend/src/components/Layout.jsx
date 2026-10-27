@@ -1,121 +1,34 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
-import Dropdown from './Dropdown.jsx';
 import MailSetupModal from './MailSetupModal.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
-import Wordmark, { SignaturLockup } from './Wordmark.jsx';
+import Sidebar from './Sidebar.jsx';
+import Wordmark from './Wordmark.jsx';
+import { IconChecklist, IconInbox, IconList, IconMenu, IconReceipt, IconX } from './Icons.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
 import { syncGelesen, ungelesene } from '../lib/neuigkeiten.js';
+import { ACCEPT } from '../lib/belege.js';
+import { todayISO } from '../lib/format.js';
 
-function NavBadge({ n }) {
-  return (
-    <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-royal text-paper text-[11px] font-black tabular-nums">
-      {n}
-    </span>
-  );
-}
-
-const NAV = [
-  { to: '/buchungen', label: 'Buchungen' },
-  { to: '/rechnungen', label: 'Rechnungen' },
-  { to: '/check', label: 'Jahres-Check' },
-  { to: '/afa', label: 'Abschreibungen' },
+// Tab-Leiste am Handy (unter lg): die drei Hauptziele + „Mehr“ öffnet die Schublade.
+const TABS = [
+  { to: '/buchungen', label: 'Buchungen', icon: IconList },
+  { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt },
+  { to: '/check', label: 'Check', icon: IconChecklist, badge: 'check' },
 ];
-
-// Einträge hinter der Profil-Bubble (Desktop) bzw. unten im Drawer (mobil).
-const PROFIL_NAV = [
-  { to: '/export', label: 'Export' },
-  { to: '/gewerbe', label: 'Gewerbe' },
-  { to: '/einrichtung', label: 'Einrichtung & Hilfe' },
-];
-
-function initialen(user) {
-  const name = (user?.name || user?.email || '?').trim();
-  const parts = name.split(/[\s.@_-]+/).filter(Boolean);
-  const chars = parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
-  return chars.toUpperCase();
-}
-
-function ProfilBubble({ user, onLogout, onMail, onNews }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    function onDoc(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Profil-Menü"
-        className="h-9 w-9 rounded-full bg-royal text-paper font-black text-sm inline-flex items-center justify-center hover:opacity-90 focus:ring-2 focus:ring-royal/40 outline-none"
-        title={user?.name || user?.email}
-      >
-        {initialen(user)}
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-2 w-56 rounded-lg border border-ink/10 bg-paper shadow-lg py-1 z-50"
-        >
-          <div className="px-4 py-2 border-b border-ink/10">
-            <div className="text-sm font-bold truncate">{user?.name || 'Angemeldet'}</div>
-            <div className="text-xs text-ink/50 truncate">{user?.email}</div>
-          </div>
-          {PROFIL_NAV.map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10"
-            >
-              {n.label}
-            </Link>
-          ))}
-          <button
-            onClick={() => {
-              setOpen(false);
-              onMail();
-            }}
-            className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10"
-          >
-            E-Mail-Versand
-          </button>
-          <button
-            onClick={() => {
-              setOpen(false);
-              onNews();
-            }}
-            className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10"
-          >
-            Neuigkeiten
-          </button>
-          <button
-            onClick={onLogout}
-            className="w-full text-left px-4 py-2 text-sm font-medium text-ink hover:bg-royal/10 border-t border-ink/10"
-          >
-            Abmelden
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [drawer, setDrawer] = useState(false);
+  const [eingang, setEingang] = useState({ offen: 0, ueberfaellig: 0 }); // Beleg-Eingang (Seitenleiste)
+  const [eingangTick, setEingangTick] = useState(0); // zählt hoch, wenn der Eingang von außen wächst
+  const [uploading, setUploading] = useState(false);
+  const uploadRef = useRef(null);
   const [mailModal, setMailModal] = useState(false);
   const [newsModal, setNewsModal] = useState(false);
 
@@ -168,18 +81,25 @@ export default function Layout() {
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Nav-Badge: offene Jahres-Check-Themen für Gewerbe + Jahr.
+  // Seitenleiste: offene Jahres-Check-Themen + Beleg-Eingang für Gewerbe + Jahr.
   const loadBadges = useCallback(async (gid, j) => {
     if (!gid) {
       setCheckOffen(0);
+      setEingang({ offen: 0, ueberfaellig: 0 });
       return;
     }
     try {
-      const [kat, buch] = await Promise.all([
+      const [kat, buch, bel] = await Promise.all([
         api.get('/api/kategorien', { params: { jahr: j } }),
         api.get('/api/buchungen', { params: { gewerbe_id: gid, jahr: j } }),
+        api.get('/api/belege', { params: { gewerbe_id: gid, status: 'offen' } }),
       ]);
       setCheckOffen(countOffeneTopics(kat.data, buch.data, loadCheckState(gid, j)));
+      const heute = todayISO();
+      setEingang({
+        offen: bel.data.length,
+        ueberfaellig: bel.data.filter((b) => b.faellig_am && b.faellig_am < heute).length,
+      });
     } catch {
       setCheckOffen(0);
     }
@@ -200,14 +120,26 @@ export default function Layout() {
     () => gewerbe.map((g) => ({ value: String(g.id), label: g.name })),
     [gewerbe],
   );
-  const jahrOptions = useMemo(
-    () =>
-      jahre.map((j) => ({
-        value: String(j.jahr),
-        label: j.vorlaeufig ? `${j.jahr} (vorläufig)` : String(j.jahr),
-      })),
-    [jahre],
-  );
+  // Belege in den Eingang hochladen (Seitenleiste und Buchungen-Seite teilen sich das).
+  async function uploadBelege(files) {
+    if (!files.length || !gewerbeId) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('gewerbe_id', gewerbeId);
+        await api.post('/api/belege', form);
+      }
+      toast.success(files.length > 1 ? `${files.length} Belege hochgeladen.` : 'Beleg hochgeladen.');
+    } catch (err) {
+      toast.error(apiError(err, 'Upload fehlgeschlagen.'));
+    } finally {
+      setUploading(false);
+      setEingangTick((t) => t + 1);
+      loadBadges(gewerbeId, jahr);
+    }
+  }
 
   const ctx = {
     gewerbeId,
@@ -218,179 +150,180 @@ export default function Layout() {
     reloadBadges: () => loadBadges(gewerbeId, jahr),
     setGewerbeId,
     openMailSetup: () => setMailModal(true),
+    uploadBelege,
+    uploading,
+    eingangTick,
   };
 
   function doLogout() {
     logout(); // POST /logout + Redirect nach /login übernimmt der AuthContext
   }
 
-  const linkBase = 'px-3 py-1.5 rounded-md text-sm font-bold transition';
+  // Schublade (mobil): ESC schließt, Seite scrollt nicht mit.
+  useEffect(() => {
+    if (!drawer) return undefined;
+    function onKey(e) {
+      if (e.key === 'Escape') setDrawer(false);
+    }
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [drawer]);
+
+  const jahrVorlaeufig = Boolean(jahre.find((j) => String(j.jahr) === String(jahr))?.vorlaeufig);
+
+  const sidebarProps = {
+    user,
+    gewerbeOptions,
+    gewerbeId,
+    onGewerbe: setGewerbeId,
+    // In der schmalen Seitenleiste nur die Zahl — „vorläufig" steht in der Profilzeile.
+    jahrOptions: jahre.map((j) => ({ value: String(j.jahr), label: String(j.jahr) })),
+    jahr,
+    onJahr: setJahr,
+    jahrVorlaeufig,
+    eingang,
+    checkOffen,
+    onNeueBuchung: () => {
+      setDrawer(false);
+      navigate(`/buchungen?neu=${Date.now()}`);
+    },
+    onUpload: () => uploadRef.current?.click(),
+    onAbarbeiten: () => {
+      setDrawer(false);
+      navigate(`/buchungen?abarbeiten=${Date.now()}`);
+    },
+    onMail: () => setMailModal(true),
+    onNews: () => setNewsModal(true),
+    onLogout: doLogout,
+    onNavigate: () => setDrawer(false),
+  };
 
   return (
-    <div className="min-h-full flex flex-col">
-      <header className="bg-paper border-b border-royal-soft/30 sticky top-0 z-30">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center min-w-0">
-            <SignaturLockup />
-            <span className="ml-3 sm:ml-4 text-sm sm:text-base font-light text-ink/60 truncate hidden lg:inline">
-              EÜR-Buchhaltung
-            </span>
-          </div>
+    <div className="min-h-full lg:pl-[262px]">
+      <input
+        ref={uploadRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          uploadBelege(Array.from(e.target.files || []));
+          e.target.value = '';
+        }}
+      />
 
-          <div className="flex items-center gap-2">
-            <nav className="hidden md:flex items-center gap-2">
-              {NAV.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  className={({ isActive }) =>
-                    `${linkBase} inline-flex items-center ${isActive ? 'text-royal' : 'text-ink/70 hover:text-ink'}`
-                  }
-                >
-                  {n.label}
-                  {n.to === '/check' && checkOffen > 0 && <NavBadge n={checkOffen} />}
-                </NavLink>
-              ))}
-            </nav>
+      {/* Desktop: Royal-Seitenleiste fest links */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[262px] lg:block">
+        <Sidebar {...sidebarProps} />
+      </aside>
 
-            <div className="hidden md:block">
-              <ProfilBubble
-                user={user}
-                onLogout={doLogout}
-                onMail={() => setMailModal(true)}
-                onNews={() => setNewsModal(true)}
-              />
-            </div>
-
+      {/* Handy/Tablet: schmale Royal-Leiste oben */}
+      <header className="sticky top-0 z-30 bg-royal pt-[env(safe-area-inset-top)] text-paper lg:hidden">
+        <div className="flex h-14 items-center gap-2 px-4">
+          <Link to="/buchungen" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-paper/70">
+            <Wordmark onRoyal className="text-xl leading-none" />
+          </Link>
+          <div className="flex-1" />
+          {eingang.offen > 0 && (
             <button
-              className="md:hidden p-2 -mr-2 rounded-md hover:bg-royal/10 text-ink/80"
-              onClick={() => setDrawer(true)}
-              aria-label="Menü öffnen"
+              type="button"
+              onClick={sidebarProps.onAbarbeiten}
+              title="Beleg-Eingang abarbeiten"
+              aria-label={`Beleg-Eingang abarbeiten, ${eingang.offen} offen`}
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-paper/[0.18] outline-none hover:bg-paper/25 focus-visible:ring-2 focus-visible:ring-paper/70"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
-                <path d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <IconInbox className="h-[22px] w-[22px]" />
+              <span className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-paper px-1.5 text-xs font-bold tabular-nums text-royal">
+                {eingang.offen}
+              </span>
             </button>
-          </div>
-        </div>
-
-        {/* Globale Filter: Gewerbe + Jahr — Ghost-Inline-Werte (DESIGN.shared.md §5.8) */}
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 pb-3 flex flex-wrap items-center gap-2">
-          <Dropdown
-            value={gewerbeId}
-            onChange={(v) => setGewerbeId(String(v))}
-            options={gewerbeOptions}
-            placeholder="Kein Gewerbe — zuerst anlegen"
-            variant="ghost"
-          />
-          <Dropdown
-            value={jahr}
-            onChange={(v) => setJahr(String(v))}
-            options={jahrOptions}
-            variant="ghost"
-          />
+          )}
+          <button
+            type="button"
+            onClick={() => setDrawer(true)}
+            aria-label="Menü öffnen"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl outline-none hover:bg-paper/10 focus-visible:ring-2 focus-visible:ring-paper/70"
+          >
+            <IconMenu className="h-6 w-6" />
+          </button>
         </div>
       </header>
 
+      {/* Schublade: dieselbe Seitenleiste von links */}
       {drawer && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 md:hidden">
+        <div role="dialog" aria-modal="true" aria-label="Menü" className="fixed inset-0 z-50 lg:hidden">
           <button
             className="absolute inset-0 bg-ink/60 backdrop-blur-sm"
             onClick={() => setDrawer(false)}
             aria-label="Menü schließen"
           />
-          <aside className="absolute top-0 right-0 h-full w-[85%] max-w-xs bg-paper shadow-xl flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10">
-              <span className="font-black">Menü</span>
-              <button onClick={() => setDrawer(false)} className="p-2 rounded-md hover:bg-royal/10" aria-label="Schließen">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              </button>
-            </div>
-            <nav className="flex-1 overflow-y-auto py-2">
-              {NAV.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  onClick={() => setDrawer(false)}
-                  className={({ isActive }) =>
-                    `flex items-center justify-between px-4 py-3 text-sm font-bold transition ${
-                      isActive ? 'text-royal bg-royal-soft/10' : 'text-ink hover:bg-royal/10'
-                    }`
-                  }
-                >
-                  <span>{n.label}</span>
-                  {n.to === '/check' && checkOffen > 0 && <NavBadge n={checkOffen} />}
-                </NavLink>
-              ))}
-              <div className="my-2 border-t border-ink/10" />
-              {PROFIL_NAV.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  onClick={() => setDrawer(false)}
-                  className={({ isActive }) =>
-                    `flex items-center px-4 py-3 text-sm font-bold transition ${
-                      isActive ? 'text-royal bg-royal-soft/10' : 'text-ink hover:bg-royal/10'
-                    }`
-                  }
-                >
-                  {n.label}
-                </NavLink>
-              ))}
-              <button
-                onClick={() => {
-                  setDrawer(false);
-                  setMailModal(true);
-                }}
-                className="w-full text-left px-4 py-3 text-sm font-bold text-ink hover:bg-royal/10"
-              >
-                E-Mail-Versand
-              </button>
-              <button
-                onClick={() => {
-                  setDrawer(false);
-                  setNewsModal(true);
-                }}
-                className="w-full text-left px-4 py-3 text-sm font-bold text-ink hover:bg-royal/10"
-              >
-                Neuigkeiten
-              </button>
-            </nav>
-            <div className="border-t border-ink/10 p-2">
-              <div className="px-4 py-2 text-xs text-ink/50 truncate">{user?.email}</div>
-              <button
-                onClick={doLogout}
-                className="w-full text-left px-4 py-3 text-sm font-bold rounded-md text-ink hover:bg-royal/10"
-              >
-                Abmelden
-              </button>
-            </div>
-          </aside>
+          <div className="absolute inset-y-0 left-0 w-[88%] max-w-[320px] shadow-xl">
+            <Sidebar {...sidebarProps} />
+            <button
+              onClick={() => setDrawer(false)}
+              aria-label="Schließen"
+              className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-xl text-paper outline-none hover:bg-paper/10 focus-visible:ring-2 focus-visible:ring-paper/70"
+            >
+              <IconX className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       )}
 
       {mailModal && <MailSetupModal onClose={() => setMailModal(false)} />}
       {newsModal && <NeuigkeitenModal onClose={closeNews} />}
 
-      <main className="flex-1">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
+      <main className="px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:px-10 lg:pb-12 lg:pt-9">
+        <div className="mx-auto max-w-5xl">
           {loading ? <PageSpinner /> : <Outlet context={ctx} />}
+          <p className="mt-12 text-xs text-ink/60">
+            Tab ist die bessere Excel-Liste für die EÜR (§19 UStG) und keine Steuerberatung — im Zweifel prüfen
+            lassen.
+          </p>
         </div>
       </main>
 
-      <footer className="border-t border-ink/10">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 text-xs text-ink/50 flex flex-wrap items-center gap-x-1.5">
-          <a href="https://vrwb.de" target="_blank" rel="noreferrer" className="hover:opacity-80">
-            <Wordmark className="text-base" />
-          </a>
-          <span>
-            · die bessere Excel-Liste für die EÜR (§19 UStG) · keine Steuerberatung — im
-            Zweifel prüfen lassen · angemeldet als {user?.name || user?.email}
-          </span>
+      {/* Handy/Tablet: Tab-Leiste unten, 64 px hoch (44-px-Ziele) */}
+      <nav
+        aria-label="Hauptnavigation"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink/10 bg-paper pb-[env(safe-area-inset-bottom)] lg:hidden"
+      >
+        <div className="flex h-16">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <NavLink
+                key={t.to}
+                to={t.to}
+                className={({ isActive }) =>
+                  `relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] outline-none focus-visible:bg-royal/10
+                   ${isActive ? 'font-bold text-royal' : 'font-medium text-ink/60'}`
+                }
+              >
+                <Icon className="h-[22px] w-[22px]" />
+                {t.label}
+                {t.badge === 'check' && checkOffen > 0 && (
+                  <span className="absolute left-1/2 top-1.5 ml-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-royal px-1 text-[10px] font-bold tabular-nums text-paper">
+                    {checkOffen}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setDrawer(true)}
+            className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-ink/60 outline-none focus-visible:bg-royal/10"
+          >
+            <IconMenu className="h-[22px] w-[22px]" />
+            Mehr
+          </button>
         </div>
-      </footer>
+      </nav>
     </div>
   );
 }

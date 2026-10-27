@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 18,
+    datum: '2026-10-27',
+    titel: 'Neues Design mit Seitenleiste',
+    text: 'Tab hat jetzt eine Royal-Seitenleiste wie vrwb_recap: Navigation, Gewerbe, Jahr und dein Beleg-Eingang sind immer griffbereit, die Buchungen stehen als ruhige Zeilen da. Am Handy gibt es oben eine schmale Leiste, unten die Tabs und das Menü als Schublade.',
+  },
+  {
     id: 17,
     datum: '2026-10-27',
     titel: 'Einnahme oder Ausgabe — erkennt Tab selbst',

@@ -4,10 +4,27 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
-import { IconBookIn, IconButton, IconCopy, IconPencil, IconTrash } from '../components/Icons.jsx';
+import {
+  IconArrowIn,
+  IconArrowOut,
+  IconArrowRight,
+  IconBookIn,
+  IconButton,
+  IconChevronDown,
+  IconClock,
+  IconCode,
+  IconCopy,
+  IconFileText,
+  IconImage,
+  IconMove,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+  IconUpload,
+} from '../components/Icons.jsx';
+import { Leer, PageHeader, Row, SectionHead } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
-import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
-import { BelegTypBadge } from '../components/BelegVorschau.jsx';
+import { openBeleg, fileSize, belegTyp, ACCEPT } from '../lib/belege.js';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
 
 const MONATE = [
@@ -21,16 +38,62 @@ function herkunft(beschreibung) {
   return m ? { titel: m[2], nummer: m[1] } : { titel: beschreibung || '', nummer: null };
 }
 
+// ISO-Datum → „24.10." (das Jahr steht im Monatskopf).
+function kurz(iso) {
+  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
+}
+
 function NoGewerbe() {
+  return <Leer>Kein Gewerbe gewählt. Lege unter „Gewerbe" zuerst ein Gewerbe an.</Leer>;
+}
+
+const PUNKT = (
+  <span aria-hidden="true" className="text-ink/45">
+    ·
+  </span>
+);
+
+// Fälligkeit des Eingangs-Belegs: leise Zustandszeile, Klick öffnet das Datumsfeld.
+function FaelligZeile({ beleg, ueberfaellig, onChange }) {
+  const [edit, setEdit] = useState(false);
+  if (edit) {
+    return (
+      <input
+        type="date"
+        autoFocus
+        aria-label="Fällig am"
+        className="input !w-[148px] !py-0.5 !text-xs"
+        value={beleg.faellig_am || ''}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => setEdit(false)}
+      />
+    );
+  }
   return (
-    <div className="card p-12 text-center text-ink/60">
-      Kein Gewerbe gewählt. Lege oben links bzw. unter „Gewerbe" zuerst ein Gewerbe an.
-    </div>
+    <button
+      type="button"
+      onClick={() => setEdit(true)}
+      title="Fällig am (optional) — wann muss die Rechnung bezahlt sein?"
+      className={`inline-flex items-center gap-1 rounded hover:underline ${ueberfaellig ? 'font-bold text-red-700' : ''}`}
+    >
+      <IconClock className="h-3.5 w-3.5" />
+      {beleg.faellig_am
+        ? ueberfaellig
+          ? `Überfällig seit ${kurz(beleg.faellig_am)}`
+          : `fällig ${formatDateDE(beleg.faellig_am)}`
+        : 'Fälligkeit setzen'}
+    </button>
   );
 }
 
+function belegIcon(b) {
+  const typ = belegTyp(b);
+  return typ === 'bild' ? IconImage : typ === 'xml' ? IconCode : IconFileText;
+}
+
 export default function Buchungen() {
-  const { gewerbeId, jahr, gewerbe, reloadBadges } = useOutletContext();
+  const { gewerbeId, jahr, gewerbe, reloadBadges, uploadBelege, uploading, eingangTick } = useOutletContext();
+  const aktives = (gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   const andereGewerbe = (gewerbe || []).filter((g) => String(g.id) !== String(gewerbeId) && g.aktiv);
   const [kategorien, setKategorien] = useState([]);
   const [items, setItems] = useState([]);
@@ -44,7 +107,8 @@ export default function Buchungen() {
   const [filterKat, setFilterKat] = useState('');
   const [filterMonat, setFilterMonat] = useState('');
   const [importing, setImporting] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [wizardAngefordert, setWizardAngefordert] = useState(false);
+  const geladen = useRef(false); // Spinner nur beim ersten Laden — spätere Reloads lassen offene Fenster stehen
   const importRef = useRef(null);
   const uploadRef = useRef(null);
 
@@ -53,7 +117,7 @@ export default function Buchungen() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!geladen.current) setLoading(true);
     try {
       const [kat, buch, kenn, bel] = await Promise.all([
         api.get('/api/kategorien', { params: { jahr } }),
@@ -65,6 +129,7 @@ export default function Buchungen() {
       setItems(buch.data);
       setKennzahlen(kenn.data);
       setBelege(bel.data);
+      geladen.current = true;
       reloadBadges?.();
     } catch (e) {
       toast.error(apiError(e));
@@ -74,19 +139,47 @@ export default function Buchungen() {
   }
 
   useEffect(() => {
+    geladen.current = false;
     load();
   }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Rückmeldung nach PWA-Share (Redirect vom Service Worker mit ?geteilt=…)
+  // Der Eingang wuchs von außen (Hochladen über die Seitenleiste).
+  useEffect(() => {
+    if (eingangTick) load();
+  }, [eingangTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Aufrufe von außen per URL: ?geteilt=ok|fehler (PWA-Share, Service Worker),
+  // ?neu=… („Neue Buchung" in der Seitenleiste), ?abarbeiten=… („Jetzt abarbeiten").
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
+    let geaendert = false;
     const g = searchParams.get('geteilt');
-    if (!g) return;
-    if (g === 'ok') toast.success('Beleg(e) vom Handy in den Eingang übernommen.');
-    else toast.error('Teilen fehlgeschlagen — Beleg bitte manuell hochladen.');
-    searchParams.delete('geteilt');
-    setSearchParams(searchParams, { replace: true });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (g) {
+      if (g === 'ok') toast.success('Beleg(e) vom Handy in den Eingang übernommen.');
+      else toast.error('Teilen fehlgeschlagen — Beleg bitte manuell hochladen.');
+      searchParams.delete('geteilt');
+      geaendert = true;
+    }
+    if (searchParams.get('neu')) {
+      setModal({});
+      searchParams.delete('neu');
+      geaendert = true;
+    }
+    if (searchParams.get('abarbeiten')) {
+      setWizardAngefordert(true);
+      searchParams.delete('abarbeiten');
+      geaendert = true;
+    }
+    if (geaendert) setSearchParams(searchParams, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // „Jetzt abarbeiten" aus der Seitenleiste: Wizard starten, sobald die Belege geladen sind.
+  useEffect(() => {
+    if (!wizardAngefordert || loading) return;
+    setWizardAngefordert(false);
+    if (belege.length > 0) setWizard({ queue: belege, i: 0 });
+    else toast('Der Beleg-Eingang ist leer.');
+  }, [wizardAngefordert, loading, belege]);
 
   async function remove(id) {
     if (!window.confirm('Diese Buchung wirklich löschen? Angehängte Belege wandern zurück in den Eingang.'))
@@ -115,25 +208,11 @@ export default function Buchungen() {
   }
 
   // ── Beleg-Eingang (integriert) ─────────────────────────────────────────────
-  async function uploadBelege(e) {
+  // Hochladen steckt im Layout (Seitenleiste + diese Seite teilen es); danach lädt eingangTick neu.
+  async function onUploadChosen(e) {
     const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    setUploading(true);
-    try {
-      for (const file of files) {
-        const form = new FormData();
-        form.append('file', file);
-        form.append('gewerbe_id', gewerbeId);
-        await api.post('/api/belege', form);
-      }
-      toast.success(files.length > 1 ? `${files.length} Belege hochgeladen.` : 'Beleg hochgeladen.');
-      await load();
-    } catch (err) {
-      toast.error(apiError(err, 'Upload fehlgeschlagen.'));
-    } finally {
-      setUploading(false);
-      if (uploadRef.current) uploadRef.current.value = '';
-    }
+    if (files.length) await uploadBelege(files);
+    if (uploadRef.current) uploadRef.current.value = '';
   }
 
   async function removeBeleg(b) {
@@ -215,6 +294,17 @@ export default function Buchungen() {
     });
   }, [items, query, filterKat, filterMonat]);
 
+  // Nach Monat gruppieren (die Liste kommt neueste zuerst).
+  const gruppen = useMemo(() => {
+    const m = new Map();
+    for (const b of filtered) {
+      const k = b.datum.slice(0, 7);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(b);
+    }
+    return [...m.entries()];
+  }, [filtered]);
+
   const hasFilter = query.trim() || filterKat || filterMonat;
 
   const katOptions = useMemo(
@@ -235,138 +325,116 @@ export default function Buchungen() {
   if (!gewerbeId) return <NoGewerbe />;
   if (loading) return <PageSpinner />;
 
+  const heute = todayISO();
+  const besteuerung = aktives?.besteuerung === 'regelbesteuerung' ? 'Regelbesteuerung' : 'Kleinunternehmer';
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Buchungen {jahr}</h1>
-          <p className="text-xs text-ink/60 mt-0.5">
-            Eine Buchung = ein Beleg/Vorgang mit einer oder mehreren Positionen.
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            className="btn-outline btn-sm hidden sm:inline-flex"
-            onClick={() => importRef.current?.click()}
-            disabled={importing}
-            title="Semikolon-CSV: Datum;Betrag;Kategorie;Beschreibung;Beleg-Details — Datum TT.MM.JJJJ, Betrag 12,34, Kategorie als Name oder Key."
-          >
-            {importing ? 'Importiert…' : 'CSV-Import'}
-          </button>
-          <input ref={importRef} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
-          <button className="btn-primary" onClick={() => setModal({})}>
-            + Buchung
-          </button>
-        </div>
-      </div>
-
-      {/* Beleg-Eingang: sammeln, später verbuchen — integriert statt eigener Seite */}
-      <div className="card p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">Beleg-Eingang</div>
-            <div className="text-sm text-ink/70 mt-0.5">
-              {belege.length > 0 ? (
-                <>
-                  Noch {belege.length} {belege.length === 1 ? 'Beleg' : 'Belege'} zu verbuchen.
-                  {belege.filter((b) => b.faellig_am && b.faellig_am < todayISO()).length > 0 && (
-                    <span className="text-red-700 font-bold">
-                      {' '}
-                      {belege.filter((b) => b.faellig_am && b.faellig_am < todayISO()).length} überfällig!
-                    </span>
-                  )}
-                </>
-              ) : (
-                'Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen und später in Ruhe verbuchen.'
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {belege.length > 0 && (
-              <button className="btn-primary btn-sm" onClick={startWizard}>
-                Jetzt abarbeiten ({belege.length})
-              </button>
-            )}
-            <button className="btn-outline btn-sm" onClick={() => uploadRef.current?.click()} disabled={uploading}>
-              {uploading ? 'Lädt…' : '+ Belege hochladen'}
-            </button>
-          </div>
-          <input ref={uploadRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={uploadBelege} />
-        </div>
-        {belege.length > 0 && (
-          <div className="space-y-2">
-            {belege.map((b) => {
-              const ueberfaellig = b.faellig_am && b.faellig_am < todayISO();
-              return (
-                <div
-                  key={b.id}
-                  className={`rounded-lg border p-3 flex flex-wrap items-center gap-x-3 gap-y-2
-                    ${ueberfaellig ? 'border-red-300 bg-red-50/50' : 'border-ink/10 bg-paper'}`}
-                >
-                  <BelegTypBadge beleg={b} />
-                  <button
-                    type="button"
-                    onClick={() => openBeleg(b.id)}
-                    className="min-w-0 flex-1 text-left"
-                    title={`${b.original_name} — ansehen`}
-                  >
-                    <div className="font-medium text-royal hover:underline truncate">{b.original_name}</div>
-                    <div className="text-xs text-ink/50">
-                      {formatDateDE(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {ueberfaellig && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-900 text-[11px] font-bold">
-                        überfällig
-                      </span>
-                    )}
-                    <label className="flex items-center gap-1 text-xs text-ink/50" title="Fällig am (optional) — wann muss die Rechnung bezahlt sein?">
-                      <span className="hidden sm:inline">fällig</span>
-                      <input
-                        type="date"
-                        className={`input !w-[136px] !py-1 !text-xs ${ueberfaellig ? '!border-red-400' : ''}`}
-                        value={b.faellig_am || ''}
-                        onChange={(e) => setFaellig(b, e.target.value)}
-                      />
-                    </label>
-                    <IconButton icon={IconBookIn} variant="primary" label="Verbuchen" onClick={() => setVerbuchen(b)} />
-                    {andereGewerbe.length > 0 && (
-                      <Dropdown
-                        value=""
-                        placeholder="Verschieben…"
-                        options={andereGewerbe.map((g) => ({ value: String(g.id), label: `→ ${g.name}` }))}
-                        onChange={(v) => verschiebeBeleg(b, v)}
-                        variant="ghost"
-                      />
-                    )}
-                    <IconButton icon={IconTrash} variant="danger" label="Beleg löschen" onClick={() => removeBeleg(b)} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {kennzahlen && <KuGuard k={kennzahlen} />}
+    <div>
+      <PageHeader
+        title="Buchungen"
+        accent={jahr}
+        sub={`${aktives?.name || 'Gewerbe'} · ${besteuerung} · ${items.length} ${items.length === 1 ? 'Buchung' : 'Buchungen'}`}
+      >
+        <IconButton
+          icon={IconUpload}
+          label="CSV-Import"
+          title="CSV-Import — Semikolon-CSV: Datum;Betrag;Kategorie;Beschreibung;Beleg-Details; Datum TT.MM.JJJJ, Betrag 12,34, Kategorie als Name oder Key."
+          onClick={() => importRef.current?.click()}
+          disabled={importing}
+          className="hidden sm:inline-flex"
+        />
+        <input ref={importRef} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
+        <button className="btn-primary lg:hidden" onClick={() => setModal({})}>
+          <IconPlus className="mr-1 h-4 w-4" /> Buchung
+        </button>
+      </PageHeader>
 
       {kennzahlen && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Kennzahl label="Einnahmen" cent={kennzahlen.einnahmen_cent} />
+        <div className="mt-4">
+          <KuGuard k={kennzahlen} />
+        </div>
+      )}
+
+      {kennzahlen && (
+        <div className="mt-6 grid grid-cols-3 border-y border-ink/[0.08]">
+          <Kennzahl label="Einnahmen" cent={kennzahlen.einnahmen_cent} royal />
           <Kennzahl label="Ausgaben" cent={kennzahlen.ausgaben_cent} />
           <Kennzahl
-            label="Saldo (vor AfA & Abzugsquoten)"
+            label="Saldo"
             cent={kennzahlen.einnahmen_cent - kennzahlen.ausgaben_cent}
-            hint="Gewinn laut EÜR: siehe Export"
+            hint="vor AfA und Abzugsquoten"
           />
         </div>
+      )}
+
+      {/* Beleg-Eingang: sammeln, später verbuchen — integriert statt eigener Seite */}
+      <SectionHead label="Beleg-Eingang" count={belege.length}>
+        {belege.length > 0 && (
+          <button
+            type="button"
+            onClick={startWizard}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-bold text-royal outline-none hover:bg-royal/10 focus-visible:ring-2 focus-visible:ring-royal/40 sm:py-1"
+          >
+            <IconArrowRight className="h-4 w-4" /> Jetzt abarbeiten
+          </button>
+        )}
+        <IconButton
+          icon={IconUpload}
+          label="Belege hochladen"
+          onClick={() => uploadRef.current?.click()}
+          disabled={uploading}
+        />
+        <input ref={uploadRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={onUploadChosen} />
+      </SectionHead>
+      {belege.length === 0 ? (
+        <p className="border-b border-ink/[0.08] py-3 text-sm text-ink/60">
+          Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen und später in Ruhe verbuchen.
+        </p>
+      ) : (
+        belege.map((b) => {
+          const ueberfaellig = b.faellig_am && b.faellig_am < heute;
+          return (
+            <Row
+              key={b.id}
+              kind={ueberfaellig ? 'neg' : 'file'}
+              icon={belegIcon(b)}
+              title={b.original_name}
+              onTitleClick={() => openBeleg(b.id)}
+              titleHint={`${b.original_name} — ansehen`}
+              sub={
+                <>
+                  <span>
+                    Hochgeladen {kurz(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
+                  </span>
+                  {PUNKT}
+                  <FaelligZeile beleg={b} ueberfaellig={ueberfaellig} onChange={(d) => setFaellig(b, d)} />
+                </>
+              }
+              actions={
+                <>
+                  <IconButton icon={IconBookIn} variant="primary" label="Verbuchen" onClick={() => setVerbuchen(b)} />
+                  {andereGewerbe.length > 0 && (
+                    <Dropdown
+                      variant="icon"
+                      icon={IconMove}
+                      label="In ein anderes Gewerbe verschieben"
+                      value=""
+                      options={andereGewerbe.map((g) => ({ value: String(g.id), label: `→ ${g.name}` }))}
+                      onChange={(v) => verschiebeBeleg(b, v)}
+                    />
+                  )}
+                  <IconButton icon={IconTrash} variant="danger" label="Beleg löschen" onClick={() => removeBeleg(b)} />
+                </>
+              }
+            />
+          );
+        })
       )}
 
       {items.length > 0 && <KategorieSummen items={items} jahr={jahr} />}
 
       {items.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="mt-8 flex flex-col gap-2 sm:flex-row">
           <input
             className="input sm:max-w-xs"
             value={query}
@@ -391,58 +459,73 @@ export default function Buchungen() {
       )}
 
       {items.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">
-          Keine Buchungen für {jahr}. Tipp: Altdaten aus der Excel-Liste per CSV-Import übernehmen.
-        </div>
+        <Leer>Keine Buchungen für {jahr}. Tipp: Altdaten aus der Excel-Liste per CSV-Import übernehmen.</Leer>
       ) : filtered.length === 0 ? (
-        <div className="card p-12 text-center text-ink/60">Keine Treffer für die aktuelle Suche/Filter.</div>
+        <Leer>Keine Treffer für die aktuelle Suche/Filter.</Leer>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((b) => {
-            const { titel, nummer } = herkunft(b.beschreibung);
-            const einzel = b.positionen.length === 1;
-            const typen = new Set(b.positionen.map((p) => p.kategorie_typ));
-            const typ = typen.size === 1 ? [...typen][0] : null; // gemischt → Summe ohne Vorzeichen
-            // Ohne Beschreibung ist die Kategorie die einzige Herkunft → nicht doppelt zeigen.
-            const hauptzeile = titel || (einzel ? b.positionen[0].kategorie_name : '');
-            return (
-              <div key={b.id} className="card px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <div className="min-w-0 flex-1 basis-[14rem]">
-                  <div className="flex items-baseline gap-x-2 flex-wrap">
-                    <span className="text-sm font-bold tabular-nums whitespace-nowrap">{formatDateDE(b.datum)}</span>
-                    {hauptzeile && <span className="text-sm font-semibold">{hauptzeile}</span>}
-                    {nummer && <span className="text-[11px] text-ink/50 tabular-nums">Rechnung {nummer}</span>}
-                    {b.beleg_count > 0 && <Paperclip count={b.beleg_count} />}
-                  </div>
-                  {einzel ? (
-                    titel && <div className="text-[11px] text-ink/50 leading-snug">{b.positionen[0].kategorie_name}</div>
-                  ) : (
-                    <ul className="mt-0.5 space-y-px w-fit max-w-full">
-                      {b.positionen.map((p) => (
-                        <li key={p.id} className="flex items-baseline justify-between gap-4 text-[11px] text-ink/50 leading-snug">
-                          <span>{p.kategorie_name}</span>
-                          <span className="tabular-nums whitespace-nowrap">
-                            {p.kategorie_typ === 'einnahme' ? '+' : '−'}
-                            {formatEuro(p.betrag_cent)}
+        gruppen.map(([monat, liste]) => (
+          <section key={monat} aria-label={`${MONATE[Number(monat.slice(5, 7)) - 1]} ${monat.slice(0, 4)}`}>
+            <SectionHead label={`${MONATE[Number(monat.slice(5, 7)) - 1]} ${monat.slice(0, 4)}`} count={liste.length} />
+            {liste.map((b) => {
+              const { titel, nummer } = herkunft(b.beschreibung);
+              const einzel = b.positionen.length === 1;
+              const typen = new Set(b.positionen.map((p) => p.kategorie_typ));
+              const typ = typen.size === 1 ? [...typen][0] : null; // gemischt → Summe ohne Vorzeichen
+              // Ohne Beschreibung ist die Kategorie die einzige Herkunft → nicht doppelt zeigen.
+              const hauptzeile = titel || (einzel ? b.positionen[0].kategorie_name : `${b.positionen.length} Positionen`);
+              return (
+                <Row
+                  key={b.id}
+                  kind={typ === 'einnahme' ? 'in' : 'out'}
+                  icon={typ === 'einnahme' ? IconArrowIn : IconArrowOut}
+                  title={hauptzeile}
+                  onTitleClick={() => setModal({ buchung: b })}
+                  titleHint="Bearbeiten"
+                  sub={
+                    <>
+                      <span className="tabular-nums">{kurz(b.datum)}</span>
+                      {einzel && titel && (
+                        <>
+                          {PUNKT}
+                          <span>{b.positionen[0].kategorie_name}</span>
+                        </>
+                      )}
+                      {!einzel && (
+                        <>
+                          {PUNKT}
+                          <span>
+                            {b.positionen
+                              .map(
+                                (p) =>
+                                  `${p.kategorie_name} ${p.kategorie_typ === 'einnahme' ? '+' : '−'}${formatEuro(p.betrag_cent)}`,
+                              )
+                              .join(' · ')}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <div className={`tabular-nums font-black shrink-0 ${typ === 'einnahme' ? 'text-royal' : ''}`}>
-                  {typ && (typ === 'einnahme' ? '+' : '−')}
-                  {formatEuro(b.summe_cent)}
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0 ml-auto sm:ml-0">
-                  <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setModal({ buchung: b })} />
-                  <IconButton icon={IconCopy} label="Duplizieren" onClick={() => duplicate(b)} />
-                  <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(b.id)} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                        </>
+                      )}
+                      {nummer && (
+                        <>
+                          {PUNKT}
+                          <span className="tabular-nums">Rechnung {nummer}</span>
+                        </>
+                      )}
+                      {b.beleg_count > 0 && <Paperclip count={b.beleg_count} />}
+                    </>
+                  }
+                  amount={`${typ ? (typ === 'einnahme' ? '+' : '−') : ''}${formatEuro(b.summe_cent)}`}
+                  amountIn={typ === 'einnahme'}
+                  actions={
+                    <>
+                      <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setModal({ buchung: b })} />
+                      <IconButton icon={IconCopy} label="Duplizieren" onClick={() => duplicate(b)} />
+                      <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(b.id)} />
+                    </>
+                  }
+                />
+              );
+            })}
+          </section>
+        ))
       )}
 
       {modal && (
@@ -494,7 +577,7 @@ export default function Buchungen() {
 
 function Paperclip({ count }) {
   return (
-    <span className="inline-flex items-center gap-1 align-middle text-ink/50 text-xs" title={`${count} Beleg(e)`}>
+    <span className="inline-flex items-center gap-1 align-middle text-xs text-ink/60" title={`${count} Beleg(e)`}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
         <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
       </svg>
@@ -503,12 +586,16 @@ function Paperclip({ count }) {
   );
 }
 
-function Kennzahl({ label, cent, hint }) {
+function Kennzahl({ label, cent, hint, royal = false }) {
   return (
-    <div className="card p-4">
-      <div className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">{label}</div>
-      <div className="text-xl font-black tabular-nums mt-1">{formatEuro(cent)}</div>
-      {hint && <div className="text-[11px] text-ink/50 mt-0.5">{hint}</div>}
+    <div className="border-l border-ink/[0.08] py-3 pl-3 first:border-l-0 first:pl-0 sm:pl-6 sm:first:pl-0">
+      <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink/60 sm:text-xs">{label}</div>
+      <div
+        className={`text-lg font-black leading-tight tabular-nums tracking-tight sm:text-[26px] ${royal ? 'text-royal' : ''}`}
+      >
+        {formatEuro(cent)}
+      </div>
+      {hint && <div className="mt-0.5 hidden text-[11px] leading-snug text-ink/60 sm:block">{hint}</div>}
     </div>
   );
 }
@@ -536,27 +623,18 @@ function KategorieSummen({ items, jahr }) {
   const maxCent = Math.max(1, ...summen.einnahmen.map((s) => s.cent), ...summen.ausgaben.map((s) => s.cent));
 
   return (
-    <div className="card">
+    <div className="mt-8">
       <button
         type="button"
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2.5 text-left"
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
-          Summen je Kategorie {jahr}
-        </span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`h-4 w-4 text-ink/50 transition-transform ${open ? 'rotate-180' : ''}`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        <span className="eyebrow">Summen je Kategorie {jahr}</span>
+        <IconChevronDown className={`h-4 w-4 text-ink/60 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+        <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
           {[
             ['Einnahmen', summen.einnahmen],
             ['Ausgaben', summen.ausgaben],

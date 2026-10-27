@@ -95,7 +95,7 @@ export default function Einrichtung() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Einrichtung & Hilfe</h1>
+        <h1 className="page-title">Einrichtung & Hilfe</h1>
         <p className="text-xs text-ink/60 mt-0.5">
           Einmal durchgehen, dann läuft alles — jeder Schritt erklärt sich hier im Detail.
         </p>

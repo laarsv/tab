@@ -71,7 +71,7 @@ export default function Gewerbe() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Gewerbe</h1>
+          <h1 className="page-title">Gewerbe</h1>
           <p className="text-xs text-ink/60 mt-0.5">Eine EÜR pro Gewerbe. Deaktivieren statt löschen.</p>
         </div>
         <button

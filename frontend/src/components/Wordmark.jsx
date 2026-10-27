@@ -3,11 +3,14 @@
 // Wordmark (default) — Produkt-Lockup „Standalone": vrwb in Roboto 900, der
 // Unterstrich wird zum Trenner in Royal, der Toolname hängt direkt dran in
 // Roboto Mono 500 Royal, ~0,83× Größe, Laufweite −1 %.
-export default function Wordmark({ onInk = false, className = '' }) {
+// onInk: auf Ink (Suffix Royal Soft). onRoyal: auf Royal (Seitenleiste) — weiß, Suffix weiß 80 %.
+export default function Wordmark({ onInk = false, onRoyal = false, className = '' }) {
+  const text = onRoyal || onInk ? 'text-paper' : 'text-ink';
+  const suffix = onRoyal ? 'text-paper/80' : onInk ? 'text-royal-soft' : 'text-royal';
   return (
-    <span className={`font-black tracking-wordmark ${onInk ? 'text-paper' : 'text-ink'} ${className}`}>
+    <span className={`font-black tracking-wordmark ${text} ${className}`}>
       vrwb
-      <span className={onInk ? 'text-royal-soft' : 'text-royal'}>
+      <span className={suffix}>
         _<span className="font-mono font-medium tracking-toolname text-[0.83em]">tab</span>
       </span>
     </span>

@@ -39,7 +39,11 @@
   .btn-icon-ghost   { @apply btn-icon text-ink/60 hover:bg-ink/5 hover:text-ink; }
   .btn-icon-primary { @apply btn-icon bg-royal text-paper hover:bg-royal/90 shadow-sm; }
   .btn-icon-danger  { @apply btn-icon text-red-700/70 hover:bg-red-50 hover:text-red-700; }
-  .card        { @apply rounded-2xl border border-ink/10 bg-paper shadow-sm; }
+  /* Flach auf der weißen Arbeitsfläche (Recap-Stil: keine Schatten); schwebende Flächen
+     (Modal, Menüs) bringen ihren Schatten selbst mit. */
+  .card        { @apply rounded-2xl border border-ink/10 bg-paper; }
+  /* Seitentitel wie recap: 900, enge Laufweite (CI −0,035 em). */
+  .page-title  { @apply text-3xl sm:text-[34px] font-black leading-[1.05] tracking-[-0.035em]; }
   /* Tipp-Felder: mobil text-base (iOS-Zoom-Schutz) + py-2.5 (44px), ab sm: dicht. */
   .input {
     @apply w-full border border-ink/20 rounded-lg px-3 py-2.5 text-base bg-paper

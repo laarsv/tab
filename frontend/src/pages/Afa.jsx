@@ -84,7 +84,7 @@ export default function Afa() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Abschreibungen (AfA)</h1>
+          <h1 className="page-title">Abschreibungen (AfA)</h1>
           <p className="text-xs text-ink/60 mt-0.5">
             Teure Anschaffungen über mehrere Jahre absetzen · Jahres-AfA {jahr} fließt in Zeile 33.
           </p>

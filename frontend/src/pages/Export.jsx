@@ -86,7 +86,7 @@ export default function Export() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">EÜR-Export {jahr}</h1>
+        <h1 className="page-title">EÜR-Export {jahr}</h1>
         <p className="text-xs text-ink/60 mt-0.5">
           {gewerbeName} · Summen zum Übertragen ins Steuerprogramm/ELSTER. Kein Direktversand ·
           Abgabefrist für {jahr} (ohne Steuerberater): 31.07.{jahr + 1}

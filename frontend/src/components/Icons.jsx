@@ -122,3 +122,153 @@ export function IconButton({ icon: Icon, label, variant = 'ghost', className = '
     </button>
   );
 }
+
+// ── Seitenleiste / Zeilen (Recap-Stil) ───────────────────────────────────────
+export const IconPlus = (p) => (
+  <Svg {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Svg>
+);
+export const IconUpload = (p) => (
+  <Svg {...p}>
+    <path d="M12 16V4M7 9l5-5 5 5" />
+    <path d="M5 20h14" />
+  </Svg>
+);
+export const IconDownload = (p) => (
+  <Svg {...p}>
+    <path d="M12 4v12M7 11l5 5 5-5" />
+    <path d="M5 20h14" />
+  </Svg>
+);
+export const IconList = (p) => (
+  <Svg {...p}>
+    <path d="M8 6h13M8 12h13M8 18h13" />
+    <circle cx="4" cy="6" r="1" />
+    <circle cx="4" cy="12" r="1" />
+    <circle cx="4" cy="18" r="1" />
+  </Svg>
+);
+export const IconReceipt = (p) => (
+  <Svg {...p}>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+    <path d="M9 8h6M9 12h6" />
+  </Svg>
+);
+export const IconChecklist = (p) => (
+  <Svg {...p}>
+    <rect x="6" y="4" width="12" height="17" rx="2" />
+    <path d="M9 4h6v3H9z" />
+    <path d="m9.5 14 2 2 3.5-4" />
+  </Svg>
+);
+export const IconTrendDown = (p) => (
+  <Svg {...p}>
+    <path d="M3 7l6 6 4-4 8 8" />
+    <path d="M15 17h6v-6" />
+  </Svg>
+);
+export const IconSliders = (p) => (
+  <Svg {...p}>
+    <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+    <circle cx="16" cy="6" r="2" />
+    <circle cx="10" cy="12" r="2" />
+    <circle cx="18" cy="18" r="2" />
+  </Svg>
+);
+export const IconInfo = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8v.5" />
+  </Svg>
+);
+export const IconMenu = (p) => (
+  <Svg {...p}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </Svg>
+);
+export const IconX = (p) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Svg>
+);
+export const IconChevronDown = (p) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
+export const IconBriefcase = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="8" width="18" height="12" rx="2" />
+    <path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18" />
+  </Svg>
+);
+export const IconArrowRight = (p) => (
+  <Svg {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Svg>
+);
+// Einnahme (Geld kommt herein) / Ausgabe (Geld geht hinaus)
+export const IconArrowIn = (p) => (
+  <Svg {...p}>
+    <path d="M17 7 7 17M7 8v9h9" />
+  </Svg>
+);
+export const IconArrowOut = (p) => (
+  <Svg {...p}>
+    <path d="M7 17 17 7M8 7h9v9" />
+  </Svg>
+);
+export const IconImage = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="9" cy="10" r="1.5" />
+    <path d="m21 16-5-5-8 8" />
+  </Svg>
+);
+export const IconCode = (p) => (
+  <Svg {...p}>
+    <path d="m8 6-5 6 5 6M16 6l5 6-5 6" />
+  </Svg>
+);
+export const IconClock = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Svg>
+);
+export const IconMove = (p) => (
+  <Svg {...p}>
+    <path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4" />
+  </Svg>
+);
+export const IconSparkles = (p) => (
+  <Svg {...p}>
+    <path d="M11 4l1.8 4.7L17.5 10l-4.7 1.8L11 16.5l-1.8-4.7L4.5 10l4.7-1.3z" />
+    <path d="M18 15v5M15.5 17.5h5" />
+  </Svg>
+);
+export const IconMail = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+  </Svg>
+);
+export const IconLogOut = (p) => (
+  <Svg {...p}>
+    <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+    <path d="M16 8l4 4-4 4M20 12H9" />
+  </Svg>
+);
+export const IconInbox = (p) => (
+  <Svg {...p}>
+    <path d="M4 13l2-8h12l2 8" />
+    <path d="M4 13v6h16v-6h-5l-1 2h-4l-1-2z" />
+  </Svg>
+);
+export const IconSearch = (p) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Svg>
+);

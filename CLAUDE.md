@@ -17,9 +17,9 @@ erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
   als bei Mint):** Royal ist ein *dunkler* Akzent → Text auf **gefüllten** Royal-Flächen ist
   **weiß (`paper`)** (`.btn-primary`, Badges); Royal als *Textfarbe* auf Weiß ist ok (Nav aktiv,
   Eyebrow, Links). **Tool-Marke** (CI-Konvention, Details + Quelle in DESIGN.md §1b;
-  zentral in `components/Wordmark.jsx` — nie inline nachbauen): **App-Header =
-  `SignaturLockup`** (Signatur als Inline-SVG in Royal + Haarlinie + Standalone
-  `vrwb_tab`, präferiert lt. CI); **Login/Footer/Titel = Standalone `vrwb_tab`** (`vrwb` Roboto 900
+  zentral in `components/Wordmark.jsx` — nie inline nachbauen): **Royal-Seitenleiste =
+  `Wordmark onRoyal`** (weiß, `_tab` weiß 80 %; seit dem Recap-Umbau 2026-10-27 statt
+  `SignaturLockup`, der bleibt ungenutzt in der Datei); **Login/Titel = Standalone `vrwb_tab`** (`vrwb` Roboto 900
   −4,5 %, `_tab` Royal, Toolname Roboto Mono 500 0,83× −1 %, immer klein; auf Ink `_tab`
   Royal Soft). Favicon `t_` auf Royal (`public/favicon.svg`). Roboto + Roboto Mono
   self-hosted, kein Google-CDN. `theme-color = #2947c9`.
@@ -144,10 +144,21 @@ der Mapping-Version des Jahres aufgelöst.
   Status wo möglich automatisch aus echten Daten, PWA per Haken (localStorage
   `tab_setup_haken`). Detail-Anleitungen für App-Passwort/+tab-Adresse/PWA leben HIER
   (nicht duplizieren). `openMailSetup` kommt aus dem Layout-Context.
-- **Navigation (Einsteiger-IA):** Nav = Buchungen · Jahres-Check (Badge = offene Themen) ·
-  Abschreibungen; Export/Gewerbe/Einrichtung/Abmelden hinter der **Profil-Bubble** (Initialen, rechts).
-  Der Beleg-Eingang ist **in die Buchungen-Seite integriert** (Karte „Beleg-Eingang" mit
-  Upload, Liste, „Jetzt abarbeiten"); `/eingang` redirectet auf `/buchungen`.
+- **Layout = Royal-Seitenleiste (Recap-Stil, 2026-10-27, DESIGN.md §6):** `components/Layout.jsx`
+  (Rahmen, lädt Gewerbe/Jahre/Badges/Eingang-Zähler) + `components/Sidebar.jsx` (262 px, ab `lg`
+  fest links; darunter dieselbe Leiste als **Schublade** + Royal-Leiste oben + **Tab-Leiste unten**
+  mit Buchungen/Rechnungen/Check/Mehr). Inhalt: Wortmarke, „Neue Buchung" + Upload-Icon,
+  Gewerbe/Jahr-Kapseln, **„Jetzt"-Zeile = Beleg-Eingang** (nur wenn etwas wartet), Nav
+  (Buchungen · Rechnungen · Jahres-Check mit Badge · Abschreibungen), „Weitere" (Export, Gewerbe,
+  Einrichtung & Hilfe), unten die Profilzeile (Menü: E-Mail-Versand, Neuigkeiten, Abmelden).
+  **Keine Wellen** (Lars: die sind recap-Sprache). Aufrufe von außen per URL an `/buchungen`:
+  `?neu=…` öffnet das BuchungModal, `?abarbeiten=…` startet den Eingang-Wizard, `?geteilt=…` ist
+  der PWA-Share-Toast. Hochladen steckt im Layout (`uploadBelege` im Outlet-Context, danach zählt
+  `eingangTick` hoch und die Seite lädt neu). Der Beleg-Eingang ist **in die Buchungen-Seite
+  integriert** (Zeilen, „Jetzt abarbeiten", Upload); `/eingang` redirectet auf `/buchungen`.
+  **Zeilen statt Karten:** `components/PageParts.jsx` (`PageHeader`, `SectionHead`, `Row`, `Leer`),
+  `.page-title`, `.card` ist flach (ohne Schatten). Nur Buchungen ist auf Zeilen umgestellt;
+  Rechnungen/Jahres-Check/AfA/Fahrten/Export/Gewerbe/Einrichtung nutzen noch `.card`.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.

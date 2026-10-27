@@ -91,7 +91,7 @@ export default function Fahrten() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Fahrten-Liste {jahr}</h1>
+        <h1 className="page-title">Fahrten-Liste {jahr}</h1>
         <p className="text-xs text-ink/60 mt-0.5">
           Betriebliche Fahrten mit dem Privatwagen sammeln (Datum, Ziel, Anlass, km) — der
           Nachweis für die km-Pauschale. Kein Fahrtenbuch für die 1 %-Regelung.

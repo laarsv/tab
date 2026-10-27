@@ -106,7 +106,7 @@ export default function JahresCheck() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Jahres-Check {jahr}</h1>
+        <h1 className="page-title">Jahres-Check {jahr}</h1>
         <p className="text-xs text-ink/60 mt-0.5">
           Die häufigsten Absetz-Themen für Selbstständige — einmal im Jahr durchgehen, nichts
           vergessen. Keine Steuerberatung.

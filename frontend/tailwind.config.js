@@ -10,6 +10,8 @@ export default {
         },
         ink: '#161a24',
         paper: '#ffffff',
+        canvas: '#f3f5fa', // CI: kühle Arbeitsfläche (Beleg-Vorschau-Fläche, Umschalter-Träger)
+        surface: '#f7f8fc', // CI: --surface-2, Träger des Umschalters
       },
       fontFamily: {
         sans: ['Roboto', 'system-ui', 'sans-serif'],

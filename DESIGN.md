@@ -43,8 +43,9 @@ gewinnt). Den umgesetzten Stand der CI beschreibt `Suite/DESIGN.md`. Konvention:
 
 - **Wortmarke** `vrwb` = gesetzter Text, **immer klein**, Roboto **900**, Laufweite
   **−4,5 %** (`tracking-wordmark`). Cursor `_` in Royal = einziges grafisches Element.
-- **Signatur-Lockup — präferierte Marke im App-Header** (CI-Update; `SignaturLockup`
-  in `components/Wordmark.jsx`): handschriftliche **Signatur in Royal** (Pfad aus
+- **Signatur-Lockup** (CI-Update; `SignaturLockup` in `components/Wordmark.jsx`; **seit
+  2026-10-27 nicht mehr im App-Header** — die Royal-Seitenleiste trägt `Wordmark onRoyal`, wie
+  recap): handschriftliche **Signatur in Royal** (Pfad aus
   `logo-clean.svg` des Design-Projekts, als **Inline-SVG in `currentColor`** — kein
   CSS-Mask, das rendert nicht überall) + **Haarlinie** (`ink/15`) + rechts der
   **Standalone-Lockup `vrwb_tab`** (keine Subline-Variante im Header).
@@ -88,3 +89,31 @@ So: blue buttons/fills use white text, and blue may be used as a text color.
 - Modals: `role="dialog"`, `aria-modal`, ESC closes (`components/Modal.jsx`).
 - Headings: Roboto **900**, `tracking-tight`; an `.eyebrow` kicker above the H1.
 - Responsive: card layout on mobile; nothing scrolls horizontally.
+
+## 6. Layout im Recap-Stil (Royal-Seitenleiste, seit 2026-10-27)
+
+Vorbild ist das Hauptfenster von `vrwb-recap` (Hub `design/vorlagen/mac-fenster.md`, Idee B), auf
+das Web übertragen. **Ohne Welle** (die ist recap-Sprache, Lars 2026-10-27).
+
+- **Seitenleiste** (`components/Sidebar.jsx`): Royal, 262 px, ab `lg` fest links. Nur Weiß mit Alpha
+  auf Royal, Text mindestens 78 %. Wortmarke `Wordmark onRoyal`, „Neue Buchung" als weißer Knopf mit
+  Royal-Schrift, Icon-Knopf „Belege hochladen", Gewerbe + Jahr als helle Kapseln
+  (`Dropdown variant="onRoyal"`), die **„Jetzt"-Zeile** (Fläche 10 %) = Beleg-Eingang mit rundem
+  Knopf, Nav-Zeilen 38 px (aktiv weiße Fläche 18 % + fett), Abschnitt „Weitere", unten die
+  Profilzeile.
+- **Handy/Tablet (unter `lg`):** Royal-Leiste oben (Wortmarke, Eingang-Knopf mit Zähler, Menü),
+  **Schublade** = dieselbe Seitenleiste von links, **Tab-Leiste unten** (64 px: Buchungen,
+  Rechnungen, Check, Mehr). Touch-Ziele 44 px; Zeilenaktionen rutschen unter den Text.
+- **Arbeitsfläche weiß**, Inhalt max. `max-w-5xl`. Seitentitel `.page-title` (34/900, −0,035 em),
+  darunter eine leise Zeile. **Zeilen statt Karten** (`components/PageParts.jsx`): Icon im Kreis
+  (Einnahme Royal-Tint, Ausgabe Ink-Tint, überfällig rot), Titel 15/700, Zustandszeile 13 in
+  `ink/60`, Betrag rechts (Einnahme Royal), Icon-Knöpfe als Aktionen. Abschnittskopf = Eyebrow +
+  Zahl in Mono. `.card` ist flach (keine Schatten); schwebende Flächen (Modal, Menüs) behalten
+  ihren Schatten.
+- **Neue Tokens:** `canvas` `#f3f5fa` (Fläche der Beleg-Vorschau) und `surface` `#f7f8fc`
+  (Träger des Umschalters). Der Umschalter „Ausgabe | Einnahme" im Verbuchen-Fenster folgt
+  `VrwbSwitch` (Träger `surface`, aktiv weiß mit Royal-Text).
+- **Stand der Umstellung:** Buchungen und das Verbuchen-Fenster (Beleg links auf `canvas`, Felder
+  rechts) sind umgestellt. Rechnungen, Jahres-Check, AfA, Fahrten, Export, Gewerbe, Einrichtung
+  sitzen im neuen Rahmen, nutzen innen aber noch `.card` (flach) — als nächstes auf Zeilen
+  umstellen.

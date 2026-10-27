@@ -170,7 +170,7 @@ export default function Rechnungen() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Rechnungen {jahr}</h1>
+          <h1 className="page-title">Rechnungen {jahr}</h1>
           <p className="text-xs text-ink/60 mt-0.5">
             Fortlaufende Nummern, §19-Hinweis automatisch drauf · Versand von {mail?.email}
           </p>

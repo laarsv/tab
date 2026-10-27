@@ -5,6 +5,7 @@ import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
 import BelegVorschau from './BelegVorschau.jsx';
+import { IconSparkles, IconX } from './Icons.jsx';
 import { openBeleg } from '../lib/belege.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 
@@ -313,21 +314,43 @@ export default function BuchungModal({
     }
   }
 
+  const titel = wizard
+    ? `Beleg ${wizard.pos} von ${wizard.total} verbuchen`
+    : isEdit
+      ? 'Buchung bearbeiten'
+      : 'Neue Buchung';
+
   return (
-    <Modal
-      title={
-        wizard
-          ? `Beleg ${wizard.pos} von ${wizard.total} verbuchen`
-          : isEdit
-            ? 'Buchung bearbeiten'
-            : 'Neue Buchung'
-      }
-      onClose={onClose}
-      maxWidth={einBeleg ? 'max-w-5xl' : 'max-w-2xl'}
-    >
-      <div className={einBeleg ? 'grid grid-cols-1 lg:grid-cols-2 gap-5 items-start' : ''}>
-        {einBeleg && <BelegVorschau beleg={einBeleg} className="lg:sticky lg:top-0" />}
-      <form onSubmit={save} className="space-y-4 min-w-0">
+    <Modal flush title={titel} onClose={onClose} maxWidth={einBeleg ? 'max-w-5xl' : 'max-w-2xl'}>
+      <div className={einBeleg ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,372px)_minmax(0,1fr)]' : ''}>
+        {einBeleg && (
+          <div className="bg-canvas p-4 lg:border-r lg:border-ink/[0.08] lg:p-5">
+            <BelegVorschau beleg={einBeleg} className="lg:sticky lg:top-5" />
+          </div>
+        )}
+      <form onSubmit={save} className="space-y-4 min-w-0 p-5 sm:p-7">
+        <div className="flex items-start gap-3">
+          <h2 className="flex-1 text-2xl font-black leading-tight tracking-[-0.035em]">{titel}</h2>
+          {wizard && wizard.total > 1 && wizard.total <= 10 && (
+            <div className="mt-2.5 flex items-center gap-1.5" aria-hidden="true">
+              {Array.from({ length: wizard.total }, (_, i) => (
+                <span
+                  key={i}
+                  className={`rounded-full ${i + 1 === wizard.pos ? 'h-2.5 w-2.5 bg-royal' : 'h-2 w-2 bg-royal/[0.14]'}`}
+                />
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Schließen"
+            title="Schließen"
+            className="btn-icon-ghost -mr-2 -mt-1"
+          >
+            <IconX />
+          </button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Datum (Zahlung)</span>
@@ -345,13 +368,13 @@ export default function BuchungModal({
         </div>
 
         {liestBeleg && (
-          <div className="rounded-lg bg-royal-soft/10 p-2.5 text-xs text-ink/60">
-            Beleg wird gelesen…
+          <div className="flex items-center gap-2.5 text-[13.5px] text-ink/60">
+            <IconSparkles className="h-[18px] w-[18px] shrink-0 text-royal" /> Beleg wird gelesen…
           </div>
         )}
         {vorschlag && !liestBeleg && (() => {
           const erkannteKat = vorschlag.kategorie_id ? katById[String(vorschlag.kategorie_id)] : null;
-          const chips = [
+          const teile = [
             vorschlag.richtung_erkannt && (vorschlag.richtung === 'einnahme' ? 'Einnahme' : 'Ausgabe'),
             vorschlag.betrag_cent != null && formatEuro(vorschlag.betrag_cent),
             vorschlag.datum && formatDateDE(vorschlag.datum),
@@ -359,21 +382,18 @@ export default function BuchungModal({
             erkannteKat?.name,
           ].filter(Boolean);
           return (
-            <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 space-y-1.5">
-              <div className="text-xs font-bold text-ink/70">
-                Erkannt ({QUELLE_LABEL[vorschlag.quelle] || 'teilweise'}) — bitte prüfen:
+            <div className="flex items-start gap-2.5 text-[13.5px] leading-snug text-ink/80">
+              <IconSparkles className="mt-0.5 h-[18px] w-[18px] shrink-0 text-royal" />
+              <div className="min-w-0">
+                {teile.length > 0 ? (
+                  <>
+                    <b>Erkannt ({QUELLE_LABEL[vorschlag.quelle] || 'teilweise'}):</b> {teile.join(' · ')}.
+                    <div className="text-ink/60">Bitte prüfen — Tab schlägt nur vor.</div>
+                  </>
+                ) : (
+                  <span className="text-ink/60">Nichts Eindeutiges erkannt — bitte manuell ausfüllen.</span>
+                )}
               </div>
-              {chips.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {chips.map((c, i) => (
-                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full bg-paper border border-royal-soft/50 text-xs text-ink/80 max-w-full truncate">
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-xs text-ink/60">Nichts Eindeutiges erkannt — bitte manuell ausfüllen.</div>
-              )}
             </div>
           );
         })()}
@@ -387,7 +407,7 @@ export default function BuchungModal({
         <div>
           <span className="field-label">Art der Buchung</span>
           <div className="flex items-center gap-3 flex-wrap">
-            <div role="group" aria-label="Art der Buchung" className="inline-flex rounded-lg border border-ink/15 bg-paper p-0.5">
+            <div role="group" aria-label="Art der Buchung" className="inline-flex rounded-[10px] border border-ink/[0.08] bg-surface p-[3px]">
               {[
                 ['ausgabe', 'Ausgabe'],
                 ['einnahme', 'Einnahme'],
@@ -399,8 +419,8 @@ export default function BuchungModal({
                   onClick={() => wechsleRichtung(wert)}
                   className={
                     richtung === wert
-                      ? 'px-4 py-2.5 sm:px-3 sm:py-1 text-sm font-medium rounded-md bg-royal text-paper'
-                      : 'px-4 py-2.5 sm:px-3 sm:py-1 text-sm font-medium rounded-md text-ink/70 hover:bg-ink/5'
+                      ? 'px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm font-bold rounded-lg bg-paper text-royal ring-1 ring-royal/[0.14]'
+                      : 'px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm font-medium rounded-lg text-ink/80 hover:bg-ink/5'
                   }
                 >
                   {label}

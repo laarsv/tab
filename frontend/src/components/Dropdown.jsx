@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 // Custom-Dropdown gemäß DESIGN.shared.md §5.8 — kein natives <select>.
 // options: [{ value, label }]; searchable: Tipp-Filter im Panel;
-// variant: 'standard' (Feld-Optik, Formular) | 'ghost' (Inline-Wert in Zeile).
+// variant: 'standard' (Feld-Optik, Formular) | 'ghost' (Inline-Wert in Zeile) |
+// 'onRoyal' (helle Kapsel auf der Royal-Seitenleiste) | 'icon' (nur Icon-Knopf, Liste
+// rechtsbündig; braucht icon + label). alignRight: Liste rechtsbündig zum Knopf.
 export default function Dropdown({
   value,
   onChange,
@@ -11,9 +13,15 @@ export default function Dropdown({
   disabled = false,
   searchable = false,
   variant = 'standard',
+  alignRight = false,
+  icon: Icon = null,
+  label = '',
   id,
 }) {
   const ghost = variant === 'ghost';
+  const onRoyal = variant === 'onRoyal';
+  const iconOnly = variant === 'icon';
+  const inline = ghost || onRoyal || iconOnly;
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
   const [query, setQuery] = useState('');
@@ -81,45 +89,61 @@ export default function Dropdown({
   }
 
   return (
-    <div className={ghost ? 'relative inline-block' : 'relative'} ref={rootRef}>
+    <div className={iconOnly ? 'relative inline-block' : 'relative'} ref={rootRef}>
       <button
         type="button"
         id={id}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={iconOnly ? label : undefined}
+        title={iconOnly ? label : undefined}
         disabled={disabled}
         onClick={() => !disabled && (open ? close() : setOpen(true))}
         onKeyDown={onKeyDown}
         className={
-          ghost
-            ? `relative flex items-center justify-between gap-1.5 border border-transparent rounded-lg
+          iconOnly
+            ? 'btn-icon-ghost'
+            : onRoyal
+              ? `w-full flex items-center justify-between gap-1.5 rounded-[10px] bg-paper/[0.18] hover:bg-paper/25
+                 px-3 h-10 text-sm text-paper text-left
+                 focus-visible:ring-2 focus-visible:ring-paper/70 outline-none
+                 disabled:opacity-50 disabled:cursor-not-allowed`
+              : ghost
+                ? `relative flex items-center justify-between gap-1.5 border border-transparent rounded-lg
                px-2 py-1 text-[13px] font-medium bg-ink/[0.04] hover:bg-ink/[0.07] text-left
                before:absolute before:-inset-y-2 before:inset-x-0 before:content-['']
                focus:border-royal focus:ring-2 focus:ring-royal/30 outline-none
                disabled:opacity-50 disabled:cursor-not-allowed`
-            : `w-full flex items-center justify-between gap-2 border border-ink/20 rounded-lg
+                : `w-full flex items-center justify-between gap-2 border border-ink/20 rounded-lg
                px-3 py-2.5 text-base sm:py-1.5 sm:text-sm bg-paper text-left
                focus:border-royal focus:ring-2 focus:ring-royal/30 outline-none
                disabled:opacity-50 disabled:cursor-not-allowed`
         }
       >
-        <span className={`truncate ${selected ? '' : 'text-ink/50'}`}>
-          {selected ? selected.label : placeholder}
-        </span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`${ghost ? 'h-3.5 w-3.5' : 'h-4 w-4'} shrink-0 text-ink/60`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        {iconOnly ? (
+          Icon && <Icon />
+        ) : (
+          <>
+            <span className={`truncate ${selected ? '' : onRoyal ? 'text-paper/80' : 'text-ink/50'}`}>
+              {selected ? selected.label : placeholder}
+            </span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={`${inline && !onRoyal ? 'h-3.5 w-3.5' : 'h-4 w-4'} shrink-0 ${onRoyal ? 'text-paper/80' : 'text-ink/60'}`}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </>
+        )}
       </button>
 
       {open && (
         <div
-          className="absolute z-50 mt-1 w-full min-w-[176px] rounded-lg border border-ink/10 bg-paper shadow-lg"
+          className={`absolute z-50 mt-1 min-w-[176px] rounded-lg border border-ink/10 bg-paper text-ink shadow-lg
+            ${iconOnly ? 'right-0 w-56' : alignRight ? 'right-0 w-full' : 'w-full'}`}
         >
           {searchable && (
             <div className="p-2 border-b border-ink/10">
