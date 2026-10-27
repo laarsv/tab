@@ -1,0 +1,5 @@
+# Interne App hinter Login, nichts davon gehört in Suchmaschinen.
+# Die Seiten tragen noindex (Meta-Tag und X-Robots-Tag). Sie bleiben crawlbar, damit das noindex gelesen wird.
+# Der Anmelde-Ablauf unter /api/ wird gesperrt: Crawler lösen sonst den OAuth-Fehler /login?error=oauth_failed aus.
+User-agent: *
+Disallow: /api/
