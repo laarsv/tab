@@ -23,6 +23,11 @@ log = logging.getLogger("tab.beleg_extract")
 
 # Keyword -> Kategorie-Key (Reihenfolge = Priorität; nur eindeutige Anbieter).
 KEYWORD_KATEGORIEN: list[tuple[str, str]] = [
+    # Behörden-Gebühren zuerst: sehr spezifisch. Bewusst KEIN „ordnungsamt"/„bußgeld" —
+    # Bußgelder und Verwarnungsgelder sind nicht abziehbar.
+    ("verwaltungsgebühr", "gebuehren_abgaben"), ("gebührenbescheid", "gebuehren_abgaben"),
+    ("gewerbeanmeldung", "gebuehren_abgaben"), ("gewerbeummeldung", "gebuehren_abgaben"),
+    ("gewerbeabmeldung", "gebuehren_abgaben"), ("gewerbemeldestelle", "gebuehren_abgaben"),
     ("hetzner", "software_hosting"), ("netcup", "software_hosting"),
     ("ionos", "software_hosting"), ("strato", "software_hosting"),
     ("adobe", "software_hosting"), ("canva", "software_hosting"),

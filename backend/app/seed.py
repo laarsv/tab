@@ -46,6 +46,7 @@ KATEGORIEN: list[tuple] = [
     ("reise_nebenkosten",  "Reisekosten (Übernachtung/Nebenkosten)",             "ausgabe", 1.0, 0, 0, 34),
     ("software_hosting",   "Software / Hosting / SaaS / Domains",                 "ausgabe", 1.0, 0, 0, 35),
     ("buerobedarf",        "Bürobedarf / Porto / sonstige laufende Kosten",      "ausgabe", 1.0, 0, 0, 36),
+    ("gebuehren_abgaben",  "Gebühren & Abgaben (Behörden, Gewerbeanmeldung)",    "ausgabe", 1.0, 0, 0, 36),
     ("kontogebuehren",     "Kontoführung & Zahlungsgebühren (Bank, PayPal, Stripe)", "ausgabe", 1.0, 0, 0, 37),
     # --- Ausgaben: beschränkt abziehbar ---
     ("geschenke",          "Geschenke an Geschäftspartner (≤ 50 €/Empfänger)",   "ausgabe", 1.0, 0, 1, 38),
@@ -109,6 +110,7 @@ MAPPING: dict[str, int] = {
     "rechts_steuer_buchfuehrung": 60,   # ⚠
     "fortbildung": 60,                  # ⚠
     "werbung_repraesentation": 60,      # ⚠
+    "gebuehren_abgaben": 60,            # „übrige" (Verwaltungsgebühren, Gewerbeanmeldung)
     "kontogebuehren": 60,               # ✅ „übrige" (wie buerobedarf/software)
     "kfz_kosten": 60,                   # ⚠ final Zeile 68–70 (Kfz-Block) beim Vordruck-Abgleich
     "oepnv": 60,                        # ⚠ final Zeile 70 (sonstige tatsächliche Fahrtkosten)
