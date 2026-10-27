@@ -1,27 +1,27 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Modal from './Modal.jsx';
-import { NEUIGKEITEN, alleGelesen, gelesenIds, speichereGelesen } from '../lib/neuigkeiten.js';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { NEUIGKEITEN, gelesenIds, markiereGelesen } from '../lib/neuigkeiten.js';
 import { formatDateDE } from '../lib/format.js';
 
 // „Was ist neu?" — zeigt alle noch nicht bestätigten Einträge; jeder wird einzeln
 // per „Gelesen"-Haken quittiert (Schließen allein reicht nicht). Ist alles
 // gelesen, dient das Fenster als Archiv aller bisherigen Neuigkeiten.
 export default function NeuigkeitenModal({ onClose }) {
-  const [gelesen, setGelesen] = useState(gelesenIds());
+  const { user } = useAuth();
+  const email = user?.email || '';
+  const [gelesen, setGelesen] = useState(() => gelesenIds(email));
   const offen = NEUIGKEITEN.filter((n) => !gelesen.has(n.id));
   const archiv = offen.length === 0;
   const liste = archiv ? NEUIGKEITEN : offen;
 
   function markiere(id) {
-    const next = new Set(gelesen);
-    next.add(id);
-    setGelesen(next);
-    speichereGelesen(next);
+    setGelesen(markiereGelesen(email, [id]));
   }
 
   function markiereAlle() {
-    setGelesen(alleGelesen());
+    setGelesen(markiereGelesen(email, NEUIGKEITEN.map((n) => n.id)));
   }
 
   return (

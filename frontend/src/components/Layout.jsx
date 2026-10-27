@@ -9,7 +9,7 @@ import MailSetupModal from './MailSetupModal.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
 import Wordmark, { SignaturLockup } from './Wordmark.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
-import { ungelesene } from '../lib/neuigkeiten.js';
+import { syncGelesen, ungelesene } from '../lib/neuigkeiten.js';
 
 function NavBadge({ n }) {
   return (
@@ -119,10 +119,18 @@ export default function Layout() {
   const [mailModal, setMailModal] = useState(false);
   const [newsModal, setNewsModal] = useState(false);
 
-  // Neuigkeiten einmalig automatisch zeigen, wenn es Ungelesenes gibt.
+  // Neuigkeiten automatisch zeigen, wenn es für DIESEN Account Ungelesenes gibt
+  // (Gelesen-Stand kommt vom Server, s. lib/neuigkeiten.js).
   useEffect(() => {
-    if (ungelesene() > 0) setNewsModal(true);
-  }, []);
+    if (!user?.email) return undefined;
+    let aktiv = true;
+    syncGelesen(user.email).then((gelesen) => {
+      if (aktiv && ungelesene(gelesen) > 0) setNewsModal(true);
+    });
+    return () => {
+      aktiv = false;
+    };
+  }, [user?.email]);
 
   function closeNews() {
     // Schließen markiert nichts als gelesen — Ungelesenes kommt beim nächsten

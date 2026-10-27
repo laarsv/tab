@@ -400,6 +400,19 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=16,
+        sql="""
+        -- v16: „Neuigkeiten gelesen" je Account statt je Browser (localStorage ging bei
+        --      anderem Gerät/Browser/PWA/Storage-Reset verloren → Fenster kam immer wieder).
+        CREATE TABLE news_gelesen (
+            email       TEXT    NOT NULL,
+            news_id     INTEGER NOT NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (email, news_id)
+        );
+        """,
+    ),
 ]
 
 

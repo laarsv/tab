@@ -1,6 +1,8 @@
+import { api } from '../api/client.js';
+
 // Neuigkeiten („Was ist neu?"). Bei jedem größeren Feature hier einen Eintrag
 // ERGÄNZEN (id hochzählen, neueste zuerst) — das Fenster öffnet sich dann beim
-// nächsten Login automatisch. Gesehen-Status liegt in localStorage.
+// nächsten Login automatisch. Gelesen-Status liegt je Account auf dem Server (s. u.).
 
 export const NEUIGKEITEN = [
   {
@@ -105,35 +107,73 @@ export const NEUIGKEITEN = [
   },
 ];
 
-// Gelesen-Status je Eintrag (Set von IDs). Das Fenster zeigt Ungelesenes so
-// lange, bis es einzeln (oder per „Alle als gelesen") bestätigt wird — bloßes
-// Schließen zählt NICHT als gelesen.
-const LS_KEY = 'tab_news_gelesen';
+// Gelesen-Status je Eintrag (Set von IDs), je ACCOUNT auf dem Server (/api/news) —
+// localStorage ist nur Cache/Offline-Fallback, sonst käme das Fenster auf jedem
+// Gerät/Browser/in der PWA wieder. Das Fenster zeigt Ungelesenes so lange, bis es
+// einzeln (oder per „Alle als gelesen") bestätigt wird — bloßes Schließen zählt
+// NICHT als gelesen.
+const LS_PREFIX = 'tab_news_gelesen'; // + ':' + E-Mail (je Login getrennt)
 const LS_ALT = 'tab_news_gesehen'; // altes Format: höchste gesehene id
 
-export function gelesenIds() {
-  let set;
+const bekannt = new Set(NEUIGKEITEN.map((n) => n.id));
+
+function leseJson(key) {
   try {
-    set = new Set(JSON.parse(localStorage.getItem(LS_KEY) || '[]'));
+    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(arr) ? arr : [];
   } catch {
-    set = new Set();
+    return [];
   }
-  const alt = Number(localStorage.getItem(LS_ALT) || 0); // Migration vom alten Format
-  if (alt) NEUIGKEITEN.forEach((n) => n.id <= alt && set.add(n.id));
+}
+
+// Lokaler Cache; übernimmt beim ersten Mal die alten, nicht login-bezogenen Schlüssel.
+export function gelesenIds(email) {
+  const set = new Set([...leseJson(`${LS_PREFIX}:${email}`), ...leseJson(LS_PREFIX)]);
+  try {
+    const alt = Number(localStorage.getItem(LS_ALT) || 0);
+    if (alt) NEUIGKEITEN.forEach((n) => n.id <= alt && set.add(n.id));
+  } catch {
+    /* localStorage gesperrt (z. B. privater Modus) — dann zählt nur der Server */
+  }
   return set;
 }
 
-export function speichereGelesen(set) {
-  localStorage.setItem(LS_KEY, JSON.stringify([...set]));
+function schreibeLokal(email, set) {
+  try {
+    localStorage.setItem(`${LS_PREFIX}:${email}`, JSON.stringify([...set]));
+  } catch {
+    /* siehe oben — Server bleibt die Quelle der Wahrheit */
+  }
 }
 
-export function alleGelesen() {
-  const set = new Set(NEUIGKEITEN.map((n) => n.id));
-  speichereGelesen(set);
+// Server-Stand laden und mit dem lokalen vereinigen (lokal Gelesenes, das dem Server
+// noch fehlt, wird nachgetragen — so nimmt jedes Gerät seinen Stand mit). Schlägt der
+// Server fehl, gilt der lokale Stand.
+export async function syncGelesen(email) {
+  const lokal = gelesenIds(email);
+  try {
+    const { data } = await api.get('/api/news');
+    const server = new Set(data.gelesen);
+    const fehlt = [...lokal].filter((id) => bekannt.has(id) && !server.has(id));
+    if (fehlt.length) await api.post('/api/news/gelesen', { ids: fehlt });
+    const alle = new Set([...lokal, ...server]);
+    schreibeLokal(email, alle);
+    return alle;
+  } catch {
+    return lokal;
+  }
+}
+
+// Einträge als gelesen markieren: lokal sofort, Server best effort (der nächste
+// syncGelesen trägt Fehlendes nach). Gibt den neuen Gesamtstand zurück.
+export function markiereGelesen(email, ids) {
+  const set = gelesenIds(email);
+  ids.forEach((id) => set.add(id));
+  schreibeLokal(email, set);
+  api.post('/api/news/gelesen', { ids }).catch(() => {});
   return set;
 }
 
-export function ungelesene() {
-  const gelesen = gelesenIds();
+export function ungelesene(gelesen) {
   return NEUIGKEITEN.filter((n) => !gelesen.has(n.id)).length;
 }

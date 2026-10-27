@@ -28,6 +28,7 @@ from .routes import (
     kategorien,
     kontakte,
     meta,
+    news,
     rechnungen,
 )
 from .seed import seed
@@ -114,5 +115,6 @@ app.include_router(fahrten.router)
 app.include_router(rechnungen.router)
 app.include_router(abos.router)
 app.include_router(einstellungen.router)
+app.include_router(news.router)
 app.include_router(export.router)
 app.include_router(meta.router)

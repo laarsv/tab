@@ -72,7 +72,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 (wiederkehrende Rechnungen, Positionen als JSON), v9 = `kontakt` (inkl. Backfill
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
-v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“).
+v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -133,7 +133,12 @@ der Mapping-Version des Jahres aufgelöst.
   gewählten Jahr liegt — sonst „verschwindet" die Buchung hinter dem Jahresfilter.
 - **Neuigkeiten (`lib/neuigkeiten.js` + `NeuigkeitenModal`):** Bei jedem größeren Feature
   einen Eintrag ERGÄNZEN (id hochzählen, neueste zuerst) — das Fenster öffnet beim nächsten
-  Login automatisch (localStorage `tab_news_gesehen`), sonst über Profil-Menü „Neuigkeiten".
+  Login automatisch, sonst über Profil-Menü „Neuigkeiten". **Gelesen-Stand je ACCOUNT auf dem
+  Server** (`routes/news.py`, Tabelle `news_gelesen`, v16; GET `/api/news`, POST
+  `/api/news/gelesen`) — localStorage (`tab_news_gelesen:{email}`) ist nur Cache/Offline-Fallback
+  und wird beim Start per `syncGelesen` mit dem Server vereinigt (altes Format
+  `tab_news_gelesen`/`tab_news_gesehen` wird übernommen). Nur die Einzel-Bestätigung zählt,
+  Schließen nicht. Vorher (nur localStorage) kam das Fenster auf jedem Gerät/Browser/in der PWA wieder.
 - **Einrichtung & Hilfe (`/einrichtung`, `pages/Einrichtung.jsx`):** geführter 5-Schritte-
   Wizard (Gewerbe/Absender, App-Passwort, Mail-Import, PWA aufs Handy, erste Buchungen) —
   Status wo möglich automatisch aus echten Daten, PWA per Haken (localStorage
