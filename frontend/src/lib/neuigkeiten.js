@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 19,
+    datum: '2026-11-01',
+    titel: 'Anlage EÜR 2026 ist da',
+    text: 'Der amtliche Vordruck 2026 ist eingearbeitet: Der Export für 2026 nutzt jetzt die richtigen Zeilen (neue Zeile 27, dadurch rücken viele Zeilen um eins nach hinten) und ist nicht mehr „vorläufig". Neu: Die Entfernungspauschale beträgt ab 2026 0,38 € ab dem ersten Kilometer — der Rechner kennt das.',
+  },
+  {
     id: 18,
     datum: '2026-10-27',
     titel: 'Neues Design mit Seitenleiste',

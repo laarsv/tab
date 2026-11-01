@@ -84,34 +84,54 @@ der Mapping-Version des Jahres aufgelöst.
 
 ## Kritische Fachregeln (nicht brechen)
 
-- **KU = brutto.** Zeilen **15, 17, 57, 58** werden NIE befüllt (`NIE_BEFUELLT` in `seed.py`,
-  Guard im Export). **Zeile 16** wird genutzt (steuerfreie Courtage §4 Nr. 11).
-- **Bewirtung:** 100 % erfassen, Export rechnet **70 %** (`abzug_quote=0.7`) in Zeile 63.
+- **KU = brutto.** Zeilen **15, 17** sowie Vorsteuer und an das Finanzamt gezahlte USt werden NIE
+  befüllt — das sind **2025: 15, 17, 57, 58**, **2026: 15, 17, 58, 59** (`NIE_BEFUELLT_JE_JAHR`
+  in `seed.py`, Guard im Export; 2026 ist Z57 „Übrige Schuldzinsen" und ganz normal befüllbar).
+  **Zeile 16** wird genutzt (steuerfreie Courtage §4 Nr. 11).
+- **Zeilennummern wandern jährlich:** `ZEILEN_<jahr>`/`MAPPING_<jahr>` in `seed.py` sind je Jahr
+  getrennt (nie ein Jahr aus dem anderen ableiten). 2026 hat eine neue Zeile 27 (Rücklage
+  Tierbewertung, nur Land-/Forstwirte) + Übertrag Z28 → Waren Z29 (2025: Z27), ab da fast alles +1
+  (u. a. AfA 33→34, GWG 36→37, Restbuchwert 38→39, Bewirtung 63→64, km-Pauschale 71→72,
+  Entfernungspauschale 73→74). Texte im Frontend nehmen die Zeile aus `/api/kategorien?jahr=` —
+  keine Zeilennummern hartcodieren.
+- **Bewirtung:** 100 % erfassen, Export rechnet **70 %** (`abzug_quote=0.7`) in die Bewirtungszeile
+  (2025: 63, 2026: 64).
 - **AfA** (`app/services/afa.py`): linear, **monatsgenau pro rata** bei Nutzungsdauer > 1;
   **Vollabzug im Kaufjahr** bei Nutzungsdauer = 1 (Hardware/Software-Sofort-Option).
-  Jahres-AfA fließt in Zeile 33, wird **berechnet, nicht gespeichert**. **Abgang**
+  Jahres-AfA fließt in die AfA-Zeile (2025: 33, 2026: 34), wird **berechnet, nicht gespeichert**. **Abgang**
   (`abgang_datum`): AfA endet mit dem Abgangsmonat; `restbuchwert_cent` wird berechnet und im
-  UI als Hinweis gezeigt (manuell als Buchung Zeile 38 erfassen, Erlös Zeile 19).
+  UI als Hinweis gezeigt (manuell als Buchung in der Restbuchwert-Zeile erfassen, Erlös Zeile 19).
 - **GWG:** weicher Hinweis im UI (800 € netto ≈ 952 € brutto), keine harte Prüfung. Weitere
   Soft-Hinweise: Geschenke > 50 € (Freigrenze), Homeoffice > 1.260 €/Jahr.
 - **Rechner-Helfer (`BuchungModal.jsx`, `CALCULATORS`):** Fahrtkosten (km × 0,30 €),
-  Entfernungspauschale (Tage × km, 0,30/0,38 ab km 21), Homeoffice (Tage × 6 €),
+  Entfernungspauschale (Tage × km; **bis 2025** 0,30 €, ab km 21 0,38 € — **ab 2026** 0,38 € vom
+  1. km an, der Rechner nimmt das Jahr aus dem Buchungsdatum), Homeoffice (Tage × 6 €),
   Verpflegungsmehraufwand (28/14 €), 1 %-Regelung (Listenpreis × Antriebs-Satz 1/0,5/0,25
   für Verbrenner/Hybrid/E-Auto, auf 100 € abgerundet, × Monate; Select-Feldtyp im
   CALCULATORS-Framework). Sie **füllen nur das Betragsfeld** — das Betragsfeld bleibt
   Quelle der Wahrheit, Backend speichert nur den Betrag (Edit-sicher).
 - **1 %-Regelung (Betriebs-Kfz), bewusst schlank:** Entnahme = Einnahme-Kategorie
-  `kfz_privatnutzung` (Zeile 20, ⚠), Kosten = `kfz_kosten` (vorläufig Zeile 60, final 68–70).
-  NICHT abgedeckt: 0,03 %-Wege-Kürzung (Z72), Kostendeckelung, Fahrtenbuch. Die Entnahme
+  `kfz_privatnutzung` (Zeile 20), Kosten = `kfz_kosten` (2026: Z71 „Sonstige tatsächliche
+  Fahrtkosten"; Leasing wäre Z69, Steuer/Versicherung Z70 — nicht getrennt; 2025 noch Z60).
+  NICHT abgedeckt: 0,03 %-Wege-Kürzung (2026: Z73), Kostendeckelung, Fahrtenbuch. Die Entnahme
   zählt nicht in `ku_umsatz` (Vereinfachung, siehe EUER_KATEGORIEN.md §4.6).
 - **KU-Grenz-Guard (`/api/kennzahlen`):** Grenzvergleich (25.000/100.000 €) läuft über
   `ku_umsatz_cent` = nur Kategorie `einnahme_ku` — steuerfreie Courtage (§4 Nr. 11) und
   Anlagenverkäufe bleiben nach §19 Abs. 2 UStG außer Ansatz.
-- **Mapping jahres-versioniert:** 2025 verifiziert, 2026 vorläufig (`vorlaeufig=1`). Fehlt ein
-  Mapping fürs Jahr **oder für eine bebuchte Kategorie** → `MappingMissingError` → 400 mit
-  klarer Meldung (kein stilles Weglassen von Beträgen).
-- ⚠ Kategorien für laufende Kosten zeigen vorläufig auf **Zeile 60** (gewinnneutral) — finale
-  Zeile (43–54) beim Vordruck-Abgleich in `seed.py` setzen, dann redeployen.
+- **Mapping jahres-versioniert:** 2025 und 2026 gegen den amtlichen Vordruck verifiziert
+  (BMF-Schreiben 29.08.2025 / 01.09.2026, `vorlaeufig=0`). Fehlt ein Mapping fürs Jahr **oder für
+  eine bebuchte Kategorie** → `MappingMissingError` → 400 mit klarer Meldung (kein stilles
+  Weglassen von Beträgen). `seed.py` prüft beim Start, dass jede Kategorie je Jahr gemappt ist und
+  jede Ziel-Zeile in den Zeilen-Stammdaten steht; veraltete `euer_zeile`-Einträge werden gelöscht.
+  **2026: alle laufenden Kosten final** (Telekom 44, Fortbildung 46, Rechts/Steuer 47, Miete/Leasing
+  48, Reparatur 49, Versicherung + Gebühren 50, Werbung 55, Zinsen 57, Personal 31; Software/Büro/
+  Konto bewusst „übrige" Z61). **2025: laufende Kosten weiter auf der gewinnneutralen Z60**
+  (Vordruck-Zeilen stehen als Kommentar im Seed) — nur Miete (Z39) und sonstige Entnahmen (Z21)
+  sind korrigiert.
+- **Neues Jahr aufnehmen (jährlich ab Herbst):** BMF-Schreiben „Anlage EÜR <jahr>" (Vordruck-PDF
+  + Anleitung) laden und die Seiten 3–5 des Vordrucks **ansehen** (Text-Extraktion vermischt die
+  Spalten), dann `ZEILEN_<jahr>`/`MAPPING_<jahr>`/`NIE_BEFUELLT_JE_JAHR`/`JAHRE` ergänzen, Anleitung
+  auf Rechenregeln prüfen (Pauschalen, Entfernungspauschale, Grenzen), deployen.
 - **Beleg-Eingang (`app/routes/belege.py`):** PDF/JPG/PNG, Dateien unter `UPLOAD_ROOT`
   (Prod-Bind-Mount `/opt/appdata/tab/uploads`), max. `MAX_UPLOAD_MB`. **Workflow:** erst in den
   Eingang hochladen (buchung_id NULL = offen), später per Buchung zuordnen (`beleg_ids` beim
@@ -176,7 +196,7 @@ der Mapping-Version des Jahres aufgelöst.
   `presetBetragCent`/`presetBeschreibung`); `links` verlinken Seiten. Dazu die statische
   „Gehört NICHT hierher"-Karte (`NICHT_ABSETZBAR`). Themen ändern = `lib/jahresCheck.js`.
 - **Fahrten-Liste (`/fahrten`, `routes/fahrten.py`, Tabelle `fahrt`):** Nachweis-Liste für die
-  km-Pauschale (Privatwagen, Zeile 71) — Datum/Ziel/Anlass/km, Summe × 0,30 € per Klick als
+  km-Pauschale (Privatwagen, 2025 Zeile 71 / 2026 Zeile 72) — Datum/Ziel/Anlass/km, Summe × 0,30 € per Klick als
   Buchung (fahrtkosten_kfz) übernehmen. **Bewusst KEIN Fahrtenbuch** i. S. d. 1 %-Alternative
   (Unveränderbarkeits-Anforderungen kann Tab nicht erfüllen — nicht versprechen!). Die Liste
   landet als `fahrten-{jahr}.csv` im Jahres-ZIP. Nicht in der Nav — verlinkt aus dem
@@ -297,6 +317,6 @@ keine generischen Aliase), `scripts/deploy.sh`. Frontend baut mit getracktem
 ## Noch offen / nicht gebaut
 
 - **Regelbesteuerung / USt** — Flag (`besteuerung`) existiert, aber USt-Aufschlüsselung,
-  Vorsteuer, Zeilen 15/17/57/58 und der Export dafür fehlen. Braucht eine eigene Mapping-Spec
+  Vorsteuer, Zeilen 15/17 + Vorsteuer/USt-Zahllast und der Export dafür fehlen. Braucht eine eigene Mapping-Spec
   (analog `EUER_KATEGORIEN.md`) bevor man Steuer-Zeilen festlegt — nicht raten.
 - Weiterhin außen vor: Multi-User/Mandant, Bankabruf, ELSTER-Direktversand, USt-Voranmeldung.

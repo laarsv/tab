@@ -9,7 +9,7 @@ Steuerprogramm/ELSTER. **Kein** ELSTER-Direktversand, **kein** Bankabruf.
 - **Anmeldung:** Google OAuth, Session als JWT im HttpOnly-Cookie (kein Bearer-Token);
   optional zusätzlich E-Mail + Passwort. Zugang über Allowlist oder offene Registrierung
   (siehe „Auth“). Jedes Gewerbe gehört seinem Ersteller.
-- Mapping **jahres-versioniert** (2025 verifiziert, 2026 vorläufig).
+- Mapping **jahres-versioniert** (2025 und 2026 am amtlichen Vordruck verifiziert).
 
 > Tab ist eine technische Hilfe, **keine Steuerberatung**.
 
@@ -88,16 +88,16 @@ cp .env.example .env && nano .env           # Google-OAuth + Secrets setzen
 ## Mapping jährlich pflegen
 
 Die Zeilennummern der Anlage EÜR verschieben sich pro Jahr. Mapping liegt jahres-versioniert
-in `backend/app/seed.py` (`ZEILEN`, `MAPPING`, `JAHRE`). Der Seed ist **Upsert** — eine
+in `backend/app/seed.py` (`ZEILEN_<jahr>`, `MAPPING_<jahr>`, `JAHRE`). Der Seed ist **Upsert** — eine
 Korrektur deployt man, indem man die Daten dort anpasst und neu ausrollt; Buchungen bleiben
 unberührt (sie speichern die Kategorie, nicht die Zeile).
 
-- **2025**: verifiziert (ELSTER-Anleitung 08/2025).
-- **2026**: vorläufige Kopie von 2025 — vor Steuersaison gegen den Vordruck 2026 abgleichen.
-- ⚠ Die Kategorien für laufende Kosten (Telekommunikation, Versicherungen, Wartung,
-  Beratung, Fortbildung, Werbung, Leasing bewegl. WG) zeigen vorläufig auf **Zeile 60**
-  („übrige unbeschränkt abziehbar"). Das ist gewinnneutral; finale Zeile (43–54) beim
-  Vordruck-Abgleich setzen.
+- **2025**: verifiziert (BMF-Schreiben 29.08.2025). Die Kategorien für laufende Kosten
+  (Telekommunikation, Versicherungen, Wartung, Beratung, Fortbildung, Werbung, Leasing
+  bewegl. WG) stehen bewusst auf **Zeile 60** („übrige unbeschränkt abziehbar") — gewinnneutral.
+- **2026**: final gegen den Vordruck (BMF-Schreiben 01.09.2026). Neue Zeile 27, dadurch rücken
+  die meisten Zeilen nach hinten; alle laufenden Kosten haben ihre Fachzeile.
+- Details und die komplette Zuordnung: `EUER_KATEGORIEN.md`.
 
 ## API (Kurzüberblick)
 

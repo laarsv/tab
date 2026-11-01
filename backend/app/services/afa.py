@@ -3,7 +3,8 @@ Vollabzug im Kaufjahr bei Nutzungsdauer = 1 (Hardware/Software-Sofort-Option).
 
 Abgang (Verkauf/Entnahme): AfA läuft nur bis einschließlich Abgangsmonat;
 der Restbuchwert (AK minus kumulierte AfA) wird berechnet, nicht gespeichert —
-er gehört als eigene Buchung in Zeile 38, der Erlös in Zeile 19.
+er gehört als eigene Buchung in die Restbuchwert-Zeile (2025: 38, 2026: 39), der Erlös
+in Zeile 19.
 
 Beträge in Cent (Integer). Rundungsfrei kumulativ, damit die Summe aller
 Jahres-AfA exakt den Anschaffungskosten entspricht.

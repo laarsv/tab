@@ -13,6 +13,8 @@ import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from
 export default function Afa() {
   const { gewerbeId, jahr } = useOutletContext();
   const [afaKategorien, setAfaKategorien] = useState([]);
+  // Kategorie-Key -> EÜR-Zeile im gewählten Jahr (die Zeilen verschieben sich jährlich)
+  const [zeilen, setZeilen] = useState({});
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
@@ -29,6 +31,7 @@ export default function Afa() {
         api.get('/api/afa', { params: { gewerbe_id: gewerbeId, jahr } }),
       ]);
       setAfaKategorien(kat.data.filter((k) => k.ist_afa));
+      setZeilen(Object.fromEntries(kat.data.map((k) => [k.key, k.euer_zeile])));
       setItems(afa.data);
     } catch (e) {
       toast.error(apiError(e));
@@ -40,6 +43,8 @@ export default function Afa() {
   useEffect(() => {
     load();
   }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const zeile = (key) => (zeilen[key] ? `Zeile ${zeilen[key]}` : 'der EÜR');
 
   const sumJahresAfa = useMemo(
     () => items.reduce((s, a) => s + (a.jahres_afa_cent || 0), 0),
@@ -79,7 +84,7 @@ export default function Afa() {
     <div>
       <PageHeader
         title="Abschreibungen (AfA)"
-        sub={`Teure Anschaffungen über mehrere Jahre absetzen · Jahres-AfA ${jahr} fließt in Zeile 33.`}
+        sub={`Teure Anschaffungen über mehrere Jahre absetzen · Jahres-AfA ${jahr} fließt in ${zeile('afa_beweglich')}.`}
       >
         <button className="btn-primary" onClick={openNew}>
           <IconPlus className="mr-1 h-4 w-4" /> Anschaffung
@@ -102,7 +107,7 @@ export default function Afa() {
       </Hinweis>
 
       <Kennzahlen cols={1} className="mt-6">
-        <Kennzahl label={`Summe Jahres-AfA ${jahr} (Zeile 33)`} value={formatEuro(sumJahresAfa)} />
+        <Kennzahl label={`Summe Jahres-AfA ${jahr} (${zeile('afa_beweglich')})`} value={formatEuro(sumJahresAfa)} />
       </Kennzahlen>
 
       <div className="mt-2">
@@ -127,7 +132,7 @@ export default function Afa() {
                       <span>
                         Abgang {formatDateDE(a.abgang_datum)}
                         {a.restbuchwert_cent > 0 && (
-                          <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → als Buchung Zeile 38 erfassen</>
+                          <> · Restbuchwert {formatEuro(a.restbuchwert_cent)} → als Buchung {zeile('restbuchwert')} erfassen</>
                         )}
                       </span>
                     </>
@@ -314,8 +319,8 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
               </label>
               <Hinweis>
                 Die AfA endet mit dem Abgangsmonat. Den Restbuchwert (wird in der Liste angezeigt) als Buchung
-                „Restbuchwert" (Zeile 38) erfassen, einen Verkaufserlös als „Veräußerung Anlagevermögen"
-                (Zeile 19).
+                „Restbuchwert" ({zeile('restbuchwert')}) erfassen, einen Verkaufserlös als „Veräußerung Anlagevermögen"
+                ({zeile('veraeusserung_av')}).
               </Hinweis>
             </div>
           )}

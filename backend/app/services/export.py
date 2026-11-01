@@ -2,9 +2,11 @@
 
 - Bewirtung & Co.: abzug_quote wird je Kategorie-Summe angewandt, dann auf
   Zeilen-Ebene aggregiert, am Ende auf Cent gerundet.
-- AfA fließt als Jahres-AfA-Betrag in Zeile 33 (services/afa.py).
+- AfA fließt als Jahres-AfA-Betrag in die Zeile der Kategorie `afa_beweglich`
+  (2025: Zeile 33, 2026: Zeile 34; services/afa.py).
 - Guard: fehlt ein Mapping fürs angeforderte Jahr -> MappingMissingError (klare
-  Fehlermeldung statt Crash). Nie befüllte Zeilen (15/17/57/58) werden defensiv geprüft.
+  Fehlermeldung statt Crash). Nie befüllte Zeilen werden je Jahr defensiv geprüft
+  (`seed.nie_befuellt`).
 - CSV-Dialekt: deutsch/Excel — Semikolon, Komma-Dezimal, UTF-8-BOM, Datum TT.MM.JJJJ.
 """
 from __future__ import annotations
@@ -17,7 +19,7 @@ import zipfile
 
 from .afa import jahres_afa_cent
 from ..config import settings
-from ..seed import NIE_BEFUELLT
+from ..seed import nie_befuellt
 
 
 class MappingMissingError(Exception):
@@ -133,7 +135,7 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
         betrag = zeile_cent[nummer]
         if betrag == 0:
             continue
-        if nummer in NIE_BEFUELLT:
+        if nummer in nie_befuellt(jahr):
             raise ValueError(f"Zeile {nummer} darf bei Kleinunternehmern nie befüllt werden.")
         typ = zeile_typ[nummer]
         zeilen.append(

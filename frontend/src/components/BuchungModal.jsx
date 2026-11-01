@@ -43,12 +43,16 @@ const CALCULATORS = {
       { key: 'tage', label: 'Arbeitstage', placeholder: 'z. B. 120' },
       { key: 'km', label: 'Entfernungs-km (einfach)', placeholder: 'z. B. 25' },
     ],
-    hint: 'Tage × (km 1–20 × 0,30 € · ab km 21 × 0,38 €)',
-    compute: (c) => {
+    // Bis 2025: km 1–20 mit 0,30 €, ab km 21 mit 0,38 €. Ab 2026: 0,38 € ab dem 1. km.
+    hint: (jahr) =>
+      jahr >= 2026
+        ? 'Tage × km × 0,38 € (ab 2026 vom 1. Kilometer an)'
+        : 'Tage × (km 1–20 × 0,30 € · ab km 21 × 0,38 €)',
+    compute: (c, jahr) => {
       const tage = num(c.tage);
       const km = num(c.km);
       if (tage === null || km === null || tage <= 0 || km <= 0) return null;
-      const proTag = Math.min(km, 20) * 30 + Math.max(km - 20, 0) * 38;
+      const proTag = jahr >= 2026 ? km * 38 : Math.min(km, 20) * 30 + Math.max(km - 20, 0) * 38;
       return Math.round(tage * proTag);
     },
   },
@@ -236,6 +240,8 @@ export default function BuchungModal({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Jahr des Buchungsdatums — bestimmt jahresabhängige Rechner-Sätze (z. B. Entfernungspauschale)
+  const buchungsJahr = Number(String(datum).slice(0, 4)) || new Date().getFullYear();
   const jahrMismatch = jahr && datum && String(datum).slice(0, 4) !== String(jahr);
 
   function setPos(i, patch) {
@@ -253,7 +259,7 @@ export default function BuchungModal({
   }
   function setCalcField(i, pos, calcDef, key, value) {
     const calc = { ...pos.calc, [key]: value };
-    const cent = calcDef.compute(calc);
+    const cent = calcDef.compute(calc, buchungsJahr);
     setPos(i, { calc, ...(cent !== null ? { betragInput: centToInput(cent) } : {}) });
   }
   function addPos() {
@@ -514,7 +520,7 @@ export default function BuchungModal({
                       )}
                     </div>
                     <span className="block text-xs text-ink/60">
-                      Rechner: {calcDef.hint} — Ergebnis landet im Betragsfeld.
+                      Rechner: {typeof calcDef.hint === 'function' ? calcDef.hint(buchungsJahr) : calcDef.hint} — Ergebnis landet im Betragsfeld.
                     </span>
                   </div>
                 )}
@@ -538,7 +544,7 @@ export default function BuchungModal({
                 )}
                 {isBewirtung && (
                   <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
-                    100 % erfassen — der Export rechnet automatisch 70 % in Zeile 63.
+                    100 % erfassen — der Export rechnet automatisch 70 %{kat?.euer_zeile ? ` in Zeile ${kat.euer_zeile}` : ''}.
                   </div>
                 )}
                 {isKfz1Prozent && (
@@ -547,8 +553,8 @@ export default function BuchungModal({
                     <strong> E-Auto (0,25 %)</strong> gilt bis 70.000 € Listenpreis (Anschaffung ab
                     07/2025: 100.000 €), darüber 0,5 %; <strong>Plug-in-Hybrid (0,5 %)</strong> nur mit
                     ausreichender E-Reichweite. Die laufenden Kfz-Kosten separat als „Kfz-Kosten
-                    Betriebs-Kfz" buchen. Nicht abgedeckt: 0,03 %-Kürzung für Wege Wohnung–Betrieb
-                    (Zeile 72), Kostendeckelung, Fahrtenbuch — im Zweifel Steuerberater.
+                    Betriebs-Kfz" buchen. Nicht abgedeckt: 0,03 %-Kürzung für Wege Wohnung–Betrieb,
+                    Kostendeckelung, Fahrtenbuch — im Zweifel Steuerberater.
                   </div>
                 )}
                 {warnGeschenke && (
