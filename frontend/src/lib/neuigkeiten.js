@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 33,
+    datum: '2026-11-08',
+    titel: 'Anmelden mit Passkey',
+    text: 'Im Profil-Menü (unten links) findest du jetzt „Passkeys“. Dort hinterlegst du dein Gerät, z. B. mit Fingerabdruck, Gesichtserkennung oder Geräte-PIN. Danach genügt auf der Anmeldeseite „Mit Passkey anmelden“ — ohne Passwort und ohne Google-Umweg. Dein Google- oder Passwort-Login bleibt daneben bestehen. Du kannst mehrere Passkeys anlegen (etwa für Mac und iPhone), sie umbenennen und einzeln wieder entfernen. Ein Passkey funktioniert nur auf dieser Adresse.',
+  },
+  {
     id: 32,
     datum: '2026-11-08',
     titel: 'Zugang für deine Steuerberatung',

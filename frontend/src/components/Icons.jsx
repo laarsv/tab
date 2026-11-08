@@ -356,3 +356,10 @@ export const IconBookmark = (p) => (
     <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z" />
   </Svg>
 );
+// Schlüssel (Passkeys)
+export const IconKey = (p) => (
+  <Svg {...p}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="M11 12l9-9M16 7l3 3M14 9l2 2" />
+  </Svg>
+);

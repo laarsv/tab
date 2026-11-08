@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -301,6 +301,21 @@ der Mapping-Version des Jahres aufgelöst.
   Nicht für die Steuerberatung: Bank, Dauerbelege, Angebote, Kontakte, Artikel, Einstellungen, Fristen, Übersicht,
   Backup. Nicht gebaut: Passkeys, Anmelde-Protokoll im Änderungsprotokoll (nur `letzte_anmeldung`), „Neu seit dem
   letzten Besuch“, Vorschau der Beraterseite für den Inhaber, mehrere Mandanten je Konto, Rückfragen am Beleg.
+- **Passkeys (v28, `routes/passkeys.py`, `lib/passkey.js`, `components/PasskeyModal.jsx`):** WebAuthn als **zusätzlicher**
+  Anmeldeweg für Google- und Passwort-Konten (Bibliothek `webauthn` 2.7.1 — braucht `cryptography>=44.0.2` und
+  `pyOpenSSL==25.0.0`, beides in `requirements.txt` gepinnt; pyOpenSSL 26 verlangt ein neueres cryptography). Wer
+  angemeldet ist, legt im Profil-Menü → „Passkeys“ welche an (`/registrierung/optionen` + `/registrierung`, max. 10 je
+  Konto, auffindbare Passkeys, **Nutzerprüfung Pflicht** — der Passkey ersetzt das Passwort); auf der Anmeldeseite genügt
+  „Mit Passkey anmelden“ (`/anmeldung/optionen` + `/anmeldung`, öffentlich, keine E-Mail-Eingabe). Der Passkey gehört
+  zur E-Mail des Kontos (`passkey.email`); die Anmeldung setzt das normale Session-Cookie und prüft dieselbe
+  Zugangsregel wie Google/Passwort (`OPEN_SIGNUP`/`ALLOWED_EMAILS` → sonst 403). **Challenges** liegen im Speicher
+  (ein Uvicorn-Prozess), 5 Minuten, genau einmal, bei der Registrierung an das Konto gebunden. Zähler gegen geklonte
+  Schlüssel: steigt `sign_count` nicht, scheitert die Anmeldung. Jeder Prüffehler (auch kaputtes JSON) → 400 ohne
+  Details. **RP-ID/Origin** kommen aus `FRONTEND_URL` (`PASSKEY_RP_ID`/`PASSKEY_ORIGIN` nur für Tests/Entwicklung) — die
+  RP-ID ist an die Passkeys gebunden, ein späterer Domainwechsel macht sie unbrauchbar. Die Steuerberatung hat keine
+  Passkeys (`nur_inhaber` + Allowlist). `passkey_test.py` nutzt einen virtuellen Authenticator (EC P-256, Format
+  „none“); mit einem echten Gerät ist es nicht getestet. Nicht gebaut: Passkey für die Steuerberatung, Anmelde-Protokoll,
+  Passkey als einziger Weg (Konten entstehen weiter über Google/Passwort), Attestation-Prüfung.
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via

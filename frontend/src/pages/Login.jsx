@@ -3,6 +3,8 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api, apiError, loginUrl } from '../api/client.js';
 import { PageSpinner } from '../components/Spinner.jsx';
+import { passkeyAnmelden, passkeyFehler, passkeyVerfuegbar } from '../lib/passkey.js';
+import { IconKey } from '../components/Icons.jsx';
 import Wordmark from '../components/Wordmark.jsx';
 
 const ERRORS = {
@@ -27,6 +29,19 @@ export default function Login() {
 
   if (loading) return <PageSpinner />;
   if (user) return <Navigate to={user.rolle === 'steuerberatung' ? '/berater' : '/uebersicht'} replace />;
+
+  async function mitPasskey() {
+    setHinweis(null);
+    setBusy(true);
+    try {
+      if (await passkeyAnmelden()) window.location.href = '/uebersicht';
+    } catch (err) {
+      const text = passkeyFehler(err);
+      if (text !== null) setHinweis({ typ: 'fehler', text: text || apiError(err, 'Anmeldung mit Passkey fehlgeschlagen.') });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function wechsle(m) {
     setModus(m);
@@ -123,6 +138,11 @@ export default function Login() {
                 </svg>
                 Mit Google anmelden
               </a>
+              {passkeyVerfuegbar() && (
+                <button type="button" className="btn-outline w-full gap-2" disabled={busy} onClick={mitPasskey}>
+                  <IconKey className="h-4 w-4" /> Mit Passkey anmelden
+                </button>
+              )}
               {passwortAktiv && (
                 <>
                   <div className="flex items-center gap-3 text-xs text-ink/40">

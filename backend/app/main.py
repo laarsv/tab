@@ -38,6 +38,7 @@ from .routes import (
     mahnwesen,
     meta,
     news,
+    passkeys,
     rechnungen,
     uebersicht,
     vorlagen,
@@ -157,6 +158,7 @@ app.include_router(angebote.router)
 app.include_router(dauerbelege.router)
 app.include_router(uebersicht.router)
 app.include_router(berater.router)
+app.include_router(passkeys.router)
 app.include_router(vorlagen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)

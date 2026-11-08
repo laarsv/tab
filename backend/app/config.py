@@ -51,6 +51,21 @@ class Settings(BaseSettings):
     # Wohin nach Login/Logout zurück (Frontend-Origin).
     FRONTEND_URL: str = "https://tab.vrwb.de"
 
+    # Passkeys (WebAuthn): Standard ist die Domain aus FRONTEND_URL. Nur für Tests/Entwicklung überschreiben —
+    # der RP-ID-Wert ist an die Passkeys gebunden, ein späterer Wechsel macht sie unbrauchbar.
+    PASSKEY_RP_ID: str = ""
+    PASSKEY_ORIGIN: str = ""
+
+    @property
+    def passkey_origin(self) -> str:
+        return (self.PASSKEY_ORIGIN or self.FRONTEND_URL).rstrip("/")
+
+    @property
+    def passkey_rp_id(self) -> str:
+        from urllib.parse import urlparse
+
+        return self.PASSKEY_RP_ID or (urlparse(self.passkey_origin).hostname or "")
+
     # ── Session (JWT im Cookie) + OAuth-State-Middleware ──────────────────────
     JWT_SECRET: str = "change-me-openssl-rand-hex-32"
     JWT_TTL_DAYS: int = 30

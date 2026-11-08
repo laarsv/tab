@@ -12,6 +12,7 @@ import {
   IconDownload,
   IconGrid,
   IconInfo,
+  IconKey,
   IconList,
   IconLock,
   IconLogOut,
@@ -77,7 +78,7 @@ function NavItem({ item, badge, onNavigate }) {
   );
 }
 
-function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onNews, onLogout, onNavigate }) {
+function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onPasskeys, onNews, onLogout, onNavigate }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -118,6 +119,9 @@ function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onNews, onLogout, onN
           </div>
           <button role="menuitem" className={eintrag} onClick={() => run(onMail)}>
             <IconMail className="h-[18px] w-[18px] text-ink/60" /> E-Mail-Versand
+          </button>
+          <button role="menuitem" className={eintrag} onClick={() => run(onPasskeys)}>
+            <IconKey className="h-[18px] w-[18px] text-ink/60" /> Passkeys
           </button>
           <button role="menuitem" className={eintrag} onClick={() => run(onNews)}>
             <IconSparkles className="h-[18px] w-[18px] text-ink/60" /> Neuigkeiten
@@ -171,6 +175,7 @@ export default function Sidebar({
   onUpload,
   onAbarbeiten,
   onMail,
+  onPasskeys,
   onNews,
   onLogout,
 }) {
@@ -281,6 +286,7 @@ export default function Sidebar({
         jahr={jahr}
         jahrVorlaeufig={jahrVorlaeufig}
         onMail={onMail}
+        onPasskeys={onPasskeys}
         onNews={onNews}
         onLogout={onLogout}
         onNavigate={onNavigate}

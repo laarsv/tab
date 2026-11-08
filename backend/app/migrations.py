@@ -760,6 +760,26 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_berater_zugang_owner ON berater_zugang(owner_email);
         """,
     ),
+    Migration(
+        version=28,
+        sql="""
+        -- v28: Passkeys (WebAuthn). email = das Konto, dem der Passkey gehört (Google- oder Passwort-Login);
+        --      credential_id = base64url, public_key = COSE-Schlüssel, sign_count gegen geklonte Schlüssel.
+        CREATE TABLE passkey (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            email         TEXT    NOT NULL,
+            name          TEXT    NOT NULL,
+            inhaber_name  TEXT,
+            credential_id TEXT    NOT NULL UNIQUE,
+            public_key    BLOB    NOT NULL,
+            sign_count    INTEGER NOT NULL DEFAULT 0,
+            transports    TEXT,
+            created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+            letzte_nutzung TEXT
+        );
+        CREATE INDEX idx_passkey_email ON passkey(email);
+        """,
+    ),
 ]
 
 
