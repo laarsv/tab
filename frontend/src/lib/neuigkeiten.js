@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 26,
+    datum: '2026-11-08',
+    titel: 'Angebote schreiben und in Rechnungen umwandeln',
+    text: 'Neuer Reiter „Angebote“ bei den Rechnungen: Du schreibst ein Angebot mit eigener Nummer (AN-Jahr-0001), Gültigkeit und optionalen Positionen — Zusatzleistungen, die der Kunde dazubuchen kann und die nicht in der Angebotssumme stehen. Tab erzeugt das PDF und schickt es auf Wunsch per Mail. Sagt der Kunde zu, wandelst du das Angebot mit einem Klick in einen Rechnungsentwurf um, optionale Positionen nach Wahl; das Angebot gilt danach als angenommen und abgerechnet. Abgelaufene Angebote erkennt Tab selbst, ein versendetes Angebot lässt sich als neuer Entwurf kopieren. Angebote sind kein EÜR-Eintrag: gebucht wird erst, was zufließt.',
+  },
+  {
     id: 25,
     datum: '2026-11-08',
     titel: 'Teilzahlungen und Skonto bei Rechnungen',

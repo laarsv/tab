@@ -22,6 +22,7 @@ from .routes import (
     abos,
     abschluss,
     afa,
+    angebote,
     bank,
     belege,
     buchungen,
@@ -136,6 +137,7 @@ app.include_router(mahnwesen.router)
 app.include_router(fristen.router)
 app.include_router(abschluss.router)
 app.include_router(bank.router)
+app.include_router(angebote.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)

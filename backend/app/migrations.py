@@ -615,6 +615,47 @@ MIGRATIONS: list[Migration] = [
             WHERE r.status = 'bezahlt' AND s.summe > 0;
         """,
     ),
+    Migration(
+        version=23,
+        sql="""
+        -- v23: Angebote (eigener Nummernkreis AN-JJJJ-NNNN je Gewerbe + Jahr). Positionen sind normal
+        --      oder optional (Zusatzleistung, zählt nicht zur Summe). Aus einem versendeten oder
+        --      angenommenen Angebot entsteht per Klick ein Rechnungsentwurf (rechnung_id).
+        CREATE TABLE angebot (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id           INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            jahr                 INTEGER NOT NULL,
+            laufnummer           INTEGER NOT NULL,
+            nummer               TEXT    NOT NULL,
+            datum                TEXT    NOT NULL,
+            gueltig_bis          TEXT    NOT NULL,
+            empfaenger_name      TEXT    NOT NULL,
+            empfaenger_anschrift TEXT,
+            empfaenger_email     TEXT,
+            einleitung           TEXT,
+            notiz                TEXT,
+            steuerhinweis        TEXT    NOT NULL DEFAULT 'ku19',
+            status               TEXT    NOT NULL DEFAULT 'entwurf'
+                                 CHECK (status IN ('entwurf', 'versendet', 'angenommen', 'abgelehnt')),
+            versendet_am         TEXT,
+            antwort_am           TEXT,
+            rechnung_id          INTEGER REFERENCES rechnung(id) ON DELETE SET NULL,
+            created_at           TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at           TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (gewerbe_id, jahr, laufnummer)
+        );
+        CREATE INDEX idx_angebot_gewerbe ON angebot(gewerbe_id, jahr);
+        CREATE TABLE angebot_position (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            angebot_id       INTEGER NOT NULL REFERENCES angebot(id) ON DELETE CASCADE,
+            beschreibung     TEXT    NOT NULL,
+            menge            REAL    NOT NULL DEFAULT 1,
+            einzelpreis_cent INTEGER NOT NULL,
+            art              TEXT    NOT NULL DEFAULT 'normal' CHECK (art IN ('normal', 'optional'))
+        );
+        CREATE INDEX idx_angebot_position ON angebot_position(angebot_id);
+        """,
+    ),
 ]
 
 

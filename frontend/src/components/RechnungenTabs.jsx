@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 // Reiter der Rechnungsseiten (Aufbau wie Haben: Kopf und Reiter bleiben, nur der Inhalt wechselt).
 const TABS = [
   { to: '/rechnungen', label: 'Alle Rechnungen', end: true },
+  { to: '/rechnungen/angebote', label: 'Angebote', end: false },
   { to: '/rechnungen/wiederkehrend', label: 'Wiederkehrend', end: false },
   { to: '/rechnungen/mahnwesen', label: 'Mahnwesen', end: false, badge: true },
 ];

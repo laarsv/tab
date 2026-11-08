@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -259,6 +259,26 @@ der Mapping-Version des Jahres aufgelöst.
   ist. Migration v22 hat bezahlte Rechnungen als Zahlung über die Summe übernommen (mit ihrer
   Buchung). Nicht gebaut: Skonto in mehreren Stufen, Skonto an Abos, Zahlungen auf Entwürfe (nur der
   Status-Knopf), Gutschrift/Stornorechnung.
+- **Angebote (`/rechnungen/angebote`, `pages/Angebote.jsx`, `routes/angebote.py`,
+  `services/angebot_pdf.py`, v23):** Aufbau nach Haben (eigener Nummernkreis, optionale Positionen,
+  Status, Umwandeln), schlank gehalten. Vierter Reiter in `RechnungenTabs`. **Nummer** `AN-{jahr}-{lauf:04d}`
+  fortlaufend je Gewerbe + Jahr, vergeben beim Anlegen (Jahr aus dem Angebotsdatum; ein Datum in einem
+  anderen Jahr lässt sich später nicht mehr setzen). **Positionen** `art` = `normal` (zählt zur
+  Angebotssumme) | `optional` (Zusatzleistung, steht mit Preis im PDF, nicht in der Summe; mindestens
+  eine normale nötig). **Status gespeichert:** `entwurf` → `versendet` → `angenommen` | `abgelehnt`;
+  **abgeleitet** (nicht gespeichert): „Abgelaufen“ = versendet + `gueltig_bis` < heute, „Abgerechnet“ =
+  `rechnung_id` gesetzt. `gueltig_bis` Standard = Datum + 30 Tage. **Inhalt nur im Entwurf änderbar,
+  löschen nur Entwürfe** (versendetes: als abgelehnt markieren oder `POST /{id}/kopie` = neuer Entwurf mit
+  Datum heute). **Senden** (`POST /{id}/senden`) setzt den Status vor dem PDF-Bau (das PDF trägt dann kein
+  „ENTWURF“), bei Mail-Fehler Rollback. PDF: gleicher Briefbogen wie die Rechnung, kein GiroCode, keine
+  ZUGFeRD-Einbettung (ein Angebot ist keine Rechnung). **Umwandeln** (`POST /{id}/rechnung`
+  `{optional_ids, datum}`): nur aus `versendet`/`angenommen`, nur einmal (409) — erzeugt über
+  `services/rechnungen.erstelle_rechnung` einen Rechnungsentwurf (normale + gewählte optionale Positionen,
+  gleicher Empfänger/Steuerhinweis, Notiz „Bezug: Angebot …“, Standard-Zahlungsziel des Gewerbes), setzt das
+  Angebot auf `angenommen` und `rechnung_id`; Rechnung (Entwurf) löschen → `ON DELETE SET NULL`, das Angebot
+  ist wieder abrechenbar. Angebote sind **kein EÜR-Eintrag** und nicht jahresgesperrt; die Tabellen stehen im
+  Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut: Alternativpositionen, Zahlungsplan/Abschläge,
+  Auftragsbestätigung, Lieferschein, Vorschau-PDF vor dem Speichern, Angebots-Abos.
 - **Fälligkeit + Mahnwesen (`routes/mahnwesen.py`, `services/mahnwesen.py`,
   `services/fristen.py`, `services/mahnung_pdf.py`, v17):** Aufbau und Abläufe nach **Haben**
   (github.com/firsttris/haben; Lars: „Aufbau nicht Farben" — bei neuen Seiten dort zuerst

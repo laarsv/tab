@@ -65,7 +65,9 @@ export function leerePosition() {
 
 // Positionen einer Rechnung/eines Abos: je Position eine getönte Fläche (Beschreibung, Menge,
 // Einzelpreis) + Summe. Gemeinsam für RechnungModal und AboModal.
-export function PositionenEditor({ positionen, onChange, summeCent, platzhalter }) {
+// mitOptional (Angebote): je Position ein Schalter „Optional“ — optionale Positionen zählen nicht zur Summe
+// (optionalCent zeigt sie getrennt).
+export function PositionenEditor({ positionen, onChange, summeCent, platzhalter, mitOptional = false, optionalCent = 0 }) {
   function setPos(i, patch) {
     onChange(positionen.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
   }
@@ -109,13 +111,28 @@ export function PositionenEditor({ positionen, onChange, summeCent, platzhalter 
               />
             </label>
           </div>
+          {mitOptional && (
+            <div className="flex items-center gap-3 pt-0.5">
+              <Schalter
+                checked={Boolean(p.optional)}
+                onChange={(an) => setPos(i, { optional: an })}
+                label="Optionale Position"
+              />
+              <span className="text-[13px] leading-snug text-ink/70">
+                Optional — Zusatzleistung, zählt nicht zur Angebotssumme
+              </span>
+            </div>
+          )}
         </div>
       ))}
       <div className="flex items-center justify-between">
         <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...positionen, leerePosition()])}>
           <IconPlus className="mr-1 h-3.5 w-3.5" /> Position
         </button>
-        <span className="text-sm tabular-nums text-ink/60">Summe {formatEuro(summeCent)}</span>
+        <span className="text-sm tabular-nums text-ink/60">
+          {mitOptional ? 'Angebotssumme' : 'Summe'} {formatEuro(summeCent)}
+          {mitOptional && optionalCent > 0 && ` · optional ${formatEuro(optionalCent)}`}
+        </span>
       </div>
     </Gruppe>
   );
