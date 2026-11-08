@@ -127,7 +127,9 @@ der Mapping-Version des Jahres aufgelöst.
   nicht linearen Anlagen die Methode statt „ND n J.“. Nicht gebaut: Erinnerungswert 1 €, Übernahme mit
   Restbuchwert zum Stichtag (Tab rechnet immer ab dem Anschaffungsdatum), Anlage AVEÜR, Sonderabschreibung
   § 7g, Antriebsprüfung beim E-Fahrzeug.
-- **GWG:** weicher Hinweis im UI (800 € netto ≈ 952 € brutto), keine harte Prüfung. Weitere
+- **GWG:** Grenze **800 € inkl. USt** (Kleinunternehmer haben keinen Vorsteuerabzug, § 6 Abs. 2 EStG; die
+  frühere Lesart „800 € netto ≈ 952 € brutto" gilt nur für Regelbesteuerer — nicht zurückdrehen). Weicher
+  Hinweis + gelbe Warnung ab 800 € im BuchungModal (`GWG_GRENZE_CENT`), keine harte Prüfung. Weitere
   Soft-Hinweise: Geschenke > 50 € (Freigrenze), Homeoffice > 1.260 €/Jahr.
 - **Rechner-Helfer (`BuchungModal.jsx`, `CALCULATORS`):** Fahrtkosten (km × 0,30 €),
   Entfernungspauschale (Tage × km; **bis 2025** 0,30 €, ab km 21 0,38 € — **ab 2026** 0,38 € vom

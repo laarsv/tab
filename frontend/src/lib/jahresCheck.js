@@ -42,8 +42,8 @@ export const TOPICS = [
   {
     key: 'technik',
     frage: 'Hast du Technik oder Arbeitsmittel gekauft?',
-    text: 'Laptop, Monitor, Schreibtischstuhl … Bis 800 € netto (≈ 952 € brutto) als GWG sofort absetzen. Teurer? Dann über die Abschreibungs-Seite als Anschaffung anlegen — Computer-Hardware/Software darf mit 1 Jahr Nutzungsdauer sofort voll abgesetzt werden.',
-    aktionen: [{ label: 'GWG buchen (≤ 800 € netto)', katKey: 'gwg' }],
+    text: 'Laptop, Monitor, Schreibtischstuhl … Bis 800 € (als Kleinunternehmer inklusive USt) als GWG sofort absetzen. Teurer? Dann über die Abschreibungs-Seite als Anschaffung anlegen — Computer-Hardware/Software darf mit 1 Jahr Nutzungsdauer sofort voll abgesetzt werden.',
+    aktionen: [{ label: 'GWG buchen (≤ 800 €)', katKey: 'gwg' }],
     links: [{ to: '/afa', label: 'Abschreibung anlegen' }],
   },
   {

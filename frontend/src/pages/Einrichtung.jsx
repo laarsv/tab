@@ -190,7 +190,7 @@ export default function Einrichtung() {
         <ul className="list-disc ml-5 space-y-1">
           <li><strong>„Jetzt abarbeiten"</strong> führt Beleg für Beleg durch — Tab liest den Beleg und füllt Datum, Betrag und Kategorie vor (immer prüfen!).</li>
           <li>Gebucht wird zum <strong>Zahltag</strong> (EÜR-Prinzip): Beleg erst bezahlen, dann verbuchen.</li>
-          <li>Teure Anschaffungen (&gt; 800 € netto) laufen über <Link to="/afa" className="text-royal font-medium hover:underline">Abschreibungen</Link>.</li>
+          <li>Teure Anschaffungen (&gt; 800 €) laufen über <Link to="/afa" className="text-royal font-medium hover:underline">Abschreibungen</Link>.</li>
         </ul>
       </Schritt>
 

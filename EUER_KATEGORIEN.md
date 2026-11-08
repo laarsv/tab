@@ -94,7 +94,7 @@ Default im Tool: **Zeile 16** für die Kategorie „Umsatzsteuerfreie Einnahme".
 | Kategorie | Zeile 2025 | Zeile 2026 | Besonderheit | Status |
 |---|---|---|---|---|
 | AfA bewegliche Wirtschaftsgüter (MacBook, Hardware >800 €) | **33** | **34** | `ist_afa` | ✅ |
-| GWG-Sofortabzug (≤800 € netto) | **36** | **37** | Vollabzug im Kaufjahr | ✅ |
+| GWG-Sofortabzug (bis 800 € inkl. USt) | **36** | **37** | Vollabzug im Kaufjahr | ✅ |
 | Restbuchwert ausgeschiedener Anlagegüter | **38** | **39** | bei Verkauf/Verschrottung | ✅ |
 
 ### 4.3 Raumkosten
@@ -172,7 +172,11 @@ keine eigene Kategorie, bei Bedarf als „Sonstige" erfassen und mit dem Steuerb
    **Methoden:** linear (Standard), degressiv (Anschaffung 01.07.2025–31.12.2027: bis 30 %, höchstens das
    Dreifache des linearen Satzes), Elektro-Staffel 75/10/5/5/3/2 % (§ 7 Abs. 2a EStG) und Sammelposten
    (250,01–1.000 €, je ein Fünftel in fünf Jahren) — alle in dieselbe AfA-Zeile.
-2. **GWG ≤800 € netto** → Sofortabzug (2025: Zeile 36, 2026: Zeile 37), kein AfA-Plan nötig.
+2. **GWG bis 800 €** → Sofortabzug (2025: Zeile 36, 2026: Zeile 37), kein AfA-Plan nötig.
+   **Die Grenze gilt für die Anschaffungskosten ohne abziehbare Vorsteuer** (§ 6 Abs. 2 EStG). Ein
+   Kleinunternehmer hat keinen Vorsteuerabzug, also zählt der Bruttobetrag: **800 € inkl. USt**, nicht
+   „800 € netto ≈ 952 € brutto" (das gilt nur für Regelbesteuerer). Gleiches gilt für die Sammelposten-Grenzen
+   (250,01–1.000 €). Tab prüft nicht hart, sondern warnt im Buchungsfenster ab 800 €.
 3. **Bewirtung:** Tool speichert 100 % des Belegs, EÜR-Export rechnet **70 %** in die
    Bewirtungszeile (2025: 63, 2026: 64). Die 30 % nicht abziehbar nicht doppelt erfassen.
 4. **Geschenke:** ≤50 €/Empfänger/Jahr abziehbar, Empfängername am Beleg.

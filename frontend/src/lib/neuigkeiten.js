@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 29,
+    datum: '2026-11-08',
+    titel: 'GWG-Grenze korrigiert: 800 € inklusive USt',
+    text: 'Bisher stand in Tab, ein geringwertiges Wirtschaftsgut (GWG) dürfe bis 800 € netto, also etwa 952 € brutto, sofort abgesetzt werden. Für Kleinunternehmer ist das zu großzügig: Wer keine Vorsteuer abziehen kann, rechnet mit dem gezahlten Betrag, die Grenze liegt also bei 800 € inklusive USt. Tab nennt jetzt überall 800 € und warnt im Buchungsfenster, sobald ein GWG darüber liegt. Wenn du eine Anschaffung zwischen 800 und 952 € als GWG gebucht hast, lege sie besser unter „Abschreibungen“ an (oder wähle dort den Sammelposten). Bei Zweifeln im Einzelfall hilft die Steuerberatung.',
+  },
+  {
     id: 28,
     datum: '2026-11-08',
     titel: 'Mehr Abschreibungsmethoden bei der AfA',

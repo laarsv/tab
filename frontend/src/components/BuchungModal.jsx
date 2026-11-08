@@ -119,6 +119,8 @@ const CALCULATORS = {
 
 const GESCHENKE_GRENZE_CENT = 50_00;
 const HOMEOFFICE_MAX_CENT = 1260_00;
+// GWG: 800 € Anschaffungskosten, bei Kleinunternehmern inklusive USt (kein Vorsteuerabzug, § 6 Abs. 2 EStG).
+const GWG_GRENZE_CENT = 800_00;
 
 function emptyPos() {
   return { kategorie_id: '', betragInput: '', calc: {}, beleg_details: '', privatAn: false, privatInput: '' };
@@ -514,6 +516,7 @@ export default function BuchungModal({
             const betragCent = parseEuroToCent(p.betragInput);
             const warnGeschenke = kat?.key === 'geschenke' && betragCent > GESCHENKE_GRENZE_CENT;
             const warnHomeoffice = kat?.key === 'homeoffice_pauschale' && betragCent > HOMEOFFICE_MAX_CENT;
+            const warnGwg = isGwg && betragCent > GWG_GRENZE_CENT;
             return (
               <div key={i} className="rounded-lg border border-ink/10 p-3 space-y-3">
                 <div className="flex items-start gap-2">
@@ -645,8 +648,14 @@ export default function BuchungModal({
 
                 {isGwg && (
                   <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
-                    GWG-Grenze ist <strong>netto</strong>: 800 € netto ≈ 952 € brutto (19 %). Darüber →
-                    AfA-Erfassung.
+                    GWG-Grenze: <strong>800 € inklusive USt</strong>. Als Kleinunternehmer kannst du keine
+                    Vorsteuer abziehen, deshalb zählt der Betrag auf der Rechnung. Darüber → AfA-Erfassung.
+                  </div>
+                )}
+                {warnGwg && (
+                  <div className="rounded-lg bg-yellow-100 text-yellow-900 p-2.5 text-xs">
+                    Dieser Betrag liegt über 800 € — das ist kein GWG mehr. Lege die Anschaffung unter
+                    „Abschreibungen" an, damit sie über die Nutzungsdauer verteilt wird.
                   </div>
                 )}
                 {isBewirtung && (

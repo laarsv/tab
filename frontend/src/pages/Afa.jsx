@@ -99,14 +99,14 @@ export default function Afa() {
 
       <Hinweis titel="Wann gehört etwas hierher?" className="mt-5 space-y-1">
         <p>
-          Kostet eine Anschaffung <strong>mehr als 800 € netto</strong> (≈ 952 € brutto), darfst du sie nicht auf
-          einmal absetzen, sondern verteilst sie über die Nutzungsdauer — die Jahresrate heißt{' '}
+          Kostet eine Anschaffung <strong>mehr als 800 €</strong> (als Kleinunternehmer inklusive USt, du hast ja
+          keinen Vorsteuerabzug), darfst du sie nicht auf einmal absetzen, sondern verteilst sie über die Nutzungsdauer — die Jahresrate heißt{' '}
           <strong>Abschreibung (AfA)</strong>. Du legst die Anschaffung hier einmal an, Tab rechnet die
           Jahresbeträge automatisch und nimmt sie in jeden Export mit.
         </p>
         <p>
           <strong>Ausnahme:</strong> Computer, Laptop &amp; Software dürfen mit Nutzungsdauer 1 Jahr sofort komplett
-          abgesetzt werden — dafür gibt's den Haken „Sofortabzug". Günstigeres (≤ 800 € netto) buchst du einfach
+          abgesetzt werden — dafür gibt's den Haken „Sofortabzug". Günstigeres (bis 800 €) buchst du einfach
           als <strong>GWG</strong> direkt bei den Buchungen. Verkauft oder ausgemustert? Beim Bearbeiten das
           Abgangsdatum setzen.
         </p>
@@ -125,7 +125,7 @@ export default function Afa() {
 
       <div className="mt-2">
         {items.length === 0 ? (
-          <Leer>Noch keine Anschaffungen erfasst. Nur nötig für Käufe über 800 € netto.</Leer>
+          <Leer>Noch keine Anschaffungen erfasst. Nur nötig für Käufe über 800 €.</Leer>
         ) : (
           items.map((a) => (
             <Row

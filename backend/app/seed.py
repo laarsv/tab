@@ -41,7 +41,7 @@ KATEGORIEN: list[tuple] = [
     ("personal",           "Personal: Löhne, Gehälter, Minijob-Pauschalabgaben", "ausgabe", 1.0, 0, 0, 21),
     # --- Ausgaben: AfA / GWG ---
     ("afa_beweglich",      "AfA bewegliche Wirtschaftsgüter (Hardware > 800 €)", "ausgabe", 1.0, 1, 0, 22),
-    ("gwg",                "GWG-Sofortabzug (≤ 800 € netto)",                    "ausgabe", 1.0, 0, 0, 23),
+    ("gwg",                "GWG-Sofortabzug (bis 800 €)",                        "ausgabe", 1.0, 0, 0, 23),
     ("restbuchwert",       "Restbuchwert ausgeschiedener Anlagegüter",           "ausgabe", 1.0, 0, 0, 24),
     # --- Ausgaben: Raumkosten ---
     ("miete_raeume",       "Miete betrieblich genutzte Räume",                   "ausgabe", 1.0, 0, 0, 25),
