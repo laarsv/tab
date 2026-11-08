@@ -5,9 +5,11 @@ import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
 import BelegVorschau from './BelegVorschau.jsx';
+import { Schalter } from './DialogParts.jsx';
 import { IconSparkles, IconX } from './Icons.jsx';
 import { openBeleg } from '../lib/belege.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
+import { betrieblichCent, bpZuText, privatCent, textZuBp } from '../lib/privat.js';
 
 const QUELLE_LABEL = {
   'e-rechnung': 'E-Rechnung, exakt',
@@ -119,7 +121,7 @@ const GESCHENKE_GRENZE_CENT = 50_00;
 const HOMEOFFICE_MAX_CENT = 1260_00;
 
 function emptyPos() {
-  return { kategorie_id: '', betragInput: '', calc: {}, beleg_details: '' };
+  return { kategorie_id: '', betragInput: '', calc: {}, beleg_details: '', privatAn: false, privatInput: '' };
 }
 
 // Gemeinsames Modal für Buchungen (Beleg-Kopf + 1..n Positionen).
@@ -128,6 +130,8 @@ function emptyPos() {
 // (Jahres-Check, Fahrten-Liste). wizard: { pos, total, onSkip } — Eingang-Abarbeiten-Modus.
 // rechnungId: verknüpft die neue Buchung mit der Rechnung („Als Einnahme buchen").
 // presetDatum/-Richtung + umsatzId: Zuordnung aus dem Bank-Import (verknüpft den Umsatz atomar).
+// presetPrivatBp: Privatanteil (Basispunkte) der ersten Position. dauerbeleg { id, termin }: bucht diesen
+// Termin eines Dauerbelegs (der Dauerbeleg rückt danach zum nächsten Termin).
 export default function BuchungModal({
   buchung,
   preBelege = [],
@@ -143,6 +147,8 @@ export default function BuchungModal({
   zahlungId,
   restAusbuchen,
   umsatzId,
+  presetPrivatBp,
+  dauerbeleg,
   wizard,
   onClose,
   onSaved,
@@ -184,16 +190,44 @@ export default function BuchungModal({
           betragInput: centToInput(p.betrag_cent),
           calc: {},
           beleg_details: p.beleg_details || '',
+          privatAn: (p.privat_bp || 0) > 0,
+          privatInput: bpZuText(p.privat_bp || 0),
         }))
       : [
           {
             ...emptyPos(),
             ...(presetKategorieId ? { kategorie_id: String(presetKategorieId) } : {}),
             ...(presetBetragCent ? { betragInput: centToInput(presetBetragCent) } : {}),
+            ...(presetPrivatBp ? { privatAn: true, privatInput: bpZuText(presetPrivatBp) } : {}),
           },
         ],
   );
   const [busy, setBusy] = useState(false);
+  // Zuletzt verwendeter Privatanteil je Kategorie (Handy, Internet …) — Vorschlag beim Wählen der Kategorie.
+  const [gelernt, setGelernt] = useState({});
+  useEffect(() => {
+    if (isEdit || !gewerbeId) return undefined;
+    let aktiv = true;
+    api
+      .get('/api/buchungen/privatanteile', { params: { gewerbe_id: gewerbeId } })
+      .then((res) => {
+        if (!aktiv) return;
+        setGelernt(res.data);
+        // vorgewählte Kategorie (Jahres-Check, Bank, Dauerbeleg): Vorschlag nachtragen, wenn noch nichts gesetzt ist
+        if (presetPrivatBp === undefined)
+          setPositionen((arr) =>
+            arr.map((p) =>
+              p.kategorie_id && !p.privatAn && !p.privatInput && res.data[p.kategorie_id]
+                ? { ...p, privatAn: true, privatInput: bpZuText(res.data[p.kategorie_id]) }
+                : p,
+            ),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      aktiv = false;
+    };
+  }, [gewerbeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [vorschlag, setVorschlag] = useState(null); // { quelle, ... } | null
   const [liestBeleg, setLiestBeleg] = useState(false);
 
@@ -290,10 +324,16 @@ export default function BuchungModal({
       if (!betrag || betrag <= 0) return toast.error(`Bitte gültigen Betrag für „${kat.name}" eingeben.`);
       if (kat.belegpflicht_extra && !p.beleg_details.trim())
         return toast.error(`Für „${kat.name}" sind Beleg-Details Pflicht.`);
+      let privatBp = 0;
+      if (kat.typ === 'ausgabe' && p.privatAn) {
+        privatBp = textZuBp(p.privatInput);
+        if (privatBp === null) return toast.error(`Privatanteil für „${kat.name}": bitte eine Zahl größer 0 bis 100 (%) angeben.`);
+      }
       payloadPos.push({
         kategorie_id: Number(p.kategorie_id),
         betrag_cent: betrag,
         beleg_details: kat.belegpflicht_extra ? p.beleg_details.trim() : null,
+        privat_bp: privatBp,
       });
     }
 
@@ -317,6 +357,7 @@ export default function BuchungModal({
           ...(umsatzId ? { bank_umsatz_id: umsatzId } : {}),
           ...(zahlungId ? { zahlung_id: zahlungId } : {}),
           ...(restAusbuchen ? { rest_ausbuchen: restAusbuchen } : {}),
+          ...(dauerbeleg ? { dauerbeleg_id: dauerbeleg.id, termin: dauerbeleg.termin } : {}),
         });
         toast.success('Buchung angelegt.');
       }
@@ -419,6 +460,13 @@ export default function BuchungModal({
           </div>
         )}
 
+        {dauerbeleg && !isEdit && (
+          <div className="rounded-lg bg-royal-soft/10 p-2.5 text-[13px] leading-snug text-ink/80">
+            Dauerbeleg-Termin <strong>{formatDateDE(dauerbeleg.termin)}</strong> — nach dem Speichern rückt der
+            Dauerbeleg zum nächsten Termin.
+          </div>
+        )}
+
         <div>
           <span className="field-label">Art der Buchung</span>
           <div className="flex items-center gap-3 flex-wrap">
@@ -472,7 +520,15 @@ export default function BuchungModal({
                   <div className="flex-1">
                     <Dropdown
                       value={p.kategorie_id}
-                      onChange={(v) => setPos(i, { kategorie_id: String(v), calc: {} })}
+                      onChange={(v) =>
+                        setPos(i, {
+                          kategorie_id: String(v),
+                          calc: {},
+                          ...(!isEdit && !p.privatAn && !p.privatInput && gelernt[String(v)]
+                            ? { privatAn: true, privatInput: bpZuText(gelernt[String(v)]) }
+                            : {}),
+                        })
+                      }
                       options={options}
                       placeholder={richtung ? `${richtung === 'einnahme' ? 'Einnahme' : 'Ausgabe'}-Kategorie suchen…` : 'Kategorie suchen…'}
                       searchable
@@ -544,6 +600,48 @@ export default function BuchungModal({
                     placeholder="0,00"
                   />
                 </label>
+
+                {kat?.typ === 'ausgabe' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Schalter
+                        checked={p.privatAn}
+                        onChange={(an) => setPos(i, { privatAn: an })}
+                        label="Auch privat genutzt"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[15px] font-bold leading-snug">Auch privat genutzt</div>
+                        <div className="text-[13px] leading-snug text-ink/60">
+                          z. B. Handy oder Internet — nur der betriebliche Teil zählt als Ausgabe.
+                        </div>
+                      </div>
+                    </div>
+                    {p.privatAn && (
+                      <div className="grid grid-cols-2 items-end gap-3">
+                        <label className="block">
+                          <span className="field-label">Privatanteil (%)</span>
+                          <input
+                            className="input tabular-nums"
+                            inputMode="decimal"
+                            value={p.privatInput}
+                            placeholder="z. B. 20"
+                            onChange={(e) => setPos(i, { privatInput: e.target.value })}
+                          />
+                        </label>
+                        {(() => {
+                          const bp = textZuBp(p.privatInput);
+                          return (
+                            <p className="pb-2 text-[13px] tabular-nums leading-snug text-ink/70">
+                              {bp && betragCent > 0
+                                ? `betrieblich ${formatEuro(betrieblichCent(betragCent, bp))} · privat ${formatEuro(privatCent(betragCent, bp))}`
+                                : 'Betrieblicher Teil folgt'}
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {isGwg && (
                   <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">

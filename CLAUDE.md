@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -279,6 +279,43 @@ der Mapping-Version des Jahres aufgelöst.
   ist wieder abrechenbar. Angebote sind **kein EÜR-Eintrag** und nicht jahresgesperrt; die Tabellen stehen im
   Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut: Alternativpositionen, Zahlungsplan/Abschläge,
   Auftragsbestätigung, Lieferschein, Vorschau-PDF vor dem Speichern, Angebots-Abos.
+- **Privatanteil bei Ausgaben (`buchung_position.privat_bp`, `services/privatanteil.py`, v24):** Position
+  speichert den **gezahlten Betrag** (`betrag_cent`, brutto) und den privaten Anteil in **Basispunkten**
+  (2000 = 20 %, 0–10000). **Nur der betriebliche Rest ist Betriebsausgabe** und geht in Summenblatt
+  (`services/export.summenblatt`), Kennzahlen (`routes/meta.py`, `BETRIEBLICH_SQL`), Jahres-Check und
+  „Summen je Kategorie“. Der private Teil ist in der EÜR **keine Entnahme** (die gibt es nur für Sach-/
+  Nutzungsentnahmen, Z20/21) — es wird nichts zusätzlich gebucht. Rechenvorschrift: Privatanteil kaufmännisch
+  gerundet, Rest betrieblich (`privat_cent`/`betrieblich_cent`, SQL und `lib/privat.js` rechnen gleich —
+  beide ändern). Bewirtung: erst betrieblicher Teil, dann × 70 %. **Nur bei Ausgaben** (400 sonst, nicht bei
+  AfA-Kategorien, die laufen über die AfA-Erfassung). Geld bleibt Zahlungsfluss: Bank-Zuordnung und Journal
+  rechnen mit dem vollen Betrag. **Journal-CSV:** zwei Spalten am Ende (`Privatanteil %`, `Betrieblicher
+  Betrag (EUR)`). **Siegel** (`services/abschluss.siegel`): `privat_bp` steckt nur im Hash, wenn gesetzt —
+  so bleiben Siegel aus der Zeit vor v24 nachrechenbar. **UI:** „Auch privat genutzt“ je Ausgabe-Position im
+  BuchungModal (Schalter + %, Live-Anzeige betrieblich/privat). **Gelernter Vorschlag:**
+  `GET /api/buchungen/privatanteile?gewerbe_id=` = zuletzt verwendeter Privatanteil je Kategorie (nur > 0,
+  der letzte Wert zählt auch, wenn er 0 war) — das Fenster schlägt ihn beim Wählen der Kategorie vor; keine
+  Einstellung nötig. Nicht gebaut: fester Privatanteil je Kategorie als Einstellung, Privatanteil im
+  CSV-Import, Aufteilung von Vorsteuer (Kleinunternehmer: gibt es nicht).
+- **Dauerbelege (`/dauerbelege`, `pages/Dauerbelege.jsx`, `routes/dauerbelege.py`, `services/dauerbelege.py`,
+  v24):** Aufbau nach Haben (Vorlage einmal, Termine fällig, Änderungen nur für künftige Termine,
+  Pausieren/Beenden, **bucht nie von selbst**). Vorlage: Bezeichnung (wird die Buchungsbeschreibung),
+  Ausgabe-Kategorie (nicht AfA, nicht `belegpflicht_extra`), Betrag brutto, Privatanteil, Rhythmus
+  (monatlich/vierteljährlich/halbjährlich/jährlich), `naechste_am` = nächster **offener** Termin, `endet_am`,
+  `aktiv`, Notiz. **Zeiger statt Termin-Tabelle:** „fällig“ = `naechste_am` ≤ heute (nachzuholende Termine
+  werden nacheinander angezeigt, höchstens 60); `anker_tag` hält den Tag im Monat (31. → Monatsende und
+  zurück; wer „Nächster Termin“ auf einen gekürzten Termin zurücksetzt, behält den Anker). **Termin buchen** =
+  normales `POST /api/buchungen` mit `dauerbeleg_id` + `termin` (muss der nächste sein, sonst 409): die
+  Buchung trägt beides, der Zeiger rückt weiter — gleicher Weg wie Rechnung und Bank (Jahres-Sperre gilt
+  automatisch). **Überspringen** (mietfreier Monat) rückt den Zeiger ohne Buchung. **„Alle fälligen buchen“**
+  (`POST /faellige-buchen`) bucht je Termin am Termintag; gesperrte Jahre landen in `fehler`, die Vorlage
+  bleibt an dem Termin stehen. Je Vorlage und Termin höchstens eine Buchung (eindeutiger Index). **Löschen
+  nur ohne Buchungen**, sonst pausieren oder beenden. **Fortsetzen** macht ab dem ersten Termin ≥ heute weiter
+  (Pausen-Termine entfallen). **Bank:** `bank_match.dauerbeleg_treffer` schlägt für eine Abbuchung die Vorlage
+  vor, deren nächster Termin passt (Betrag exakt 50 + Bezeichnung im Verwendungszweck 30 + Termin binnen 7
+  Tagen 20, ab 70; Termin höchstens 10 Tage nach der Abbuchung) — „Termin buchen“ verbucht Termin und Umsatz
+  zusammen. Badge „Dauerbelege“ in der Seitenleiste = fällige Termine (`GET /faellig`). Nicht gebaut:
+  Vertragsdatei an jeder Buchung (Datei und Kontoauszug separat aufbewahren), mehrere Positionen je Vorlage,
+  Auto-Buchen, Erinnerungs-Mails.
 - **Fälligkeit + Mahnwesen (`routes/mahnwesen.py`, `services/mahnwesen.py`,
   `services/fristen.py`, `services/mahnung_pdf.py`, v17):** Aufbau und Abläufe nach **Haben**
   (github.com/firsttris/haben; Lars: „Aufbau nicht Farben" — bei neuen Seiten dort zuerst
@@ -326,7 +363,11 @@ der Mapping-Version des Jahres aufgelöst.
   Zweck 40, Name 15, ab 40 Punkten; weicht der Betrag ab, gebucht wird der tatsächliche
   Zahlungseingang); Ausgang → Kategorie aus früheren Buchungen (`beleg_extract._kategorie_vorschlag`)
   und offene PDF/XML-Eingangs-Belege mit lesbarem Betrag (max. 25 geprüft, Bilder wegen OCR-Dauer
-  nur per Auswahl). Die Tabellen stehen im Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut:
+  nur per Auswahl). **Schon gebucht?** (`bank_match.buchung_treffer`,
+  `POST /api/bank/umsaetze/{id}/zuordnen`): Umsatz einer **bestehenden** Buchung zuordnen statt eine zweite zu
+  buchen (Summe gleich Umsatzbetrag 50, Datum binnen 14 Tagen 10/20, Beschreibung 30; ab 60; nur Buchungen ohne
+  Umsatz und mit passender Richtung) — nötig, wenn ein Termin oder eine Rechnung vor dem Kontoauszug gebucht
+  wurde. Die Tabellen stehen im Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut:
   Splitbuchung eines Umsatzes, automatisches Buchen, mehrere Dateien auf
   einmal, gespeicherte Originaldateien.
 - **Festschreibung / Jahresabschluss (`/abschluss`, `pages/Abschluss.jsx`, `routes/abschluss.py`,

@@ -26,6 +26,7 @@ from .routes import (
     bank,
     belege,
     buchungen,
+    dauerbelege,
     einstellungen,
     export,
     fahrten,
@@ -138,6 +139,7 @@ app.include_router(fristen.router)
 app.include_router(abschluss.router)
 app.include_router(bank.router)
 app.include_router(angebote.router)
+app.include_router(dauerbelege.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)

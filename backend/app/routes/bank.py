@@ -273,8 +273,36 @@ def vorschlaege(umsatz_id: int, user: dict = Depends(get_current_user), db: sqli
         "weitere_rechnungen": [r for r in offen if r["id"] not in ids] if u["betrag_cent"] > 0 else [],
         "kategorie_id": match.kategorie_vorschlag(db, u),
         "belege": match.beleg_treffer(db, u),
+        "dauerbelege": match.dauerbeleg_treffer(db, u),
+        "buchungen": match.buchung_treffer(db, u),
         "alle_belege": match.alle_offenen_belege(db, u["gewerbe_id"]) if u["betrag_cent"] < 0 else [],
     }
+
+
+class ZuordnenIn(BaseModel):
+    buchung_id: int
+
+
+@router.post("/umsaetze/{umsatz_id}/zuordnen")
+def zuordnen(
+    umsatz_id: int, body: ZuordnenIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)
+):
+    """Den Umsatz einer schon vorhandenen Buchung zuordnen (statt eine zweite zu buchen)."""
+    u = _umsatz(db, user, umsatz_id)
+    if u["buchung_id"] is not None:
+        raise HTTPException(409, "Der Umsatz ist schon einer Buchung zugeordnet.")
+    b = db.execute("SELECT * FROM buchung WHERE id = ?", (body.buchung_id,)).fetchone()
+    if b is None or b["gewerbe_id"] != u["gewerbe_id"]:
+        raise HTTPException(404, "Buchung nicht gefunden.")
+    if db.execute("SELECT 1 FROM bank_umsatz WHERE buchung_id = ?", (b["id"],)).fetchone():
+        raise HTTPException(409, "Diese Buchung gehört schon zu einem anderen Umsatz.")
+    db.execute(
+        "UPDATE bank_umsatz SET buchung_id = ?, status = 'offen', ignoriert_grund = NULL, "
+        "zugeordnet_am = datetime('now') WHERE id = ?",
+        (b["id"], umsatz_id),
+    )
+    db.commit()
+    return {"ok": True}
 
 
 class IgnorierenIn(BaseModel):

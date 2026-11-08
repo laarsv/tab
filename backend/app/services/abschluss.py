@@ -62,8 +62,9 @@ def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, d
     for b in conn.execute(
         "SELECT * FROM buchung WHERE gewerbe_id = ? AND substr(datum, 1, 4) = ? ORDER BY id", (gewerbe_id, j)
     ):
+        # privat_bp nur, wenn gesetzt: Siegel aus der Zeit vor v24 bleiben nachrechenbar
         pos = [
-            [p["id"], p["kategorie_id"], p["betrag_cent"], p["beleg_details"] or ""]
+            [p["id"], p["kategorie_id"], p["betrag_cent"], p["beleg_details"] or ""] + ([p["privat_bp"]] if p["privat_bp"] else [])
             for p in conn.execute("SELECT * FROM buchung_position WHERE buchung_id = ? ORDER BY id", (b["id"],))
         ]
         buchungen.append([b["id"], b["datum"], b["beschreibung"] or "", pos])

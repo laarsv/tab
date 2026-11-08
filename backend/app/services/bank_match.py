@@ -19,7 +19,7 @@ import sqlite3
 
 from ..config import settings
 from .beleg_extract import _kategorie_vorschlag, vorschlag_fuer_beleg
-from . import zahlungen
+from . import dauerbelege, zahlungen
 
 SCHWELLE = 40
 RECHTSFORMEN = {"gmbh", "mbh", "ag", "ug", "kg", "ohg", "gbr", "se", "co", "ev", "eg", "kgaa", "ltd", "inc"}
@@ -139,6 +139,90 @@ def beleg_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
             treffer.append(
                 {"id": b["id"], "original_name": b["original_name"], "lieferant": v.get("lieferant"),
                  "betrag_cent": v.get("betrag_cent"), "datum": v.get("datum"), "punkte": punkte, "gruende": gruende}
+            )
+    treffer.sort(key=lambda t: -t["punkte"])
+    return treffer[:3]
+
+
+SCHWELLE_BUCHUNG = 60
+BUCHUNG_FENSTER_TAGE = 14
+
+
+def buchung_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
+    """Schon gebuchte Buchungen, zu denen dieser Umsatz gehört (z. B. ein Termin, den du auf der
+    Dauerbeleg-Seite gebucht hast, bevor der Kontoauszug kam): Summe gleich dem Umsatzbetrag (50), Datum
+    binnen 14 Tagen (10, binnen 3 Tagen 20) und Beschreibung passt (30) — ab 60 Punkten. Nur Buchungen, die
+    noch an keinem Umsatz hängen und deren Positionen alle die Richtung des Umsatzes haben."""
+    betrag = abs(u["betrag_cent"])
+    typ = "einnahme" if u["betrag_cent"] > 0 else "ausgabe"
+    tag = dt.date.fromisoformat(u["datum"])
+    von = (tag - dt.timedelta(days=BUCHUNG_FENSTER_TAGE)).isoformat()
+    bis = (tag + dt.timedelta(days=BUCHUNG_FENSTER_TAGE)).isoformat()
+    treffer = []
+    for b in conn.execute(
+        """
+        SELECT b.id, b.datum, b.beschreibung, SUM(p.betrag_cent) AS summe,
+               GROUP_CONCAT(DISTINCT k.name) AS kategorien
+        FROM buchung b
+        JOIN buchung_position p ON p.buchung_id = b.id
+        JOIN kategorie k ON k.id = p.kategorie_id
+        WHERE b.gewerbe_id = ? AND b.datum BETWEEN ? AND ?
+          AND NOT EXISTS (SELECT 1 FROM bank_umsatz x WHERE x.buchung_id = b.id)
+        GROUP BY b.id
+        HAVING SUM(p.betrag_cent) = ? AND SUM(CASE WHEN k.typ = ? THEN 0 ELSE 1 END) = 0
+        """,
+        (u["gewerbe_id"], von, bis, betrag, typ),
+    ):
+        abstand = abs((dt.date.fromisoformat(b["datum"]) - tag).days)
+        punkte, gruende = 50, ["Betrag stimmt exakt"]
+        punkte += 20 if abstand <= 3 else 10
+        gruende.append("Datum passt" if abstand <= 3 else f"{abstand} Tage Abstand")
+        if _name_passt(b["beschreibung"], u["gegenpartei"], u["verwendungszweck"]):
+            punkte += 30
+            gruende.append("Beschreibung passt")
+        if punkte >= SCHWELLE_BUCHUNG:
+            treffer.append(
+                {"id": b["id"], "datum": b["datum"], "beschreibung": b["beschreibung"], "summe_cent": b["summe"],
+                 "kategorien": b["kategorien"], "punkte": punkte, "gruende": gruende}
+            )
+    treffer.sort(key=lambda t: (-t["punkte"], t["datum"]))
+    return treffer[:3]
+
+
+SCHWELLE_DAUERBELEG = 70
+
+
+def dauerbeleg_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
+    """Dauerbelege, deren nächster Termin zu dieser Abbuchung passt: Betrag exakt (50) plus Bezeichnung im
+    Verwendungszweck (30) und/oder Termin binnen 7 Tagen (20) — erst ab 70 Punkten. Tab bucht nie von selbst:
+    „Buchen“ öffnet das Buchungsfenster, das den Umsatz und den Termin zusammen verbucht."""
+    if u["betrag_cent"] >= 0:
+        return []
+    betrag = -u["betrag_cent"]
+    tag = dt.date.fromisoformat(u["datum"])
+    treffer = []
+    for d in conn.execute(
+        "SELECT d.*, k.name AS kategorie_name FROM dauerbeleg d JOIN kategorie k ON k.id = d.kategorie_id "
+        "WHERE d.gewerbe_id = ? AND d.aktiv = 1 AND d.betrag_cent = ?",
+        (u["gewerbe_id"], betrag),
+    ):
+        if dauerbelege.ist_beendet(d):
+            continue
+        termin = dt.date.fromisoformat(d["naechste_am"])
+        if (termin - tag).days > 10:  # Termin liegt noch weit nach der Abbuchung
+            continue
+        punkte, gruende = 50, ["Betrag stimmt exakt"]
+        if _name_passt(d["bezeichnung"], u["gegenpartei"], u["verwendungszweck"]):
+            punkte += 30
+            gruende.append("Bezeichnung passt")
+        if abs((termin - tag).days) <= 7:
+            punkte += 20
+            gruende.append("Termin passt")
+        if punkte >= SCHWELLE_DAUERBELEG:
+            treffer.append(
+                {"id": d["id"], "bezeichnung": d["bezeichnung"], "kategorie_id": d["kategorie_id"],
+                 "kategorie_name": d["kategorie_name"], "betrag_cent": d["betrag_cent"], "privat_bp": d["privat_bp"],
+                 "termin": d["naechste_am"], "punkte": punkte, "gruende": gruende}
             )
     treffer.sort(key=lambda t: -t["punkte"])
     return treffer[:3]

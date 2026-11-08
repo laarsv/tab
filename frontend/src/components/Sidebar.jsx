@@ -17,6 +17,7 @@ import {
   IconMail,
   IconPlus,
   IconReceipt,
+  IconRepeat,
   IconSparkles,
   IconTrendDown,
   IconUpload,
@@ -29,6 +30,7 @@ const NAV = [
   { to: '/buchungen', label: 'Buchungen', icon: IconList },
   { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt, badge: 'rechnungen' },
   { to: '/bank', label: 'Bank', icon: IconBank, badge: 'bank' },
+  { to: '/dauerbelege', label: 'Dauerbelege', icon: IconRepeat, badge: 'dauerbelege' },
   { to: '/check', label: 'Jahres-Check', icon: IconChecklist, badge: 'check' },
   { to: '/fristen', label: 'Fristen', icon: IconCalendar, badge: 'fristen' },
   { to: '/afa', label: 'Abschreibungen', icon: IconTrendDown },
@@ -159,6 +161,7 @@ export default function Sidebar({
   mahnOffen = 0,
   fristenDringend = 0,
   bankOffen = 0,
+  dauerFaellig = 0,
   onNavigate,
   onNeueBuchung,
   onUpload,
@@ -254,7 +257,7 @@ export default function Sidebar({
           <NavItem
             key={n.to}
             item={n}
-            badge={{ check: checkOffen, rechnungen: mahnOffen, fristen: fristenDringend, bank: bankOffen }[n.badge] ?? 0}
+            badge={{ check: checkOffen, rechnungen: mahnOffen, fristen: fristenDringend, bank: bankOffen, dauerbelege: dauerFaellig }[n.badge] ?? 0}
             onNavigate={onNavigate}
           />
         ))}

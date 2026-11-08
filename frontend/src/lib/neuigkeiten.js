@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 27,
+    datum: '2026-11-08',
+    titel: 'Dauerbelege und Privatanteil',
+    text: 'Neue Seite „Dauerbelege“: Miete, Versicherung, Leasing oder ein Abo legst du einmal an (Betrag, Kategorie, Rhythmus). Tab zeigt jeden Termin als fällig, und du buchst ihn mit einem Klick — oder ordnest die Abbuchung im Bank-Import zu, dort schlägt Tab den passenden Dauerbeleg vor. Tab bucht nie von selbst; mit „Alle buchen“ holst du verpasste Termine nach, und einen mietfreien Monat überspringst du. Neu am Buchungsfenster: „Auch privat genutzt“ bei Ausgaben, z. B. 20 % für das Handy. Gezahlt wird der volle Betrag, als Betriebsausgabe zählt nur der betriebliche Teil (Summenblatt, Kennzahlen, Jahres-Check). Tab merkt sich den Anteil je Kategorie und schlägt ihn beim nächsten Mal vor. Das Journal enthält zwei neue Spalten am Ende: Privatanteil und betrieblicher Betrag.',
+  },
+  {
     id: 26,
     datum: '2026-11-08',
     titel: 'Angebote schreiben und in Rechnungen umwandeln',

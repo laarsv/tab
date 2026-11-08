@@ -57,7 +57,7 @@ export default function JahresCheck() {
         const key = katKeyById[p.kategorie_id];
         if (!key) continue;
         const cur = map[key] || { cent: 0, anzahl: 0 };
-        cur.cent += p.betrag_cent;
+        cur.cent += p.betrieblich_cent ?? p.betrag_cent; // Ausgaben: nur der betriebliche Teil
         cur.anzahl += 1;
         map[key] = cur;
       }

@@ -26,8 +26,9 @@ export const TOPICS = [
   {
     key: 'handy',
     frage: 'Nutzt du Handy oder Internet auch beruflich?',
-    text: 'Den betrieblichen Anteil ansetzen — bei gemischter Nutzung sind pauschal 50 % üblich. Am einfachsten: einmal im Monat oder einmal fürs ganze Jahr buchen.',
+    text: 'Bei gemischter Nutzung zählt nur der betriebliche Teil: Buche den ganzen Betrag und schalte „Auch privat genutzt“ ein — pauschal 50 % privat sind üblich. Tab merkt sich den Anteil für das nächste Mal. Läuft der Vertrag jeden Monat, legst du ihn unter „Dauerbelege“ einmal an.',
     aktionen: [{ label: 'Telefon/Internet buchen', katKey: 'telekommunikation' }],
+    links: [{ to: '/dauerbelege', label: 'Dauerbelege öffnen' }],
   },
   {
     key: 'homeoffice',

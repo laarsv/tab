@@ -656,6 +656,42 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_angebot_position ON angebot_position(angebot_id);
         """,
     ),
+    Migration(
+        version=24,
+        sql="""
+        -- v24: Privatanteil + Dauerbelege.
+        --  * buchung_position.privat_bp: privater Anteil in Basispunkten (0-10000, 2000 = 20 %). betrag_cent
+        --    bleibt der gezahlte Betrag; nur der betriebliche Rest zählt in der EÜR (nur bei Ausgaben).
+        --  * dauerbeleg: Vorlage für Ausgaben in festen Abständen (Miete, Versicherung, Abos). naechste_am ist
+        --    der nächste noch offene Termin; anker_tag hält den Tag im Monat (31. -> Monatsende und zurück).
+        --    Tab bucht nie von selbst: ein fälliger Termin wird mit einem Klick (oder über die Bank-Zuordnung)
+        --    zur Buchung, dabei trägt die Buchung dauerbeleg_id + termin (je Termin höchstens eine Buchung).
+        ALTER TABLE buchung_position ADD COLUMN privat_bp INTEGER NOT NULL DEFAULT 0
+            CHECK (privat_bp BETWEEN 0 AND 10000);
+        CREATE TABLE dauerbeleg (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id   INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            bezeichnung  TEXT    NOT NULL,
+            notiz        TEXT,
+            kategorie_id INTEGER NOT NULL REFERENCES kategorie(id),
+            betrag_cent  INTEGER NOT NULL CHECK (betrag_cent > 0),
+            privat_bp    INTEGER NOT NULL DEFAULT 0 CHECK (privat_bp BETWEEN 0 AND 10000),
+            intervall    TEXT    NOT NULL
+                         CHECK (intervall IN ('monatlich', 'vierteljaehrlich', 'halbjaehrlich', 'jaehrlich')),
+            anker_tag    INTEGER NOT NULL CHECK (anker_tag BETWEEN 1 AND 31),
+            naechste_am  TEXT    NOT NULL,
+            endet_am     TEXT,
+            aktiv        INTEGER NOT NULL DEFAULT 1,
+            created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_dauerbeleg_gewerbe ON dauerbeleg(gewerbe_id);
+        ALTER TABLE buchung ADD COLUMN dauerbeleg_id INTEGER REFERENCES dauerbeleg(id) ON DELETE SET NULL;
+        ALTER TABLE buchung ADD COLUMN termin TEXT;
+        CREATE UNIQUE INDEX idx_buchung_dauerbeleg_termin ON buchung(dauerbeleg_id, termin)
+            WHERE dauerbeleg_id IS NOT NULL;
+        """,
+    ),
 ]
 
 

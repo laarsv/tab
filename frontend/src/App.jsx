@@ -14,6 +14,7 @@ import Abschluss from './pages/Abschluss.jsx';
 import Bank from './pages/Bank.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
 import Angebote from './pages/Angebote.jsx';
+import Dauerbelege from './pages/Dauerbelege.jsx';
 import Mahnwesen from './pages/Mahnwesen.jsx';
 import MahnungNeu from './pages/MahnungNeu.jsx';
 import Einrichtung from './pages/Einrichtung.jsx';
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/abschluss" element={<Abschluss />} />
         <Route path="/bank" element={<Bank />} />
         <Route path="/rechnungen" element={<Rechnungen />} />
+        <Route path="/dauerbelege" element={<Dauerbelege />} />
         <Route path="/rechnungen/angebote" element={<Angebote />} />
         <Route path="/rechnungen/wiederkehrend" element={<Rechnungen tab="wiederkehrend" />} />
         <Route path="/rechnungen/mahnwesen" element={<Mahnwesen />} />

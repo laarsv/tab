@@ -65,6 +65,7 @@ AUDIT_TABELLEN: dict[str, Callable[[str], str]] = {
     "rechnung_zahlung": _gid_direkt,
     "angebot": _gid_direkt,
     "angebot_position": _gid_kind("angebot", "angebot_id"),
+    "dauerbeleg": _gid_direkt,
 }
 
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services.privatanteil import BETRIEBLICH_SQL
 
 router = APIRouter(prefix="/api", tags=["meta"], dependencies=[Depends(get_current_user)])
 
@@ -31,10 +32,10 @@ def kennzahlen(
     # ku_umsatz: Gesamtumsatz i. S. d. §19 Abs. 2 UStG — steuerfreie Umsätze nach
     # §4 Nr. 11 (Courtage) und Verkäufe von Anlagevermögen bleiben außer Ansatz.
     row = db.execute(
-        """
+        f"""
         SELECT
           COALESCE(SUM(CASE WHEN k.typ='einnahme' THEN p.betrag_cent ELSE 0 END), 0) AS einnahmen,
-          COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN p.betrag_cent ELSE 0 END), 0) AS ausgaben,
+          COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN {BETRIEBLICH_SQL} ELSE 0 END), 0) AS ausgaben,
           COALESCE(SUM(CASE WHEN k.key='einnahme_ku' THEN p.betrag_cent ELSE 0 END), 0) AS ku_umsatz
         FROM buchung_position p
         JOIN buchung b ON b.id = p.buchung_id

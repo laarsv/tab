@@ -14,7 +14,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services import dauerbelege as dsvc
 from ..services import zahlungen as zsvc
+from ..services.privatanteil import betrieblich_cent, privat_cent
 
 router = APIRouter(
     prefix="/api/buchungen", tags=["buchungen"], dependencies=[Depends(get_current_user)]
@@ -33,6 +35,7 @@ class PositionIn(BaseModel):
     kategorie_id: int
     betrag_cent: int = Field(gt=0)
     beleg_details: str | None = None
+    privat_bp: int = Field(default=0, ge=0, le=10000)  # privater Anteil, 2000 = 20 % (nur Ausgaben)
 
 
 class BuchungIn(BaseModel):
@@ -45,6 +48,8 @@ class BuchungIn(BaseModel):
     bank_umsatz_id: int | None = None  # Zuordnung aus dem Bank-Import (verknüpft den Umsatz atomar)
     zahlung_id: int | None = None  # bestehende, noch ungebuchte Zahlung der Rechnung verbuchen
     rest_ausbuchen: Literal["skonto", "ausfall"] | None = None  # Rest der Rechnung ausbuchen
+    dauerbeleg_id: int | None = None  # bucht den nächsten offenen Termin dieses Dauerbelegs
+    termin: str | None = None  # Termin des Dauerbelegs (muss der nächste offene sein)
 
     @field_validator("datum")
     @classmethod
@@ -71,6 +76,8 @@ def _check_position(db: sqlite3.Connection, pos: PositionIn) -> None:
         raise HTTPException(400, "AfA-Kategorien bitte über die AfA-Erfassung anlegen.")
     if k["belegpflicht_extra"] and not (pos.beleg_details and pos.beleg_details.strip()):
         raise HTTPException(400, f"Für „{k['name']}“ sind Beleg-Details Pflicht.")
+    if pos.privat_bp and k["typ"] != "ausgabe":
+        raise HTTPException(400, "Einen Privatanteil gibt es nur bei Ausgaben.")
 
 
 def _check_buchung(db: sqlite3.Connection, user: dict, buchung_id: int) -> sqlite3.Row:
@@ -91,7 +98,14 @@ def _positionen(db: sqlite3.Connection, buchung_id: int) -> list[dict]:
         """,
         (buchung_id,),
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [_anteile(dict(r)) for r in rows]
+
+
+def _anteile(pos: dict) -> dict:
+    """Betrieblicher und privater Teil der Position (betrag_cent = gezahlter Betrag)."""
+    pos["privat_cent"] = privat_cent(pos["betrag_cent"], pos["privat_bp"])
+    pos["betrieblich_cent"] = betrieblich_cent(pos["betrag_cent"], pos["privat_bp"])
+    return pos
 
 
 def _row(db: sqlite3.Connection, buchung_id: int) -> dict:
@@ -106,6 +120,7 @@ def _row(db: sqlite3.Connection, buchung_id: int) -> dict:
     ).fetchone()
     d = dict(h)
     d["positionen"] = _positionen(db, buchung_id)
+    d["betrieblich_cent"] = sum(p["betrieblich_cent"] for p in d["positionen"])
     return d
 
 
@@ -118,7 +133,7 @@ def list_buchungen(
 ):
     check_gewerbe(db, user, gewerbe_id)
     sql = (
-        "SELECT b.id, b.gewerbe_id, b.datum, b.beschreibung, b.created_at, b.updated_at, "
+        "SELECT b.id, b.gewerbe_id, b.datum, b.beschreibung, b.dauerbeleg_id, b.created_at, b.updated_at, "
         "(SELECT COUNT(*) FROM beleg WHERE beleg.buchung_id = b.id) AS beleg_count, "
         "(SELECT COALESCE(SUM(betrag_cent),0) FROM buchung_position WHERE buchung_id = b.id) AS summe_cent "
         "FROM buchung b WHERE b.gewerbe_id = ?"
@@ -145,10 +160,34 @@ def list_buchungen(
     ).fetchall()
     by_buchung: dict[int, list] = {i: [] for i in ids}
     for r in pos_rows:
-        by_buchung[r["buchung_id"]].append(dict(r))
+        by_buchung[r["buchung_id"]].append(_anteile(dict(r)))
     for h in heads:
         h["positionen"] = by_buchung[h["id"]]
+        h["betrieblich_cent"] = sum(p["betrieblich_cent"] for p in h["positionen"])
     return heads
+
+
+@router.get("/privatanteile")
+def privatanteile(
+    gewerbe_id: int,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Zuletzt verwendeter Privatanteil je Ausgabe-Kategorie (nur > 0) — das Buchungsfenster schlägt ihn vor,
+    sobald die Kategorie gewählt ist (Handy, Internet …). Der letzte Wert gilt, auch ein späteres 0 %."""
+    check_gewerbe(db, user, gewerbe_id)
+    rows = db.execute(
+        """
+        SELECT p.kategorie_id, p.privat_bp
+        FROM buchung_position p JOIN buchung b ON b.id = p.buchung_id
+        WHERE b.gewerbe_id = ?
+          AND p.id = (SELECT MAX(p2.id) FROM buchung_position p2 JOIN buchung b2 ON b2.id = p2.buchung_id
+                      WHERE b2.gewerbe_id = b.gewerbe_id AND p2.kategorie_id = p.kategorie_id)
+        GROUP BY p.kategorie_id
+        """,
+        (gewerbe_id,),
+    ).fetchall()
+    return {str(r["kategorie_id"]): r["privat_bp"] for r in rows if r["privat_bp"] > 0}
 
 
 @router.post("", status_code=201)
@@ -206,21 +245,43 @@ def create_buchung(
         if umsatz["buchung_id"] is not None:
             raise HTTPException(409, "Dieser Umsatz ist schon einer Buchung zugeordnet.")
 
+    # Dauerbeleg: gebucht wird sein nächster offener Termin (Buchung trägt dauerbeleg_id + termin)
+    dauer = None
+    if body.dauerbeleg_id is not None:
+        dauer = db.execute("SELECT * FROM dauerbeleg WHERE id = ?", (body.dauerbeleg_id,)).fetchone()
+        if dauer is None or dauer["gewerbe_id"] != body.gewerbe_id:
+            raise HTTPException(404, "Dauerbeleg nicht gefunden.")
+        if not body.termin:
+            raise HTTPException(400, "Für einen Dauerbeleg fehlt der Termin.")
+        try:
+            dsvc.pruefe_termin(dauer, body.termin)
+        except dsvc.TerminFehler as e:
+            raise HTTPException(409, str(e))
+        if db.execute(
+            "SELECT 1 FROM buchung WHERE dauerbeleg_id = ? AND termin = ?", (dauer["id"], body.termin)
+        ).fetchone():
+            raise HTTPException(409, "Für diesen Termin gibt es schon eine Buchung.")
+
     cur = db.execute(
-        "INSERT INTO buchung (gewerbe_id, datum, beschreibung) VALUES (?, ?, ?)",
-        (body.gewerbe_id, body.datum, (body.beschreibung or "").strip() or None),
+        "INSERT INTO buchung (gewerbe_id, datum, beschreibung, dauerbeleg_id, termin) VALUES (?, ?, ?, ?, ?)",
+        (
+            body.gewerbe_id, body.datum, (body.beschreibung or "").strip() or None,
+            dauer["id"] if dauer is not None else None, body.termin if dauer is not None else None,
+        ),
     )
     buchung_id = cur.lastrowid
     db.executemany(
-        "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, privat_bp) "
+        "VALUES (?, ?, ?, ?, ?)",
         [
-            (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None)
+            (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None, p.privat_bp)
             for p in body.positionen
         ],
     )
     for bid in body.beleg_ids:
         db.execute("UPDATE beleg SET buchung_id = ? WHERE id = ?", (buchung_id, bid))
+    if dauer is not None:
+        dsvc.weiterruecken(db, dauer)
     if rech is not None:
         summe_buchung = sum(p.betrag_cent for p in body.positionen)
         z_datum = umsatz["datum"] if umsatz is not None else body.datum
@@ -274,10 +335,10 @@ def update_buchung(
             _check_position(db, pos)
         db.execute("DELETE FROM buchung_position WHERE buchung_id = ?", (buchung_id,))
         db.executemany(
-            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, privat_bp) "
+            "VALUES (?, ?, ?, ?, ?)",
             [
-                (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None)
+                (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None, p.privat_bp)
                 for p in body.positionen
             ],
         )

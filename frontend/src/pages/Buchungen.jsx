@@ -27,6 +27,7 @@ import { Hinweis, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, SectionHea
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, belegTyp, ACCEPT } from '../lib/belege.js';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
+import { bpZuText } from '../lib/privat.js';
 
 const MONATE = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -198,6 +199,7 @@ export default function Buchungen() {
           kategorie_id: p.kategorie_id,
           betrag_cent: p.betrag_cent,
           beleg_details: p.beleg_details,
+          privat_bp: p.privat_bp,
         })),
       },
     });
@@ -506,6 +508,21 @@ export default function Buchungen() {
                           <span className="tabular-nums">Rechnung {nummer}</span>
                         </>
                       )}
+                      {b.positionen.some((p) => p.privat_bp > 0) && (
+                        <>
+                          {PUNKT}
+                          <span className="tabular-nums">
+                            {einzel ? `${bpZuText(b.positionen[0].privat_bp)} % privat · ` : 'mit Privatanteil · '}
+                            betrieblich {formatEuro(b.betrieblich_cent)}
+                          </span>
+                        </>
+                      )}
+                      {b.dauerbeleg_id && (
+                        <>
+                          {PUNKT}
+                          <span>Dauerbeleg</span>
+                        </>
+                      )}
                       {b.beleg_count > 0 && <Paperclip count={b.beleg_count} />}
                     </>
                   }
@@ -591,7 +608,7 @@ function KategorieSummen({ items, jahr }) {
     for (const b of items) {
       for (const p of b.positionen) {
         const cur = map.get(p.kategorie_name) || { name: p.kategorie_name, typ: p.kategorie_typ, cent: 0, anzahl: 0 };
-        cur.cent += p.betrag_cent;
+        cur.cent += p.betrieblich_cent ?? p.betrag_cent; // Ausgaben: nur der betriebliche Teil
         cur.anzahl += 1;
         map.set(p.kategorie_name, cur);
       }

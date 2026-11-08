@@ -20,6 +20,7 @@ import sqlite3
 import zipfile
 
 from .afa import jahres_afa_cent
+from .privatanteil import betrieblich_cent
 from ..config import settings
 from ..seed import nie_befuellt
 
@@ -37,6 +38,12 @@ def format_cent_de(cent: int) -> str:
     sign = "-" if cent < 0 else ""
     v = abs(int(cent))
     return f"{sign}{v // 100},{v % 100:02d}"
+
+
+def _prozent_de(bp: int) -> str:
+    """Basispunkte als deutsche Prozentzahl: 2000 -> '20', 3333 -> '33,33'."""
+    text = f"{bp / 100:.2f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
 
 
 def _date_de(iso: str) -> str:
@@ -85,12 +92,14 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
 
     roh_je_kat: dict[int, int] = {}
     for r in conn.execute(
-        "SELECT p.kategorie_id, p.betrag_cent FROM buchung_position p "
+        "SELECT p.kategorie_id, p.betrag_cent, p.privat_bp FROM buchung_position p "
         "JOIN buchung b ON b.id = p.buchung_id "
         "WHERE b.gewerbe_id = ? AND substr(b.datum,1,4) = ?",
         (gewerbe_id, str(jahr)),
     ):
-        roh_je_kat[r["kategorie_id"]] = roh_je_kat.get(r["kategorie_id"], 0) + r["betrag_cent"]
+        # Nur der betriebliche Teil zählt (Privatanteil bei Ausgaben, services/privatanteil.py)
+        betrieblich = betrieblich_cent(r["betrag_cent"], r["privat_bp"])
+        roh_je_kat[r["kategorie_id"]] = roh_je_kat.get(r["kategorie_id"], 0) + betrieblich
 
     for kat_id, roh in roh_je_kat.items():
         if kat_id not in mapping:
@@ -228,12 +237,14 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
             "Abzug %",
             "Beschreibung",
             "Beleg-Details",
+            "Privatanteil %",
+            "Betrieblicher Betrag (EUR)",
         ]
     ]
 
     for r in conn.execute(
         """
-        SELECT b.datum, p.betrag_cent, b.beschreibung, p.beleg_details,
+        SELECT b.datum, p.betrag_cent, p.privat_bp, b.beschreibung, p.beleg_details,
                p.kategorie_id, k.name AS kat_name, k.abzug_quote
         FROM buchung_position p
         JOIN buchung b ON b.id = p.buchung_id
@@ -254,6 +265,8 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
                 str(round(r["abzug_quote"] * 100)),
                 r["beschreibung"] or "",
                 r["beleg_details"] or "",
+                _prozent_de(r["privat_bp"]) if r["privat_bp"] else "",
+                format_cent_de(betrieblich_cent(r["betrag_cent"], r["privat_bp"])),
             ]
         )
 
@@ -291,6 +304,8 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
                 + (f", Abgang {_date_de(r['abgang_datum'])}" if r["abgang_datum"] else "")
                 + ")",
                 "",
+                "",
+                format_cent_de(betrag),
             ]
         )
 

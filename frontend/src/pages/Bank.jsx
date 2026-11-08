@@ -212,6 +212,8 @@ export default function Bank() {
           rechnungId={buchen.rechnung?.id}
           restAusbuchen={buchen.restAusbuchen}
           umsatzId={buchen.umsatzId}
+          presetPrivatBp={buchen.privatBp}
+          dauerbeleg={buchen.dauerbeleg}
           preBelege={buchen.preBelege}
           onClose={() => setBuchen(null)}
           onSaved={nachAenderung}
@@ -302,7 +304,7 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
     setBusy(true);
     try {
       await api.post(`/api/bank/umsaetze/${umsatz.id}/${pfad}`, body);
-      toast.success(pfad === 'ignorieren' ? 'Ignoriert.' : 'Wieder offen.');
+      toast.success(pfad === 'ignorieren' ? 'Ignoriert.' : pfad === 'zuordnen' ? 'Der Buchung zugeordnet.' : 'Wieder offen.');
       await onChanged();
     } catch (e) {
       toast.error(apiError(e));
@@ -369,6 +371,21 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
         {offen && !v && <PageSpinner />}
         {offen && v && (
           <>
+            {v.buchungen?.length > 0 && (
+              <Gruppe titel="Schon gebucht?">
+                {v.buchungen.map((b) => (
+                  <Treffer
+                    key={b.id}
+                    titel={b.beschreibung || b.kategorien}
+                    sub={[b.kategorien, formatEuro(b.summe_cent), formatDateDE(b.datum)].join(' · ')}
+                    gruende={b.gruende}
+                    primaer={false}
+                    aktion="Dieser Buchung zuordnen"
+                    onWaehlen={() => aufrufen('zuordnen', { buchung_id: b.id })}
+                  />
+                ))}
+              </Gruppe>
+            )}
             {eingang ? (
               <>
                 {v.rechnungen.length > 0 && (
@@ -411,6 +428,29 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
               </>
             ) : (
               <>
+                {v.dauerbelege?.length > 0 && (
+                  <Gruppe titel="Dauerbeleg, noch zu prüfen">
+                    {v.dauerbelege.map((d, i) => (
+                      <Treffer
+                        key={d.id}
+                        titel={d.bezeichnung}
+                        sub={[d.kategorie_name, formatEuro(d.betrag_cent), `Termin ${formatDateDE(d.termin)}`].join(' · ')}
+                        gruende={d.gruende}
+                        primaer={i === 0}
+                        aktion="Termin buchen"
+                        onWaehlen={() =>
+                          onBuchen({
+                            ...basis,
+                            beschreibung: d.bezeichnung,
+                            kategorieId: d.kategorie_id,
+                            privatBp: d.privat_bp,
+                            dauerbeleg: { id: d.id, termin: d.termin },
+                          })
+                        }
+                      />
+                    ))}
+                  </Gruppe>
+                )}
                 {v.belege.length > 0 && (
                   <Gruppe titel="Passende Belege im Eingang">
                     {v.belege.map((b, i) => (
