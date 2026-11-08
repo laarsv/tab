@@ -56,6 +56,7 @@ export default function Layout() {
   const [loading, setLoading] = useState(true);
   const [checkOffen, setCheckOffen] = useState(0);
   const [mahnOffen, setMahnOffen] = useState(0); // überfällige Rechnungen (Badge an „Rechnungen")
+  const [fristenDringend, setFristenDringend] = useState(0); // überfällige/bald fällige Fristen
 
   const [gewerbeId, setGewerbeId] = useState(
     () => localStorage.getItem('tab_gewerbe') || '',
@@ -87,17 +88,20 @@ export default function Layout() {
     if (!gid) {
       setCheckOffen(0);
       setMahnOffen(0);
+      setFristenDringend(0);
       setEingang({ offen: 0, ueberfaellig: 0 });
       return;
     }
     try {
-      const [kat, buch, bel, mahn] = await Promise.all([
+      const [kat, buch, bel, mahn, fristen] = await Promise.all([
         api.get('/api/kategorien', { params: { jahr: j } }),
         api.get('/api/buchungen', { params: { gewerbe_id: gid, jahr: j } }),
         api.get('/api/belege', { params: { gewerbe_id: gid, status: 'offen' } }),
         api.get('/api/mahnwesen/ueberfaellig', { params: { gewerbe_id: gid } }),
+        api.get('/api/fristen'),
       ]);
       setMahnOffen(mahn.data.items.length);
+      setFristenDringend(fristen.data.dringend);
       setCheckOffen(countOffeneTopics(kat.data, buch.data, loadCheckState(gid, j)));
       const heute = todayISO();
       setEingang({
@@ -107,6 +111,7 @@ export default function Layout() {
     } catch {
       setCheckOffen(0);
       setMahnOffen(0);
+      setFristenDringend(0);
     }
   }, []);
 
@@ -193,6 +198,7 @@ export default function Layout() {
     eingang,
     checkOffen,
     mahnOffen,
+    fristenDringend,
     onNeueBuchung: () => {
       setDrawer(false);
       navigate(`/buchungen?neu=${Date.now()}`);

@@ -5,6 +5,7 @@ import Wordmark from './Wordmark.jsx';
 import {
   IconArrowRight,
   IconBriefcase,
+  IconCalendar,
   IconChecklist,
   IconChevronDown,
   IconDownload,
@@ -26,6 +27,7 @@ const NAV = [
   { to: '/buchungen', label: 'Buchungen', icon: IconList },
   { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt, badge: 'rechnungen' },
   { to: '/check', label: 'Jahres-Check', icon: IconChecklist, badge: 'check' },
+  { to: '/fristen', label: 'Fristen', icon: IconCalendar, badge: 'fristen' },
   { to: '/afa', label: 'Abschreibungen', icon: IconTrendDown },
 ];
 
@@ -151,6 +153,7 @@ export default function Sidebar({
   eingang,
   checkOffen,
   mahnOffen = 0,
+  fristenDringend = 0,
   onNavigate,
   onNeueBuchung,
   onUpload,
@@ -246,7 +249,7 @@ export default function Sidebar({
           <NavItem
             key={n.to}
             item={n}
-            badge={n.badge === 'check' ? checkOffen : n.badge === 'rechnungen' ? mahnOffen : 0}
+            badge={{ check: checkOffen, rechnungen: mahnOffen, fristen: fristenDringend }[n.badge] ?? 0}
             onNavigate={onNavigate}
           />
         ))}

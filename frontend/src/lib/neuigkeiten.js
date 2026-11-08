@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 22,
+    datum: '2026-11-08',
+    titel: 'Neue Seite: Fristen',
+    text: 'Unter „Fristen" siehst du die Termine für deine Steuererklärung: die Abgabe der Einkommensteuererklärung mit Anlage EÜR je Jahr (31. Juli des Folgejahres) und auf Wunsch die Einkommensteuer-Vorauszahlungen. Offenes aus der Vergangenheit bleibt stehen, bis du es abhakst; in der Seitenleiste zeigt eine Zahl, was überfällig oder bald dran ist. Mit dem Kalender-Abo landen die Fristen samt Erinnerung (3 Tage vorher und am Morgen) in deinem Handy- oder Computerkalender. Tab überträgt nichts ans Finanzamt, und mit Steuerberatung gelten längere Fristen.',
+  },
+  {
     id: 21,
     datum: '2026-11-08',
     titel: 'GiroCode auf Rechnung und Mahnung',

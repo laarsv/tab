@@ -24,6 +24,7 @@ from .routes import (
     einstellungen,
     export,
     fahrten,
+    fristen,
     gewerbe,
     kategorien,
     kontakte,
@@ -116,6 +117,7 @@ app.include_router(fahrten.router)
 app.include_router(rechnungen.router)
 app.include_router(abos.router)
 app.include_router(mahnwesen.router)
+app.include_router(fristen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)

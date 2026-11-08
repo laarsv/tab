@@ -462,6 +462,28 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE gewerbe ADD COLUMN kontoinhaber TEXT;
         """,
     ),
+    Migration(
+        version=19,
+        sql="""
+        -- v19: Fristen-Seite. Einstellungen je Login (Kalender-Abo + ESt-Vorauszahlungen anzeigen)
+        --      und manuell erledigte Fristen. Vom Kalender-Link wird nur der SHA-256-Hash
+        --      gespeichert — der Link selbst ist nur beim Erzeugen sichtbar.
+        CREATE TABLE frist_einstellung (
+            email               TEXT PRIMARY KEY,
+            kalender_token_hash TEXT,
+            kalender_seit       TEXT,
+            est_vorauszahlung   INTEGER NOT NULL DEFAULT 0,
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_frist_token ON frist_einstellung(kalender_token_hash);
+        CREATE TABLE frist_erledigt (
+            email       TEXT NOT NULL,
+            schluessel  TEXT NOT NULL,
+            erledigt_am TEXT NOT NULL,
+            PRIMARY KEY (email, schluessel)
+        );
+        """,
+    ),
 ]
 
 

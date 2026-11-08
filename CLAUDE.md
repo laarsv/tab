@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`.
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -263,6 +263,19 @@ der Mapping-Version des Jahres aufgelöst.
   Schadensersatz/Zins, **kein Entgelt**: keine USt, keine automatische Buchung (Hinweis im
   Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Teilzahlungen (Rechnung
   ist bezahlt oder nicht), Skonto, Mahnbescheid.
+- **Fristen (`/fristen`, `pages/Fristen.jsx`, `routes/fristen.py`, `services/steuerfristen.py`,
+  v19):** Aufbau nach Haben (Überfällig · Nächste 30 Tage · Später · Kalender-Abo · Erledigt).
+  Nur Steuertermine, die für Tab-Nutzer gelten: **Einkommensteuererklärung mit Anlage EÜR** je
+  Jahr ab 2024 (31.7. des Folgejahres, auf Werktag verschoben, ohne Steuerberatung; erscheint für
+  Jahre mit Buchungen/Rechnungen eines eigenen Gewerbes) und optional (Schalter, je Login)
+  **ESt-Vorauszahlungen** 10.3./6./9./12. als reiner Hinweis. **Keine USt-Voranmeldung**
+  (Kleinunternehmer; Regelbesteuerung gibt es in Tab nicht). Erledigt hakt der Nutzer von Hand ab
+  (`frist_erledigt`, je Login) — Tab überträgt nichts ans Finanzamt. Zähler an „Fristen" in der
+  Seitenleiste = offene Erklärungen, überfällig oder in ≤ 14 Tagen. **Kalender-Abo:** geheimer
+  Link `GET /api/fristen/kalender/{token}.ics` (ohne Login, nur SHA-256-Hash gespeichert, Link nur
+  beim Erzeugen sichtbar, neuer Link macht den alten ungültig); ganztägige Termine mit Erinnerung
+  3 Tage vorher + am Morgen (je 9 Uhr), Erledigtes fehlt im Feed. Nicht gebaut: E-Mail-Erinnerungen,
+  eigene Fristen (z. B. Einspruch), Fristen mit Steuerberatung.
 - **GiroCode (`services/girocode.py`, v18):** EPC-QR (Version 002, UTF-8, Fehlerkorrektur M,
   Bibliothek `segno`, als Vektor ins PDF gezeichnet) neben der Zahlungsinfo der Rechnung und der
   Zahlungsaufforderung der Mahnung (Betrag = Rechnungssumme bzw. Mahn-Gesamtbetrag,
