@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -263,6 +263,36 @@ der Mapping-Version des Jahres aufgelöst.
   Schadensersatz/Zins, **kein Entgelt**: keine USt, keine automatische Buchung (Hinweis im
   Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Teilzahlungen (Rechnung
   ist bezahlt oder nicht), Skonto, Mahnbescheid.
+- **Festschreibung / Jahresabschluss (`/abschluss`, `pages/Abschluss.jsx`, `routes/abschluss.py`,
+  `services/audit.py` + `services/abschluss.py`, v20):** Aufbau nach Haben (Sperre + Protokoll als
+  Datenbank-Trigger, Hash-Kette, Siegel, „Alles prüfen“, Prüfsummen im Archiv), eigenständig in
+  SQLite umgesetzt. **Jahr abschließen** (erst nach Jahresende) sperrt je Gewerbe + Jahr per Trigger:
+  Buchungen + Positionen, **Belege, die an einer Buchung des Jahres hängen** (Eingang bleibt frei),
+  Fahrten und AfA (Anlegen/Löschen/Ändern von Kosten, Datum, Nutzungsdauer, Methode, Kategorie,
+  wenn das Gut zur AfA des Jahres beiträgt; Bezeichnung und ein Abgang NACH dem Jahr bleiben
+  änderbar). Verstoß → `RAISE` mit Präfix `JAHR_GESPERRT` → `main.py` macht daraus 409 mit
+  lesbarer Meldung. Die Sperre greift **für jede Route automatisch** — neue Schreib-Routen brauchen
+  nichts, solange sie auf `buchung`/`buchung_position`/`beleg`/`fahrt`/`afa_buchung` schreiben.
+  **Rechnungen/Mahnungen sind nicht jahresgesperrt** (kein EÜR-Eintrag; „Als Einnahme buchen“ in ein
+  gesperrtes Jahr scheitert an der Buchung). **Änderungsprotokoll** `audit_log`: Trigger auf
+  `AUDIT_TABELLEN` (gewerbe, buchung, buchung_position, beleg, afa_buchung, fahrt, rechnung,
+  rechnung_position, mahnung, jahr_abschluss) schreiben alt/neu als JSON; Akteur über die SQL-Funktion
+  `tab_actor()` (`db.TabConnection.actor`: E-Mail aus dem Session-Cookie in `get_db`, in Hintergrund-
+  läufen `system:<name>`). **Hash-Kette:** `row_hash = SHA-256(prev_hash ‖ Inhalt)`, vom Trigger
+  gesetzt, Tabelle nur anhängbar. **Neue geschützte Tabelle:** in `AUDIT_TABELLEN` eintragen (Trigger
+  folgen dem echten Schema, `ensure_triggers` gleicht bei jedem Start ab — auch nach Rebuild-
+  Migrationen). **Folgen:** Schreiben außerhalb der App (z. B. `sqlite3`-CLI) scheitert absichtlich
+  („no such function: tab_actor“), siehe Mandantentrennung unten; Beleg löschen = erst DB, dann
+  Datei (sonst ginge bei abgelehntem Löschen die Datei verloren). **Siegel** beim Abschluss: SHA-256
+  über Buchungen+Positionen, Belege (mit SHA-256 der Datei), berechnete AfA und Fahrten — nur, was die
+  Sperre schützt (sonst bräche das Siegel bei erlaubten Änderungen). „Alles prüfen“ rechnet Kette,
+  Siegel und das Vorhandensein aller Trigger nach. **Wieder öffnen** nur mit Begründung (im
+  Protokoll), danach neues Siegel beim erneuten Schließen. Das Jahres-ZIP enthält jetzt
+  `pruefsummen.sha256`, `protokoll/aenderungsprotokoll.csv`, `protokoll/pruefwert.txt` (Kopf der
+  Kette + Siegel, zum Aufbewahren außerhalb des Servers) und `LIESMICH.txt`. **Grenzen, nicht
+  versprechen:** keine GoBD-Zertifizierung; wer die DB direkt ändert (Trigger droppen), umgeht die
+  Sperre — Kette/Siegel machen es sichtbar, verhindern es nicht; Zeit vor v20 ist nicht protokolliert
+  (Genesis-Eintrag).
 - **Fristen (`/fristen`, `pages/Fristen.jsx`, `routes/fristen.py`, `services/steuerfristen.py`,
   v19):** Aufbau nach Haben (Überfällig · Nächste 30 Tage · Später · Kalender-Abo · Erledigt).
   Nur Steuertermine, die für Tab-Nutzer gelten: **Einkommensteuererklärung mit Anlage EÜR** je
@@ -349,8 +379,11 @@ der Mapping-Version des Jahres aufgelöst.
   „In production", sonst blockt Google fremde Logins.
 - **Mandantentrennung (v12):** `gewerbe.owner_email` — **jede Route** prüft Zugriff über
   `auth/deps.check_gewerbe` (fremd → 404, keine Existenz verraten). `owner_email NULL` =
-  herrenloser Alt-Bestand: **nur für Admins sichtbar** (zum Zuordnen via
-  `UPDATE gewerbe SET owner_email=…`). Neue Gewerbe gehören dem Ersteller.
+  herrenloser Alt-Bestand: **nur für Admins sichtbar** (zum Zuordnen per `UPDATE gewerbe SET
+  owner_email=…` — **nicht** mit der `sqlite3`-Kommandozeile, die scheitert seit v20 an den
+  Protokoll-Triggern; stattdessen `docker exec tab-backend python -c "from app.db import _connect;
+  c=_connect(actor='admin'); c.execute('UPDATE gewerbe SET owner_email=? WHERE id=?', ('…', 1));
+  c.commit()"`). Neue Gewerbe gehören dem Ersteller.
   Row-Level-Objekte (Buchung/Beleg/Rechnung/Abo/Fahrt/AfA/Kontakt) erben über ihr Gewerbe.
   **Backup (`/api/export/backup.zip`) nur für Admins** = explizite `ALLOWED_EMAILS`-Einträge
   (`ist_admin`), Domain-Nutzer nicht. Bei NEUEN Routen mit `gewerbe_id`/Objekt-IDs IMMER

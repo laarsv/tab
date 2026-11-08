@@ -22,6 +22,7 @@ import {
   IconTrash,
   IconUpload,
 } from '../components/Icons.jsx';
+import AbschlussHinweis from '../components/AbschlussHinweis.jsx';
 import { Hinweis, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, SectionHead } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, belegTyp, ACCEPT } from '../lib/belege.js';
@@ -86,7 +87,8 @@ function belegIcon(b) {
 }
 
 export default function Buchungen() {
-  const { gewerbeId, jahr, gewerbe, reloadBadges, uploadBelege, uploading, eingangTick } = useOutletContext();
+  const { gewerbeId, jahr, gewerbe, reloadBadges, uploadBelege, uploading, eingangTick, jahrAbgeschlossen } =
+    useOutletContext();
   const aktives = (gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   const andereGewerbe = (gewerbe || []).filter((g) => String(g.id) !== String(gewerbeId) && g.aktiv);
   const [kategorien, setKategorien] = useState([]);
@@ -342,6 +344,7 @@ export default function Buchungen() {
           <IconPlus className="mr-1 h-4 w-4" /> Buchung
         </button>
       </PageHeader>
+      <AbschlussHinweis jahr={jahr} abgeschlossen={jahrAbgeschlossen} />
 
       {kennzahlen && (
         <div className="mt-4">

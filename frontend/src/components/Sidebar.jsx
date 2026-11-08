@@ -11,6 +11,7 @@ import {
   IconDownload,
   IconInfo,
   IconList,
+  IconLock,
   IconLogOut,
   IconMail,
   IconPlus,
@@ -33,6 +34,7 @@ const NAV = [
 
 const WEITERE = [
   { to: '/export', label: 'Export', icon: IconDownload },
+  { to: '/abschluss', label: 'Jahresabschluss', icon: IconLock },
   { to: '/gewerbe', label: 'Gewerbe', icon: IconBriefcase },
   { to: '/einrichtung', label: 'Einrichtung & Hilfe', icon: IconInfo },
 ];

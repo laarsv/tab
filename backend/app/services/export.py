@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import csv
+import datetime
+import hashlib
 import io
 import os
 import sqlite3
@@ -295,14 +297,54 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
     return _csv_to_bytes(rows)
 
 
+def protokoll_csv(conn: sqlite3.Connection, gewerbe_id: int) -> bytes:
+    """Änderungsprotokoll des Gewerbes (alle Einträge, in der Reihenfolge der Hash-Kette)."""
+    rows = [["Nr", "Zeitpunkt (UTC)", "Nutzer", "Tabelle", "Zeile", "Aktion", "Vorher", "Nachher",
+             "Vorgaenger-Hash", "Hash"]]
+    for r in conn.execute("SELECT * FROM audit_log WHERE gewerbe_id = ? ORDER BY id", (gewerbe_id,)):
+        rows.append([
+            str(r["id"]), r["ts"], r["actor"] or "", r["tabelle"], str(r["zeile_id"]), r["aktion"],
+            r["vorher"] or "", r["nachher"] or "", r["prev_hash"] or "", r["row_hash"] or "",
+        ])
+    return _csv_to_bytes(rows)
+
+
+LIESMICH = """Jahresarchiv {jahr} - {gewerbe}
+Erstellt am {erstellt} (UTC) mit Tab.
+
+Inhalt
+  euer-summenblatt-{jahr}.csv     EUeR-Summenblatt je Anlage-EUeR-Zeile
+  beleg-journal-{jahr}.csv        Beleg-Journal
+  fahrten-{jahr}.csv              Fahrten-Liste (nur wenn vorhanden)
+  belege/                         Beleg-Dateien der Buchungen des Jahres
+  protokoll/aenderungsprotokoll.csv   Aenderungsprotokoll des Gewerbes (Hash-Kette)
+  protokoll/pruefwert.txt         Kopf der Hash-Kette und Siegel des Jahres - bitte AUSSERHALB des
+                                  Servers aufbewahren (z. B. zusammen mit diesem Archiv)
+  pruefsummen.sha256              SHA-256 jeder anderen Datei im Archiv
+
+Pruefen (Linux/macOS, im entpackten Ordner):
+  sha256sum -c pruefsummen.sha256      (macOS: shasum -a 256 -c pruefsummen.sha256)
+
+Hinweis: Die Pruefsummen zeigen, dass die Dateien seit dem Erstellen des Archivs unveraendert sind.
+Sie ersetzen weder eine Steuerberatung noch eine Zertifizierung.
+"""
+
+
 def belege_zip(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
-    """Jahres-Archiv: Summenblatt + Journal (CSV) + alle Beleg-Dateien der Buchungen
-    des Jahres. Dateiname je Beleg: belege/JJJJ-MM-TT_id_originalname."""
+    """Jahres-Archiv: Summenblatt + Journal (CSV) + alle Beleg-Dateien der Buchungen des Jahres,
+    dazu Änderungsprotokoll, Prüfwert und `pruefsummen.sha256` (SHA-256 jeder Datei).
+    Dateiname je Beleg: belege/JJJJ-MM-TT_id_originalname."""
     buf = io.BytesIO()
     fehlend: list[str] = []
+    summen: dict[str, str] = {}
+
+    def schreibe(zf: zipfile.ZipFile, arcname: str, data: bytes) -> None:
+        zf.writestr(arcname, data)
+        summen[arcname] = hashlib.sha256(data).hexdigest()
+
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"euer-summenblatt-{jahr}.csv", summenblatt_csv(conn, gewerbe_id, jahr))
-        zf.writestr(f"beleg-journal-{jahr}.csv", journal_csv(conn, gewerbe_id, jahr))
+        schreibe(zf, f"euer-summenblatt-{jahr}.csv", summenblatt_csv(conn, gewerbe_id, jahr))
+        schreibe(zf, f"beleg-journal-{jahr}.csv", journal_csv(conn, gewerbe_id, jahr))
         # Fahrten-Liste (Nachweis für die km-Pauschale), falls vorhanden.
         fahrten = conn.execute(
             "SELECT datum, ziel, anlass, km FROM fahrt "
@@ -318,7 +360,7 @@ def belege_zip(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
             rows.append([])
             rows.append(["", "", "Summe km", str(round(summe_km, 1)).replace(".", ",")])
             rows.append(["", "", "× 0,30 €/km", format_cent_de(round(summe_km * 30))])
-            zf.writestr(f"fahrten-{jahr}.csv", _csv_to_bytes(rows))
+            schreibe(zf, f"fahrten-{jahr}.csv", _csv_to_bytes(rows))
         for r in conn.execute(
             """
             SELECT bel.*, b.datum FROM beleg bel
@@ -331,15 +373,48 @@ def belege_zip(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
             path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
             arcname = f"belege/{r['datum']}_{r['id']}_{r['original_name']}"
             if os.path.exists(path):
-                zf.write(path, arcname)
+                with open(path, "rb") as fh:
+                    schreibe(zf, arcname, fh.read())
             else:
                 fehlend.append(arcname)
         if fehlend:
-            zf.writestr(
+            schreibe(
+                zf,
                 "fehlende-dateien.txt",
-                "Diese Belege sind in der Datenbank erfasst, die Datei fehlt aber:\n"
-                + "\n".join(fehlend),
+                (
+                    "Diese Belege sind in der Datenbank erfasst, die Datei fehlt aber:\n" + "\n".join(fehlend)
+                ).encode("utf-8"),
             )
+
+        # Änderungsprotokoll + Prüfwert (Kopf der Hash-Kette zum Aufbewahren außerhalb des Servers)
+        jetzt = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        schreibe(zf, "protokoll/aenderungsprotokoll.csv", protokoll_csv(conn, gewerbe_id))
+        kopf = conn.execute("SELECT id, row_hash FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()
+        zeilen = [f"Erstellt (UTC): {jetzt}"]
+        if kopf:
+            zeilen.append(f"Änderungsprotokoll: Nr. {kopf['id']} · {kopf['row_hash']}")
+        abschluss = conn.execute(
+            "SELECT * FROM jahr_abschluss WHERE gewerbe_id = ? AND jahr = ?", (gewerbe_id, jahr)
+        ).fetchone()
+        if abschluss and abschluss["abgeschlossen"]:
+            zeilen.append(
+                f"{jahr}: abgeschlossen am {abschluss['abgeschlossen_am']} von {abschluss['abgeschlossen_von']}, "
+                f"Siegel {abschluss['siegel']}"
+            )
+        else:
+            zeilen.append(f"{jahr}: noch nicht abgeschlossen")
+        schreibe(zf, "protokoll/pruefwert.txt", ("\n".join(zeilen) + "\n").encode("utf-8"))
+        gname = conn.execute("SELECT name FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
+        schreibe(
+            zf,
+            "LIESMICH.txt",
+            LIESMICH.format(jahr=jahr, gewerbe=gname["name"] if gname else "", erstellt=jetzt).encode("utf-8"),
+        )
+        # Prüfsummen zuletzt, im Format von sha256sum (zwei Leerzeichen)
+        zf.writestr(
+            "pruefsummen.sha256",
+            "".join(f"{h}  {name}\n" for name, h in sorted(summen.items())).encode("utf-8"),
+        )
     return buf.getvalue()
 
 

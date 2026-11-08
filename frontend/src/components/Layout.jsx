@@ -57,6 +57,7 @@ export default function Layout() {
   const [checkOffen, setCheckOffen] = useState(0);
   const [mahnOffen, setMahnOffen] = useState(0); // überfällige Rechnungen (Badge an „Rechnungen")
   const [fristenDringend, setFristenDringend] = useState(0); // überfällige/bald fällige Fristen
+  const [jahrAbgeschlossen, setJahrAbgeschlossen] = useState(false); // gewähltes Jahr gesperrt?
 
   const [gewerbeId, setGewerbeId] = useState(
     () => localStorage.getItem('tab_gewerbe') || '',
@@ -89,19 +90,22 @@ export default function Layout() {
       setCheckOffen(0);
       setMahnOffen(0);
       setFristenDringend(0);
+      setJahrAbgeschlossen(false);
       setEingang({ offen: 0, ueberfaellig: 0 });
       return;
     }
     try {
-      const [kat, buch, bel, mahn, fristen] = await Promise.all([
+      const [kat, buch, bel, mahn, fristen, abschluss] = await Promise.all([
         api.get('/api/kategorien', { params: { jahr: j } }),
         api.get('/api/buchungen', { params: { gewerbe_id: gid, jahr: j } }),
         api.get('/api/belege', { params: { gewerbe_id: gid, status: 'offen' } }),
         api.get('/api/mahnwesen/ueberfaellig', { params: { gewerbe_id: gid } }),
         api.get('/api/fristen'),
+        api.get('/api/abschluss/status', { params: { gewerbe_id: gid, jahr: j } }),
       ]);
       setMahnOffen(mahn.data.items.length);
       setFristenDringend(fristen.data.dringend);
+      setJahrAbgeschlossen(abschluss.data.abgeschlossen);
       setCheckOffen(countOffeneTopics(kat.data, buch.data, loadCheckState(gid, j)));
       const heute = todayISO();
       setEingang({
@@ -112,6 +116,7 @@ export default function Layout() {
       setCheckOffen(0);
       setMahnOffen(0);
       setFristenDringend(0);
+      setJahrAbgeschlossen(false);
     }
   }, []);
 
@@ -158,6 +163,7 @@ export default function Layout() {
     jahre,
     reloadGewerbe: loadGewerbe,
     reloadBadges: () => loadBadges(gewerbeId, jahr),
+    jahrAbgeschlossen,
     setGewerbeId,
     openMailSetup: () => setMailModal(true),
     uploadBelege,

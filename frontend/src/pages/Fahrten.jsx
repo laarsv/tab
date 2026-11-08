@@ -15,6 +15,7 @@ import {
   Row,
   SectionHead,
 } from '../components/PageParts.jsx';
+import AbschlussHinweis from '../components/AbschlussHinweis.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
 
@@ -30,7 +31,7 @@ function emptyForm() {
 }
 
 export default function Fahrten() {
-  const { gewerbeId, jahr, reloadBadges } = useOutletContext();
+  const { gewerbeId, jahr, reloadBadges, jahrAbgeschlossen } = useOutletContext();
   const [data, setData] = useState({ fahrten: [], summe_km: 0, betrag_cent: 0 });
   const [kategorien, setKategorien] = useState([]);
   const [form, setForm] = useState(emptyForm());
@@ -127,6 +128,7 @@ export default function Fahrten() {
           Summe als Buchung übernehmen
         </button>
       </PageHeader>
+      <AbschlussHinweis jahr={jahr} abgeschlossen={jahrAbgeschlossen} />
 
       <Kennzahlen cols={1} className="mt-6">
         <Kennzahl

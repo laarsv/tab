@@ -6,12 +6,13 @@ import Dropdown from '../components/Dropdown.jsx';
 import { IconButton, IconPencil, IconPlus, IconTrash, IconTrendDown } from '../components/Icons.jsx';
 import { DialogFuss, SchalterZeile } from '../components/DialogParts.jsx';
 import Modal from '../components/Modal.jsx';
+import AbschlussHinweis from '../components/AbschlussHinweis.jsx';
 import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 
 export default function Afa() {
-  const { gewerbeId, jahr } = useOutletContext();
+  const { gewerbeId, jahr, jahrAbgeschlossen } = useOutletContext();
   const [afaKategorien, setAfaKategorien] = useState([]);
   // Kategorie-Key -> EÜR-Zeile im gewählten Jahr (die Zeilen verschieben sich jährlich)
   const [zeilen, setZeilen] = useState({});
@@ -90,6 +91,7 @@ export default function Afa() {
           <IconPlus className="mr-1 h-4 w-4" /> Anschaffung
         </button>
       </PageHeader>
+      <AbschlussHinweis jahr={jahr} abgeschlossen={jahrAbgeschlossen} />
 
       <Hinweis titel="Wann gehört etwas hierher?" className="mt-5 space-y-1">
         <p>

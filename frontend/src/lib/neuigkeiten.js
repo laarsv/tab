@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 23,
+    datum: '2026-11-08',
+    titel: 'Jahresabschluss: Jahr sperren und versiegeln',
+    text: 'Unter „Jahresabschluss“ kannst du ein beendetes Jahr abschließen: Danach sind Buchungen, Belege, AfA und Fahrten dieses Jahres gesperrt und Tab versiegelt die Daten. Jede Änderung in Tab steht jetzt in einem Änderungsprotokoll, das als Hash-Kette gegen nachträgliches Ändern gesichert ist — mit „Alles prüfen“ rechnest du alles nach. Wieder öffnen geht nur mit Begründung. Das Jahresarchiv enthält jetzt Prüfsummen (pruefsummen.sha256), das Protokoll und einen Prüfwert, den du außerhalb des Servers aufbewahren solltest. Das ist Nachvollziehbarkeit, keine Zertifizierung und keine Steuerberatung.',
+  },
+  {
     id: 22,
     datum: '2026-11-08',
     titel: 'Neue Seite: Fristen',

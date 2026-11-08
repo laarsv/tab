@@ -7,10 +7,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sqlite3
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
@@ -18,6 +20,7 @@ from .db import _connect, init_pragmas
 from .migrations import run_migrations
 from .routes import (
     abos,
+    abschluss,
     afa,
     belege,
     buchungen,
@@ -35,6 +38,7 @@ from .routes import (
 )
 from .seed import seed
 from .services.abo import run_faellige_abos
+from .services.audit import SPERR_PRAEFIX, ensure_triggers
 from .services.mail_import import run_mail_import
 from .auth.router import router as auth_router
 
@@ -42,8 +46,8 @@ ABO_INTERVALL_SEKUNDEN = 6 * 3600
 MAIL_IMPORT_INTERVALL_SEKUNDEN = 10 * 60
 
 
-def _mit_connection(fn) -> None:
-    conn = _connect()
+def _mit_connection(fn, actor: str) -> None:
+    conn = _connect(actor=actor)  # Akteur fürs Änderungsprotokoll: system:<name>
     try:
         fn(conn)
     finally:
@@ -54,7 +58,7 @@ async def _scheduler(name: str, fn, intervall: int) -> None:
     """Hintergrund-Lauf: beim Start und dann im Intervall (Abos, Mail-Import)."""
     while True:
         try:
-            await asyncio.to_thread(_mit_connection, fn)
+            await asyncio.to_thread(_mit_connection, fn, f"system:{name}")
         except Exception:
             logging.getLogger(f"tab.{name}").exception("%s-Lauf fehlgeschlagen", name)
         await asyncio.sleep(intervall)
@@ -64,9 +68,10 @@ async def _scheduler(name: str, fn, intervall: int) -> None:
 async def lifespan(app: FastAPI):
     init_pragmas()
     os.makedirs(settings.UPLOAD_ROOT, exist_ok=True)
-    conn = _connect()
+    conn = _connect(actor="system:start")
     try:
         run_migrations(conn)
+        ensure_triggers(conn)  # Sperren, Änderungsprotokoll, Hash-Kette (services/audit.py)
         seed(conn)
     finally:
         conn.close()
@@ -82,6 +87,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tab", lifespan=lifespan)
+
+
+@app.exception_handler(sqlite3.IntegrityError)
+async def integritaet_fehler(request: Request, exc: sqlite3.IntegrityError):
+    """Die Jahres-Sperre ist ein Datenbank-Trigger (RAISE) — hier wird sie zur lesbaren 409-Meldung.
+    Alle anderen Integritätsfehler bleiben, was sie waren: ein 500."""
+    text = str(exc)
+    if text.startswith(SPERR_PRAEFIX):
+        return JSONResponse(status_code=409, content={"detail": text.split(": ", 1)[1]})
+    raise exc
 
 # OAuth-State (Authlib) läuft über die Starlette-Session (signiertes Cookie).
 app.add_middleware(
@@ -118,6 +133,7 @@ app.include_router(rechnungen.router)
 app.include_router(abos.router)
 app.include_router(mahnwesen.router)
 app.include_router(fristen.router)
+app.include_router(abschluss.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)

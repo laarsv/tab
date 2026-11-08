@@ -484,6 +484,47 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=20,
+        sql="""
+        -- v20: Festschreibung. Die Trigger (Sperren, Änderungsprotokoll, Hash-Kette) legt
+        --      services/audit.ensure_triggers() bei jedem Start an und hält sie aktuell —
+        --      hier nur die Tabellen.
+        --  * audit_log: Änderungsprotokoll, nur anhängbar. row_hash = SHA-256 über
+        --    prev_hash + Inhalt (Hash-Kette, wird von Triggern gesetzt).
+        --  * jahr_abschluss: je Gewerbe + Jahr. abgeschlossen = 1 sperrt Buchungen, Belege,
+        --    Fahrten und AfA des Jahres; siegel = SHA-256 über die Daten beim Abschluss.
+        CREATE TABLE audit_log (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts          TEXT    NOT NULL,
+            actor       TEXT,
+            gewerbe_id  INTEGER,
+            tabelle     TEXT    NOT NULL,
+            zeile_id    INTEGER NOT NULL,
+            aktion      TEXT    NOT NULL,
+            vorher      TEXT,
+            nachher     TEXT,
+            prev_hash   TEXT,
+            row_hash    TEXT
+        );
+        CREATE INDEX idx_audit_gewerbe ON audit_log(gewerbe_id, id);
+        CREATE INDEX idx_audit_zeile ON audit_log(tabelle, zeile_id);
+
+        CREATE TABLE jahr_abschluss (
+            gewerbe_id         INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            jahr               INTEGER NOT NULL,
+            abgeschlossen      INTEGER NOT NULL DEFAULT 1,
+            abgeschlossen_am   TEXT,
+            abgeschlossen_von  TEXT,
+            siegel             TEXT,
+            siegel_info        TEXT,
+            geoeffnet_am       TEXT,
+            geoeffnet_von      TEXT,
+            geoeffnet_grund    TEXT,
+            PRIMARY KEY (gewerbe_id, jahr)
+        );
+        """,
+    ),
 ]
 
 

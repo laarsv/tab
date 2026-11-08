@@ -254,10 +254,12 @@ def delete_beleg(
         return
     check_gewerbe(db, user, r["gewerbe_id"])
     path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
+    # Erst den Datensatz löschen (die Jahres-Sperre kann ablehnen), dann die Datei — sonst wäre
+    # bei einem abgelehnten Löschen die Datei eines abgeschlossenen Jahres schon weg.
+    db.execute("DELETE FROM beleg WHERE id = ?", (beleg_id,))
+    db.commit()
     try:
         if os.path.exists(path):
             os.remove(path)
     except OSError:
         pass
-    db.execute("DELETE FROM beleg WHERE id = ?", (beleg_id,))
-    db.commit()

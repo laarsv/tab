@@ -237,6 +237,24 @@ export const IconClock = (p) => (
     <path d="M12 7v5l3 2" />
   </Svg>
 );
+export const IconLock = (p) => (
+  <Svg {...p}>
+    <rect x="4" y="11" width="16" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </Svg>
+);
+export const IconUnlock = (p) => (
+  <Svg {...p}>
+    <rect x="4" y="11" width="16" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+  </Svg>
+);
+export const IconShieldCheck = (p) => (
+  <Svg {...p}>
+    <path d="M12 3 4 6v6c0 4.5 3.2 8 8 9 4.8-1 8-4.5 8-9V6l-8-3z" />
+    <path d="m9 12 2 2 4-4" />
+  </Svg>
+);
 export const IconCalendar = (p) => (
   <Svg {...p}>
     <rect x="3" y="4" width="18" height="18" rx="2" />
