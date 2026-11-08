@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -220,8 +220,9 @@ der Mapping-Version des Jahres aufgelöst.
   keine Nummernlücken); Inhalt editierbar nur im Status `entwurf`. „Als Einnahme buchen"
   öffnet das BuchungModal vorbefüllt — `vers4nr11` → Kategorie `einnahme_steuerfrei`
   (Zeile 16), sonst `einnahme_ku` (Zeile 12); bewusst keine automatische Buchung.
-  Das Modal schickt `rechnung_id` mit (BuchungModal-Prop `rechnungId`) → `rechnung.buchung_id`; danach
-  verschwindet der Button (Chip „Gebucht"), 409 bei Doppelbuchung, Buchung löschen → Button kommt zurück.
+  Das Modal schickt `rechnung_id` mit (BuchungModal-Prop `rechnungId`); gebucht wird seit v22 je
+  **Zahlung** (siehe „Zahlungen auf Rechnungen“), `rechnung.buchung_id` zeigt nur noch auf die zuletzt
+  gebuchte Zahlung. 409, wenn alles Gezahlte schon gebucht ist; Buchung löschen → die Zahlung ist wieder „ungebucht“.
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via
@@ -236,6 +237,28 @@ der Mapping-Version des Jahres aufgelöst.
   später, `lib/intervall.js` spiegelt naechster_termin); „Wiederholen…" an
   bestehenden Rechnungen ist ebenfalls eine Periode nach deren Datum vorbelegt.
   Abo-Liste mit Jetzt ausführen/Pausieren im Reiter „Wiederkehrend" der Rechnungen-Seite.
+- **Zahlungen auf Rechnungen — Teilzahlungen, Skonto, Ausbuchen (`services/zahlungen.py`,
+  `routes/rechnungen.py`, Tabelle `rechnung_zahlung`, v22):** Aufbau nach Haben (Zahlungen mindern den
+  offenen Betrag, Skonto/Forderungsausfall buchen den Rest aus), auf die EÜR zugeschnitten:
+  **Einnahme ist, was zufließt** — nur `art='zahlung'` ist Geld und (optional) mit einer
+  Einnahme-Buchung verknüpft (`buchung_id`, Kategorie nach Steuerhinweis); `skonto` und `ausfall` sind
+  Abzüge **ohne Buchung**. **offen = Summe − Zahlungen − Ausbuchungen**; Status `versendet`, bis nichts
+  mehr offen ist, dann `bezahlt` (`aktualisiere_status`, `bezahlt_am` = letzte Zahlung). „Teilbezahlt“
+  ist kein Status, sondern abgeleitet (`versendet` + `bezahlt_cent > 0`). `_row` liefert
+  `bezahlt_cent/ausgebucht_cent/offen_cent/gebucht_cent/ungebucht_cent/zahlungen/skonto_*`.
+  **Wege:** (1) „Zahlung erfassen…“ (`POST /rechnungen/{id}/zahlungen`: Datum, Betrag ≤ offen, optional
+  gleich buchen, Rest als Skonto/Ausfall ausbuchen); (2) Status-Knopf „bezahlt“ (Entwürfe) legt eine
+  ungebuchte Zahlung über den Rest an; (3) Bank-Zuordnung und „Als Einnahme buchen“ über
+  `POST /buchungen` (`rechnung_id` + optional `zahlung_id`/`bank_umsatz_id`/`rest_ausbuchen`) —
+  Betrag der Zahlung = Zahlungseingang auf dem Konto, Überzahlung zählt als bezahlt. Zahlung löschen
+  nur ohne Buchung (erst die Buchung löschen). **Skonto** je Rechnung: Prozent (0,1–10) + Frist in
+  Tagen ≤ Zahlungsziel, nur im Entwurf änderbar; steht auf dem PDF, in der E-Rechnung als
+  `#SKONTO#TAGE=…#PROZENT=…#` (BR-DE-18) und löst im Bank-Vorschlag „Betrag mit Skonto, in der Frist“
+  aus (Fristende → nächster Werktag, nur auf die unberührte Rechnung). **Mahnwesen und Bank-
+  Vorschläge rechnen mit dem offenen Rest** (`offen_cent`); die Mahnung sagt, dass das Skonto entfallen
+  ist. Migration v22 hat bezahlte Rechnungen als Zahlung über die Summe übernommen (mit ihrer
+  Buchung). Nicht gebaut: Skonto in mehreren Stufen, Skonto an Abos, Zahlungen auf Entwürfe (nur der
+  Status-Knopf), Gutschrift/Stornorechnung.
 - **Fälligkeit + Mahnwesen (`routes/mahnwesen.py`, `services/mahnwesen.py`,
   `services/fristen.py`, `services/mahnung_pdf.py`, v17):** Aufbau und Abläufe nach **Haben**
   (github.com/firsttris/haben; Lars: „Aufbau nicht Farben" — bei neuen Seiten dort zuerst
@@ -261,7 +284,7 @@ der Mapping-Version des Jahres aufgelöst.
   gebaut); löschen nur, solange nicht versendet. Frontend rechnet die Forderung live nach
   (`lib/mahnwesen.js`, gleiche Formel) — maßgeblich ist der Server. Mahnungen sind
   Schadensersatz/Zins, **kein Entgelt**: keine USt, keine automatische Buchung (Hinweis im
-  Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Teilzahlungen (Rechnung
+  Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Mahnbescheid, Inkasso (Teilzahlungen und Skonto: siehe „Zahlungen auf Rechnungen“; Rechnung
   ist bezahlt oder nicht), Skonto, Mahnbescheid.
 - **Bank-Import (`/bank`, `pages/Bank.jsx`, `routes/bank.py`, `services/bank_import.py` +
   `bank_match.py`, v21):** **Kein Bankabruf** — der Nutzer importiert die Datei seiner Bank:
@@ -284,7 +307,7 @@ der Mapping-Version des Jahres aufgelöst.
   Zahlungseingang); Ausgang → Kategorie aus früheren Buchungen (`beleg_extract._kategorie_vorschlag`)
   und offene PDF/XML-Eingangs-Belege mit lesbarem Betrag (max. 25 geprüft, Bilder wegen OCR-Dauer
   nur per Auswahl). Die Tabellen stehen im Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut:
-  Teilzahlungen/Skonto, Splitbuchung eines Umsatzes, automatisches Buchen, mehrere Dateien auf
+  Splitbuchung eines Umsatzes, automatisches Buchen, mehrere Dateien auf
   einmal, gespeicherte Originaldateien.
 - **Festschreibung / Jahresabschluss (`/abschluss`, `pages/Abschluss.jsx`, `routes/abschluss.py`,
   `services/audit.py` + `services/abschluss.py`, v20):** Aufbau nach Haben (Sperre + Protokoll als

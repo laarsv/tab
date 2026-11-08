@@ -13,6 +13,7 @@ from fpdf import FPDF
 from fpdf.enums import MethodReturnValue
 
 from .export import format_cent_de, _date_de
+from .fristen import add_days
 from .girocode import GIRO_MM, epc_payload, kontoinhaber, zeichne_qr
 
 INK = (22, 26, 36)       # ink
@@ -183,6 +184,18 @@ def build_rechnung_pdf(
     if rechnung["faellig_am"]:
         pdf.cell(breite, 5.4, f"Zahlbar bis zum {_date_de(rechnung['faellig_am'])}.",
                  new_x="LMARGIN", new_y="NEXT")
+    if rechnung["skonto_bp"] and rechnung["skonto_tage"]:
+        skonto = (summe * rechnung["skonto_bp"] + 5_000) // 10_000
+        prozent = f"{rechnung['skonto_bp'] / 100:.2f}".replace(".", ",")
+        bis = _date_de(add_days(rechnung["datum"], rechnung["skonto_tage"]))
+        pdf.multi_cell(
+            breite, 5.4,
+            latin1(
+                f"Bei Zahlung bis zum {bis} gewähren wir {prozent} % Skonto ({format_cent_de(skonto)} EUR); "
+                f"Sie überweisen dann {format_cent_de(summe - skonto)} EUR."
+            ),
+            align="L", new_x="LMARGIN", new_y="NEXT",
+        )
     if gewerbe["iban"]:
         pdf.multi_cell(breite, 5.4, latin1(f"Bitte überweisen Sie den Betrag auf: IBAN {gewerbe['iban']}"),
                        align="L", new_x="LMARGIN", new_y="NEXT")

@@ -7,12 +7,14 @@ import csv
 import datetime as dt
 import io
 import sqlite3
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services import zahlungen as zsvc
 
 router = APIRouter(
     prefix="/api/buchungen", tags=["buchungen"], dependencies=[Depends(get_current_user)]
@@ -41,6 +43,8 @@ class BuchungIn(BaseModel):
     beleg_ids: list[int] = Field(default_factory=list)  # Eingangs-Belege verknüpfen
     rechnung_id: int | None = None  # „Als Einnahme buchen" aus einer Rechnung
     bank_umsatz_id: int | None = None  # Zuordnung aus dem Bank-Import (verknüpft den Umsatz atomar)
+    zahlung_id: int | None = None  # bestehende, noch ungebuchte Zahlung der Rechnung verbuchen
+    rest_ausbuchen: Literal["skonto", "ausfall"] | None = None  # Rest der Rechnung ausbuchen
 
     @field_validator("datum")
     @classmethod
@@ -165,17 +169,33 @@ def create_buchung(
         if bel["gewerbe_id"] != body.gewerbe_id:
             raise HTTPException(400, "Beleg gehört zu einem anderen Gewerbe.")
 
-    # Rechnung, aus der gebucht wird: gleiches Gewerbe, noch nicht verbucht (kein Doppel-Ertrag).
+    # Rechnung, aus der gebucht wird: gleiches Gewerbe. Gebucht wird je eine ZAHLUNG (Teilzahlungen
+    # ergeben mehrere Buchungen); eine bereits gebuchte Zahlung nicht noch einmal (kein Doppel-Ertrag).
+    rech = zahlung = None
     if body.rechnung_id is not None:
-        rech = db.execute(
-            "SELECT gewerbe_id, buchung_id FROM rechnung WHERE id = ?", (body.rechnung_id,)
-        ).fetchone()
+        rech = db.execute("SELECT * FROM rechnung WHERE id = ?", (body.rechnung_id,)).fetchone()
         if rech is None:
             raise HTTPException(404, f"Rechnung {body.rechnung_id} nicht gefunden.")
         if rech["gewerbe_id"] != body.gewerbe_id:
             raise HTTPException(400, "Rechnung gehört zu einem anderen Gewerbe.")
-        if rech["buchung_id"] is not None:
-            raise HTTPException(409, "Diese Rechnung ist bereits als Einnahme gebucht.")
+        stand = zsvc.stand(db, rech)
+        if body.zahlung_id is not None:
+            zahlung = db.execute(
+                "SELECT * FROM rechnung_zahlung WHERE id = ? AND rechnung_id = ?", (body.zahlung_id, rech["id"])
+            ).fetchone()
+            if zahlung is None or zahlung["art"] != "zahlung":
+                raise HTTPException(404, "Zahlung nicht gefunden.")
+            if zahlung["buchung_id"] is not None:
+                raise HTTPException(409, "Diese Zahlung ist bereits als Einnahme gebucht.")
+        elif body.bank_umsatz_id is None:
+            # „Als Einnahme buchen“ ohne Angabe: die älteste noch ungebuchte Zahlung
+            zahlung = db.execute(
+                "SELECT * FROM rechnung_zahlung WHERE rechnung_id = ? AND art = 'zahlung' AND buchung_id IS NULL "
+                "ORDER BY datum, id LIMIT 1",
+                (rech["id"],),
+            ).fetchone()
+            if zahlung is None and stand["bezahlt_cent"] > 0 and stand["rest_cent"] <= 0:
+                raise HTTPException(409, "Diese Rechnung ist bereits als Einnahme gebucht.")
 
     # Bankumsatz, dem diese Buchung zugeordnet wird: gleiches Gewerbe, noch keiner Buchung zugeordnet.
     umsatz = None
@@ -201,21 +221,30 @@ def create_buchung(
     )
     for bid in body.beleg_ids:
         db.execute("UPDATE beleg SET buchung_id = ? WHERE id = ?", (buchung_id, bid))
-    if body.rechnung_id is not None:
-        db.execute("UPDATE rechnung SET buchung_id = ? WHERE id = ?", (buchung_id, body.rechnung_id))
+    if rech is not None:
+        summe_buchung = sum(p.betrag_cent for p in body.positionen)
+        z_datum = umsatz["datum"] if umsatz is not None else body.datum
+        if zahlung is not None:
+            db.execute("UPDATE rechnung_zahlung SET buchung_id = ? WHERE id = ?", (buchung_id, zahlung["id"]))
+        else:
+            # Betrag der Zahlung = was auf dem Konto einging (Bank) bzw. was gebucht wird
+            zsvc.zahlung_anlegen(
+                db, rechnung=rech, datum=z_datum,
+                betrag_cent=abs(umsatz["betrag_cent"]) if umsatz is not None else summe_buchung,
+                buchung_id=buchung_id, umsatz_id=umsatz["id"] if umsatz is not None else None,
+            )
+        if body.rest_ausbuchen:
+            rest = zsvc.stand(db, rech)["rest_cent"]
+            if rest > 0:
+                zsvc.zahlung_anlegen(db, rechnung=rech, datum=z_datum, betrag_cent=rest, art=body.rest_ausbuchen)
+        db.execute("UPDATE rechnung SET buchung_id = ? WHERE id = ?", (buchung_id, rech["id"]))
+        zsvc.aktualisiere_status(db, rech["id"])
     if umsatz is not None:
         db.execute(
             "UPDATE bank_umsatz SET buchung_id = ?, status = 'offen', ignoriert_grund = NULL, "
             "zugeordnet_am = datetime('now') WHERE id = ?",
             (buchung_id, umsatz["id"]),
         )
-        # Eingang einer Rechnung: sie ist damit bezahlt (am Tag des Zahlungseingangs)
-        if body.rechnung_id is not None:
-            db.execute(
-                "UPDATE rechnung SET status = 'bezahlt', bezahlt_am = ?, updated_at = datetime('now') "
-                "WHERE id = ? AND status IN ('entwurf', 'versendet')",
-                (umsatz["datum"], body.rechnung_id),
-            )
     db.commit()
     return _row(db, buchung_id)
 

@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 25,
+    datum: '2026-11-08',
+    titel: 'Teilzahlungen und Skonto bei Rechnungen',
+    text: 'Eine Rechnung kann jetzt in Raten bezahlt werden: Mit „Zahlung erfassen“ trägst du Datum und Betrag ein, Tab bucht den Eingang als Einnahme und zeigt, was noch offen ist. Den Rest kannst du als Skonto oder Forderungsausfall ausbuchen — beides ist kein Einkommen und wird nicht gebucht. Neu im Rechnungsformular: Skonto (Prozent und Frist), das auch auf dem PDF und in der E-Rechnung steht. Im Bank-Import erkennt Tab Skonto-Zahlungen und Teilbeträge und fragt, was mit dem Rest passieren soll; Mahnungen und Verzugszinsen rechnen mit dem offenen Rest.',
+  },
+  {
     id: 24,
     datum: '2026-11-08',
     titel: 'Neue Seite: Bank',

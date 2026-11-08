@@ -580,6 +580,41 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_umsatz_buchung ON bank_umsatz(buchung_id);
         """,
     ),
+    Migration(
+        version=22,
+        sql="""
+        -- v22: Teilzahlungen, Skonto, Ausbuchen. Jede Zahlung auf eine Rechnung ist eine Zeile:
+        --  art 'zahlung' = Geld eingegangen (optional mit Einnahme-Buchung, buchung_id),
+        --  art 'skonto'  = Abzug des Kunden bei früher Zahlung (kein Einkommen, keine Buchung),
+        --  art 'ausfall' = ausgebuchter Rest (Forderungsausfall; in der EÜR nie zugeflossen).
+        --  Offen = Summe - Zahlungen - Ausbuchungen; bezahlt, sobald nichts mehr offen ist.
+        ALTER TABLE rechnung ADD COLUMN skonto_bp INTEGER;      -- Skonto in Basispunkten (200 = 2,00 %)
+        ALTER TABLE rechnung ADD COLUMN skonto_tage INTEGER;    -- Frist ab Rechnungsdatum
+
+        CREATE TABLE rechnung_zahlung (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            rechnung_id    INTEGER NOT NULL REFERENCES rechnung(id) ON DELETE CASCADE,
+            gewerbe_id     INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            datum          TEXT    NOT NULL,
+            betrag_cent    INTEGER NOT NULL CHECK (betrag_cent > 0),
+            art            TEXT    NOT NULL CHECK (art IN ('zahlung', 'skonto', 'ausfall')),
+            buchung_id     INTEGER REFERENCES buchung(id) ON DELETE SET NULL,
+            bank_umsatz_id INTEGER REFERENCES bank_umsatz(id) ON DELETE SET NULL,
+            notiz          TEXT,
+            created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_rz_rechnung ON rechnung_zahlung(rechnung_id);
+
+        -- Bestand: bereits bezahlte Rechnungen bekommen eine Zahlung über die Summe (mit ihrer
+        -- Einnahme-Buchung, falls gebucht) — so gilt überall dasselbe Modell.
+        INSERT INTO rechnung_zahlung (rechnung_id, gewerbe_id, datum, betrag_cent, art, buchung_id)
+            SELECT r.id, r.gewerbe_id, COALESCE(r.bezahlt_am, r.datum), s.summe, 'zahlung', r.buchung_id
+            FROM rechnung r
+            JOIN (SELECT rechnung_id, SUM(CAST(ROUND(menge * einzelpreis_cent) AS INTEGER)) AS summe
+                  FROM rechnung_position GROUP BY rechnung_id) s ON s.rechnung_id = r.id
+            WHERE r.status = 'bezahlt' AND s.summe > 0;
+        """,
+    ),
 ]
 
 

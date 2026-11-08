@@ -14,12 +14,14 @@ Rechenregeln:
     Gebühr, der sie übersteigt.
   * Hat eine Rechnung keine Fälligkeit (Bestand vor v17), gilt Rechnungsdatum + 30 Tage
     (Verzug spätestens 30 Tage nach Zugang, § 286 Abs. 3 BGB).
+  * Gemahnt wird der offene Rest nach Teilzahlungen, Skonto und Ausbuchungen (services/zahlungen.py).
 """
 from __future__ import annotations
 
 import sqlite3
 
 from .fristen import add_days, tage_zwischen
+from .zahlungen import offen_cent, summe_cent  # noqa: F401 (summe_cent: von anderen Modulen hier importiert)
 
 STUFEN = {
     1: {"label": "Zahlungserinnerung", "titel": "Zahlungserinnerung"},
@@ -114,16 +116,6 @@ def mahnbetraege(
 
 # ── Abfragen ────────────────────────────────────────────────────────────────
 
-def summe_cent(conn: sqlite3.Connection, rechnung_id: int) -> int:
-    return sum(
-        round(p["menge"] * p["einzelpreis_cent"])
-        for p in conn.execute(
-            "SELECT menge, einzelpreis_cent FROM rechnung_position WHERE rechnung_id = ?",
-            (rechnung_id,),
-        )
-    )
-
-
 def mahnungen_zu(conn: sqlite3.Connection, rechnung_id: int) -> list[dict]:
     """Alle Mahnungen einer Rechnung, neueste zuerst."""
     return [
@@ -149,6 +141,9 @@ def ueberfaellige(conn: sqlite3.Connection, gewerbe_id: int, heute: str) -> list
         faellig = effektive_faelligkeit(r["datum"], r["faellig_am"])
         if faellig >= heute:
             continue
+        offen = offen_cent(conn, r)  # nach Teilzahlungen/Skonto
+        if offen <= 0:
+            continue
         mahnungen = mahnungen_zu(conn, r["id"])
         letzte = mahnungen[0] if mahnungen else None
         items.append(
@@ -160,7 +155,7 @@ def ueberfaellige(conn: sqlite3.Connection, gewerbe_id: int, heute: str) -> list
                 "faellig_am": faellig,
                 "ohne_ziel": r["faellig_am"] is None,
                 "tage_ueberfaellig": tage_ueberfaellig(faellig, heute),
-                "offen_cent": summe_cent(conn, r["id"]),
+                "offen_cent": offen,
                 "letzte_mahnung": letzte,
                 "anzahl_mahnungen": len(mahnungen),
                 "naechste_stufe": naechste_stufe(letzte),

@@ -32,7 +32,7 @@ from ..services.mahnwesen import (
     mahnbetraege,
     mahnungen_zu,
     naechste_stufe,
-    summe_cent,
+    offen_cent,
     tage_ueberfaellig,
     ueberfaellige,
 )
@@ -87,7 +87,7 @@ def _offene_rechnung(db: sqlite3.Connection, user: dict, rechnung_id: int, heute
     faellig = effektive_faelligkeit(r["datum"], r["faellig_am"])
     if faellig >= heute:
         raise HTTPException(400, "Die Rechnung ist noch nicht fällig.")
-    if summe_cent(db, r["id"]) <= 0:
+    if offen_cent(db, r) <= 0:
         raise HTTPException(400, "Für diese Rechnung ist nichts offen.")
     return r, g, faellig
 
@@ -116,7 +116,7 @@ def _baue(db: sqlite3.Connection, user: dict, body: MahnungIn):
     if body.pauschale and body.zinsen == "verbraucher":
         raise HTTPException(400, "Die Verzugspauschale gibt es nur gegenüber Geschäftskunden.")
     betraege = mahnbetraege(
-        offen_cent=summe_cent(db, r["id"]),
+        offen_cent=offen_cent(db, r),
         faellig=faellig,
         datum=heute,
         gebuehr_cent=body.gebuehr_cent,
@@ -176,7 +176,7 @@ def entwurf(
             "datum": r["datum"],
             "faellig_am": faellig,
             "empfaenger_name": r["empfaenger_name"],
-            "offen_cent": summe_cent(db, r["id"]),
+            "offen_cent": offen_cent(db, r),
             "tage_ueberfaellig": tage_ueberfaellig(faellig, heute),
         },
         "stufe": stufe,

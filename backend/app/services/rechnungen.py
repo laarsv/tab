@@ -28,6 +28,8 @@ def erstelle_rechnung(
     steuerhinweis: str,
     positionen: list[dict],  # {beschreibung, menge, einzelpreis_cent}
     zahlungsziel_tage: int | None = None,  # None = Standard-Zahlungsziel des Gewerbes
+    skonto_bp: int | None = None,
+    skonto_tage: int | None = None,
 ) -> int:
     """Legt Rechnung + Positionen an (ohne Commit) und gibt die Rechnungs-ID zurück."""
     jahr = int(datum[:4])
@@ -44,8 +46,8 @@ def erstelle_rechnung(
         """
         INSERT INTO rechnung (gewerbe_id, jahr, laufnummer, nummer, datum, leistungsdatum,
                               empfaenger_name, empfaenger_anschrift, empfaenger_email, notiz,
-                              steuerhinweis, zahlungsziel_tage, faellig_am)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              steuerhinweis, zahlungsziel_tage, faellig_am, skonto_bp, skonto_tage)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             gewerbe_id,
@@ -61,6 +63,8 @@ def erstelle_rechnung(
             steuerhinweis,
             zahlungsziel_tage,
             faelligkeit(datum, zahlungsziel_tage),
+            skonto_bp,
+            skonto_tage,
         ),
     )
     rid = cur.lastrowid

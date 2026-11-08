@@ -16,7 +16,7 @@ import Modal from '../components/Modal.jsx';
 import { Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
 import RechnungenTabs from '../components/RechnungenTabs.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
-import { faelligkeit } from '../lib/fristen.js';
+import { addDays, faelligkeit } from '../lib/fristen.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 import { INTERVALL_LABELS, naechsterTermin } from '../lib/intervall.js';
 import { naechsteStufe, openMahnungPdf, STUFEN } from '../lib/mahnwesen.js';
@@ -28,6 +28,7 @@ const STATUS = {
   bezahlt: { label: 'Bezahlt', kind: 'pos', ton: 'pos' },
   storniert: { label: 'Storniert', kind: 'neg', ton: 'neg' },
 };
+const ZAHLUNG_ART = { zahlung: 'Zahlung', skonto: 'Skonto', ausfall: 'Forderungsausfall' };
 const INTERVALL = { monatlich: 'monatlich', vierteljaehrlich: 'vierteljährlich', jaehrlich: 'jährlich' };
 
 // Warum keine USt auf der Rechnung steht — je Rechnung wählbar.
@@ -65,7 +66,8 @@ export default function Rechnungen({ tab = 'alle' }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [senden, setSenden] = useState(null); // rechnung
-  const [einnahme, setEinnahme] = useState(null); // rechnung -> BuchungModal
+  const [einnahme, setEinnahme] = useState(null); // { rechnung, zahlung } -> BuchungModal
+  const [zahlungFuer, setZahlungFuer] = useState(null); // rechnung -> ZahlungModal
   const [aboModal, setAboModal] = useState(null); // { abo? , prefill? }
   const [kontakte, setKontakte] = useState([]);
   const [kontakteModal, setKontakteModal] = useState(false);
@@ -121,6 +123,18 @@ export default function Rechnungen({ tab = 'alle' }) {
       await api.delete(`/api/rechnungen/${r.id}`);
       toast.success('Gelöscht.');
       await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  async function removeZahlung(r, z) {
+    if (!window.confirm(`${ZAHLUNG_ART[z.art]} vom ${formatDateDE(z.datum)} über ${formatEuro(z.betrag_cent)} löschen?`)) return;
+    try {
+      await api.delete(`/api/rechnungen/${r.id}/zahlungen/${z.id}`);
+      toast.success('Gelöscht.');
+      await load();
+      reloadBadges?.();
     } catch (e) {
       toast.error(apiError(e));
     }
@@ -303,7 +317,7 @@ export default function Rechnungen({ tab = 'alle' }) {
                   {istUeberfaellig ? (
                     <Zustand ton="neg">Überfällig · {r.ueberfaellig_tage} Tage</Zustand>
                   ) : (
-                    <Zustand ton={st.ton}>{st.label}</Zustand>
+                    <Zustand ton={st.ton}>{r.status === 'versendet' && r.bezahlt_cent > 0 ? 'Teilbezahlt' : st.label}</Zustand>
                   )}
                   {PUNKT}
                   <span className="tabular-nums">{formatDateDE(r.datum)}</span>
@@ -331,7 +345,15 @@ export default function Rechnungen({ tab = 'alle' }) {
                       <span>§4 Nr. 11</span>
                     </>
                   )}
-                  {r.buchung_id && (
+                  {r.status === 'versendet' && r.bezahlt_cent > 0 && (
+                    <>
+                      {PUNKT}
+                      <span className="tabular-nums">
+                        bezahlt {formatEuro(r.bezahlt_cent)}, offen {formatEuro(r.offen_cent)}
+                      </span>
+                    </>
+                  )}
+                  {r.bezahlt_cent > 0 && r.ungebucht_cent === 0 && r.gebucht_cent > 0 && (
                     <>
                       {PUNKT}
                       <Zustand ton="royal" icon={IconCheck}>
@@ -377,6 +399,8 @@ export default function Rechnungen({ tab = 'alle' }) {
                           notiz: r.notiz || '',
                           steuerhinweis: r.steuerhinweis || 'ku19',
                           zahlungsziel_tage: r.zahlungsziel_tage,
+                          skonto_prozent: r.skonto_prozent,
+                          skonto_tage: r.skonto_tage,
                           positionen: r.positionen.map((p) => ({
                             beschreibung: p.beschreibung,
                             menge: String(p.menge).replace('.', ','),
@@ -394,11 +418,11 @@ export default function Rechnungen({ tab = 'alle' }) {
                       onClick={() => navigate(`/rechnungen/mahnwesen/${r.id}`)}
                     />
                   )}
-                  {(r.status === 'entwurf' || r.status === 'versendet') && (
+                  {r.status === 'entwurf' && (
                     <IconButton icon={IconCircleCheck} label="Als bezahlt markieren" onClick={() => setStatus(r, 'bezahlt')} />
                   )}
-                  {r.status === 'bezahlt' && !r.buchung_id && einnahmeKat && (
-                    <IconButton icon={IconBookIn} variant="primary" label="Als Einnahme buchen" onClick={() => setEinnahme(r)} />
+                  {r.status === 'versendet' && (
+                    <IconButton icon={IconCircleCheck} label="Zahlung erfassen…" onClick={() => setZahlungFuer(r)} />
                   )}
                   {r.status !== 'storniert' && (
                     <IconButton
@@ -416,6 +440,37 @@ export default function Rechnungen({ tab = 'alle' }) {
                 </>
               }
             >
+              {r.zahlungen.length > 0 && (
+                <div className="mt-1.5 space-y-0.5">
+                  {r.zahlungen.map((z) => (
+                    <div key={z.id} className="flex items-center gap-1 text-[13px] text-ink/70">
+                      <span className="min-w-0 flex-1">
+                        {ZAHLUNG_ART[z.art]} {formatDateDE(z.datum)}
+                        <span className="mx-1.5 text-ink/45">·</span>
+                        <span className="tabular-nums">{formatEuro(z.betrag_cent)}</span>
+                        {z.art === 'zahlung' && (
+                          <>
+                            <span className="mx-1.5 text-ink/45">·</span>
+                            {z.buchung_id ? 'als Einnahme gebucht' : 'noch nicht gebucht'}
+                          </>
+                        )}
+                        {z.art !== 'zahlung' && <span className="text-ink/60"> ausgebucht</span>}
+                      </span>
+                      {z.art === 'zahlung' && !z.buchung_id && einnahmeKat && (
+                        <IconButton
+                          icon={IconBookIn}
+                          variant="primary"
+                          label="Als Einnahme buchen"
+                          onClick={() => setEinnahme({ rechnung: r, zahlung: z })}
+                        />
+                      )}
+                      {!z.buchung_id && (
+                        <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => removeZahlung(r, z)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {r.mahnungen.length > 0 && (
                 <div className="mt-1.5 space-y-0.5">
                   {r.mahnungen.map((m) => (
@@ -496,15 +551,29 @@ export default function Rechnungen({ tab = 'alle' }) {
         />
       )}
 
+      {zahlungFuer && (
+        <ZahlungModal
+          rechnung={zahlungFuer}
+          onClose={() => setZahlungFuer(null)}
+          onSaved={async () => {
+            await load();
+            reloadBadges?.();
+          }}
+        />
+      )}
+
       {einnahme && (
         <BuchungModal
           gewerbeId={gewerbeId}
           jahr={jahr}
           kategorien={kategorien}
-          presetKategorieId={einnahmeKatFuer(einnahme)?.id}
-          presetBetragCent={einnahme.summe_cent}
-          presetBeschreibung={`Rechnung ${einnahme.nummer} – ${einnahme.empfaenger_name}`}
-          rechnungId={einnahme.id}
+          presetKategorieId={einnahmeKatFuer(einnahme.rechnung)?.id}
+          presetBetragCent={einnahme.zahlung.betrag_cent}
+          presetBeschreibung={`Rechnung ${einnahme.rechnung.nummer} – ${einnahme.rechnung.empfaenger_name}`}
+          presetDatum={einnahme.zahlung.datum}
+          presetRichtung="einnahme"
+          rechnungId={einnahme.rechnung.id}
+          zahlungId={einnahme.zahlung.id}
           onClose={() => setEinnahme(null)}
           onSaved={async () => {
             await load();
@@ -528,6 +597,8 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
     notiz: editing.notiz || '',
     steuerhinweis: editing.steuerhinweis || 'ku19',
     zahlungsziel: String(editing.zahlungsziel_tage ?? standardZiel),
+    skontoProzent: editing.skonto_prozent ? String(editing.skonto_prozent).replace('.', ',') : '',
+    skontoTage: editing.skonto_tage ? String(editing.skonto_tage) : '',
     positionen: editing.positionen?.length ? editing.positionen : [emptyRPos()],
     wiederholen: false,
     intervall: 'monatlich',
@@ -548,6 +619,27 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
   const ziel = Number(form.zahlungsziel);
   const zielGueltig = form.zahlungsziel.trim() !== '' && Number.isInteger(ziel) && ziel >= 0 && ziel <= 120;
   const faelligAm = zielGueltig && form.datum ? faelligkeit(form.datum, ziel) : null;
+  // Skonto (optional): Prozent + Frist in Tagen, beides oder nichts; Frist höchstens das Zahlungsziel
+  const skontoP = form.skontoProzent.trim() ? Number(form.skontoProzent.replace(',', '.')) : null;
+  const skontoT = form.skontoTage.trim() ? Number(form.skontoTage) : null;
+  const skontoLeer = skontoP === null && skontoT === null;
+  const skontoFehler = skontoLeer
+    ? null
+    : skontoP === null || skontoT === null
+      ? 'Prozent und Tage angeben'
+      : !(skontoP > 0 && skontoP <= 10) || !Number.isInteger(skontoT) || skontoT < 1
+        ? 'Prozent 0,1–10, Tage ab 1'
+        : zielGueltig && skontoT > ziel
+          ? 'Frist länger als das Zahlungsziel'
+          : null;
+  const skontoBetrag = (() => {
+    const summe = form.positionen.reduce((s, p) => {
+      const preis = parseEuroToCent(p.preisInput);
+      const menge = Number(String(p.menge).replace(',', '.'));
+      return s + (preis > 0 && menge > 0 ? Math.round(menge * preis) : 0);
+    }, 0);
+    return skontoP && !skontoFehler ? Math.floor((summe * Math.round(skontoP * 100) + 5000) / 10000) : 0;
+  })();
 
   // Gemeinsamer Payload für Speichern + Vorschau; null = Validierungsfehler (getoastet).
   function baueBody() {
@@ -557,6 +649,10 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
     }
     if (!zielGueltig) {
       toast.error('Zahlungsziel: ganze Tage von 0 bis 120.');
+      return null;
+    }
+    if (skontoFehler) {
+      toast.error(`Skonto: ${skontoFehler}.`);
       return null;
     }
     const payloadPos = [];
@@ -586,6 +682,8 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
       notiz: form.notiz.trim() || null,
       steuerhinweis: form.steuerhinweis,
       zahlungsziel_tage: ziel,
+      skonto_prozent: skontoP,
+      skonto_tage: skontoT,
       positionen: payloadPos,
     };
   }
@@ -727,6 +825,25 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
               {faelligAm ? `fällig ${formatDateDE(faelligAm)}` : 'ganze Tage von 0 bis 120'}
             </span>
           </label>
+        </div>
+        <div className="grid grid-cols-2 items-start gap-x-5 gap-y-2 sm:grid-cols-3">
+          <label className="block">
+            <span className="field-label">Skonto in % (optional)</span>
+            <input className="input" inputMode="decimal" placeholder="z. B. 2" value={form.skontoProzent}
+              onChange={(e) => setForm({ ...form, skontoProzent: e.target.value })} aria-invalid={Boolean(skontoFehler)} />
+          </label>
+          <label className="block">
+            <span className="field-label">… bei Zahlung binnen (Tage)</span>
+            <input className="input" inputMode="numeric" placeholder="z. B. 10" value={form.skontoTage}
+              onChange={(e) => setForm({ ...form, skontoTage: e.target.value })} aria-invalid={Boolean(skontoFehler)} />
+          </label>
+          <p className="col-span-2 text-xs text-ink/60 sm:col-span-1 sm:pt-5">
+            {skontoFehler
+              ? skontoFehler
+              : skontoLeer
+                ? 'Kein Skonto.'
+                : `bis ${formatDateDE(addDays(form.datum, skontoT))}: ${formatEuro(skontoBetrag)} Abzug`}
+          </p>
         </div>
         {jahrMismatch && !isEdit && (
           <Hinweis ton="warn" className="!py-2 text-xs">
@@ -878,6 +995,109 @@ function SendenModal({ rechnung, mahnung, user, onClose, onSent }) {
           </button>
           <button type="submit" className="btn-primary" disabled={busy}>
             {busy ? 'Sendet…' : 'Senden'}
+          </button>
+        </DialogFuss>
+      </form>
+    </Modal>
+  );
+}
+
+// Zahlung auf eine versendete Rechnung: Teilzahlung oder Rest, optional gleich als Einnahme gebucht
+// und mit Ausbuchen des Rests (Skonto bzw. Forderungsausfall). Bezahlt ist die Rechnung, sobald nichts
+// mehr offen ist. Skonto und Ausfall sind kein Einkommen — gebucht wird nur, was zufließt.
+function ZahlungModal({ rechnung: r, onClose, onSaved }) {
+  const heute = todayISO();
+  const skontoMoeglich = r.skonto_cent > 0 && r.bezahlt_cent === 0 && r.skonto_bis && heute <= r.skonto_bis;
+  const [datum, setDatum] = useState(heute);
+  const [betrag, setBetrag] = useState(centToInput(r.offen_cent));
+  const [rest, setRest] = useState('');
+  const [buchen, setBuchen] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const cent = parseEuroToCent(betrag);
+  const gueltig = cent !== null && cent > 0 && cent <= r.offen_cent && datum >= r.datum && datum <= heute;
+  const restCent = gueltig ? r.offen_cent - cent : 0;
+
+  function mitSkonto() {
+    setBetrag(centToInput(r.offen_cent - r.skonto_cent));
+    setRest('skonto');
+  }
+
+  async function speichern(e) {
+    e.preventDefault();
+    if (!gueltig) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/rechnungen/${r.id}/zahlungen`, {
+        datum,
+        betrag_cent: cent,
+        buchen,
+        rest_ausbuchen: restCent > 0 && rest ? rest : null,
+      });
+      toast.success(restCent > 0 && !rest ? 'Teilzahlung erfasst.' : 'Zahlung erfasst.');
+      onClose();
+      await onSaved();
+    } catch (err) {
+      toast.error(apiError(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Zahlung erfassen" subtitle={`Rechnung ${r.nummer} · ${r.empfaenger_name}`} onClose={onClose}>
+      <form onSubmit={speichern} className="space-y-4">
+        <p className="text-[13px] leading-snug text-ink/70">
+          Rechnungsbetrag {formatEuro(r.summe_cent)}
+          {r.bezahlt_cent > 0 && ` · schon bezahlt ${formatEuro(r.bezahlt_cent)}`} · <strong>offen {formatEuro(r.offen_cent)}</strong>
+        </p>
+        {skontoMoeglich && (
+          <Hinweis className="!py-2 text-xs">
+            Skonto möglich bis {formatDateDE(r.skonto_bis)}: {r.skonto_prozent} % = {formatEuro(r.skonto_cent)}, der Kunde
+            zahlt dann {formatEuro(r.offen_cent - r.skonto_cent)}.{' '}
+            <button type="button" className="font-bold underline" onClick={mitSkonto}>
+              So eintragen
+            </button>
+          </Hinweis>
+        )}
+        <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="field-label">Zahlungsdatum</span>
+            <input type="date" className="input" value={datum} min={r.datum} max={heute} onChange={(e) => setDatum(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="field-label">Betrag (€)</span>
+            <input className="input" inputMode="decimal" value={betrag} autoFocus onChange={(e) => setBetrag(e.target.value)} aria-invalid={!gueltig} />
+          </label>
+        </div>
+        {restCent > 0 && (
+          <div className="block">
+            <span className="field-label">Der Rest von {formatEuro(restCent)}</span>
+            <Dropdown
+              value={rest}
+              onChange={(v) => setRest(String(v))}
+              options={[
+                { value: '', label: 'bleibt offen (Teilzahlung)' },
+                { value: 'skonto', label: 'als Skonto ausbuchen' },
+                { value: 'ausfall', label: 'ausbuchen (Forderungsausfall)' },
+              ]}
+            />
+            <span className="mt-1 block text-xs text-ink/60">
+              Ausgebucht heißt: Der Kunde schuldet ihn nicht mehr. Es ist kein Einkommen und wird nicht gebucht.
+            </span>
+          </div>
+        )}
+        <SchalterZeile
+          titel="Als Einnahme buchen"
+          hinweis="Bucht den Zahlungseingang am Zahlungsdatum als Einnahme. Sonst später an der Zahlung buchen."
+          checked={buchen}
+          onChange={setBuchen}
+        />
+        <DialogFuss>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Abbrechen
+          </button>
+          <button type="submit" className="btn-primary" disabled={busy || !gueltig}>
+            Speichern
           </button>
         </DialogFuss>
       </form>

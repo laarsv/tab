@@ -210,6 +210,7 @@ export default function Bank() {
           presetDatum={buchen.datum}
           presetRichtung={buchen.richtung}
           rechnungId={buchen.rechnung?.id}
+          restAusbuchen={buchen.restAusbuchen}
           umsatzId={buchen.umsatzId}
           preBelege={buchen.preBelege}
           onClose={() => setBuchen(null)}
@@ -276,6 +277,8 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
   const [v, setV] = useState(null);
   const [grund, setGrund] = useState(IGNORIER_GRUENDE[0]);
   const [busy, setBusy] = useState(false);
+  const [restWahl, setRestWahl] = useState({}); // je Rechnung: was mit einem Rest passiert
+  const [gewaehlt, setGewaehlt] = useState(null); // über „Andere Rechnung“ gewählt
   const offen = umsatz.status_effektiv === 'offen';
   const kontoName = konten.find((k) => k.id === umsatz.konto_id)?.name;
 
@@ -307,11 +310,14 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
     }
   }
 
+  // Rest nach der Zahlung: bei Skonto-Treffer standardmäßig als Skonto ausbuchen, sonst bleibt er offen
+  const restFuer = (r) => restWahl[r.id] ?? (r.skonto_match ? 'skonto' : '');
   const rechnungWaehlen = (r) =>
     onBuchen({
       ...basis,
-      beschreibung: `Rechnung ${r.nummer} – ${r.empfaenger_name}`,
+      beschreibung: `Rechnung ${r.nummer} – ${r.empfaenger_name}${betrag < r.offen_cent && !restFuer(r) ? ' (Teilzahlung)' : ''}`,
       rechnung: r,
+      restAusbuchen: betrag < r.offen_cent ? restFuer(r) || undefined : undefined,
     });
 
   return (
@@ -368,17 +374,15 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
                 {v.rechnungen.length > 0 && (
                   <Gruppe titel="Bester Treffer">
                     {v.rechnungen.map((r, i) => (
-                      <Treffer
-                        key={r.id}
-                        titel={`${r.nummer} · ${r.empfaenger_name}`}
-                        sub={`${formatEuro(r.summe_cent)} · Rechnung vom ${formatDateDE(r.datum)}`}
-                        gruende={r.gruende}
-                        hinweis={r.summe_cent !== betrag ? `Betrag weicht um ${formatEuro(betrag - r.summe_cent)} ab — gebucht wird der tatsächliche Zahlungseingang, die Rechnung gilt danach als bezahlt.` : null}
-                        primaer={i === 0}
-                        aktion="Als bezahlt zuordnen"
-                        onWaehlen={() => rechnungWaehlen(r)}
-                      />
+                      <RechnungTreffer key={r.id} r={r} betrag={betrag} primaer={i === 0} rest={restFuer(r)}
+                        onRest={(w) => setRestWahl((m) => ({ ...m, [r.id]: w }))} onWaehlen={() => rechnungWaehlen(r)} />
                     ))}
+                  </Gruppe>
+                )}
+                {gewaehlt && !v.rechnungen.some((x) => x.id === gewaehlt.id) && (
+                  <Gruppe titel="Gewählte Rechnung">
+                    <RechnungTreffer r={gewaehlt} betrag={betrag} primaer rest={restFuer(gewaehlt)}
+                      onRest={(w) => setRestWahl((m) => ({ ...m, [gewaehlt.id]: w }))} onWaehlen={() => rechnungWaehlen(gewaehlt)} />
                   </Gruppe>
                 )}
                 {v.weitere_rechnungen.length > 0 && (
@@ -390,12 +394,9 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
                       placeholder="Rechnung wählen…"
                       options={v.weitere_rechnungen.map((r) => ({
                         value: String(r.id),
-                        label: `${r.nummer} · ${r.empfaenger_name} · ${formatEuro(r.summe_cent)}`,
+                        label: `${r.nummer} · ${r.empfaenger_name} · offen ${formatEuro(r.offen_cent)}`,
                       }))}
-                      onChange={(val) => {
-                        const r = v.weitere_rechnungen.find((x) => String(x.id) === String(val));
-                        if (r) rechnungWaehlen(r);
-                      }}
+                      onChange={(val) => setGewaehlt(v.weitere_rechnungen.find((x) => String(x.id) === String(val)) || null)}
                     />
                   </div>
                 )}
@@ -469,6 +470,58 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
         )}
       </div>
     </Modal>
+  );
+}
+
+// Treffer-Karte einer Rechnung mit dem, was der Betrag bedeutet: passt, Skonto, Teilzahlung, Überzahlung.
+function RechnungTreffer({ r, betrag, primaer, rest, onRest, onWaehlen }) {
+  const diff = betrag - r.offen_cent;
+  return (
+    <div className="rounded-xl bg-royal/[0.06] p-3">
+      <div className="text-[15px] font-bold leading-snug">
+        {r.nummer} · {r.empfaenger_name}
+      </div>
+      <div className="text-[13px] text-ink/70">
+        offen {formatEuro(r.offen_cent)}
+        {r.offen_cent !== r.summe_cent ? ` von ${formatEuro(r.summe_cent)}` : ''} · Rechnung vom {formatDateDE(r.datum)}
+      </div>
+      {r.gruende && (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {r.gruende.map((g) => (
+            <span key={g} className="rounded-full bg-paper px-2 py-0.5 text-[11px] font-bold text-royal">
+              {g}
+            </span>
+          ))}
+        </div>
+      )}
+      {diff < 0 && (
+        <div className="mt-2.5 space-y-1">
+          <span className="field-label">
+            {r.skonto_match ? 'Skonto-Zahlung' : 'Teilzahlung'} — der Rest von {formatEuro(-diff)}
+          </span>
+          <Dropdown
+            value={rest}
+            onChange={(w) => onRest(String(w))}
+            options={[
+              { value: '', label: 'bleibt offen' },
+              { value: 'skonto', label: 'als Skonto ausbuchen' },
+              { value: 'ausfall', label: 'ausbuchen (Forderungsausfall)' },
+            ]}
+          />
+          <p className="text-xs leading-snug text-ink/60">
+            Gebucht wird nur der Zahlungseingang von {formatEuro(betrag)}; Ausgebuchtes ist kein Einkommen.
+          </p>
+        </div>
+      )}
+      {diff > 0 && (
+        <p className="mt-2 text-xs leading-snug text-[#9a5900]">
+          Überzahlung um {formatEuro(diff)} — gebucht wird der tatsächliche Zahlungseingang, die Rechnung gilt danach als bezahlt.
+        </p>
+      )}
+      <button className={`${primaer ? 'btn-primary' : 'btn-outline'} btn-sm mt-2.5`} onClick={onWaehlen}>
+        Als bezahlt zuordnen
+      </button>
+    </div>
   );
 }
 

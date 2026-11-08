@@ -19,7 +19,7 @@ import sqlite3
 
 from ..config import settings
 from .beleg_extract import _kategorie_vorschlag, vorschlag_fuer_beleg
-from .mahnwesen import summe_cent
+from . import zahlungen
 
 SCHWELLE = 40
 RECHTSFORMEN = {"gmbh", "mbh", "ag", "ug", "kg", "ohg", "gbr", "se", "co", "ev", "eg", "kgaa", "ltd", "inc"}
@@ -39,16 +39,26 @@ def _name_passt(a: str | None, *andere: str | None) -> bool:
 
 
 def offene_rechnungen(conn: sqlite3.Connection, gewerbe_id: int) -> list[dict]:
-    """Versendete, noch nicht bezahlte Rechnungen mit Summe."""
-    return [
-        {
-            "id": r["id"], "nummer": r["nummer"], "empfaenger_name": r["empfaenger_name"], "datum": r["datum"],
-            "faellig_am": r["faellig_am"], "summe_cent": summe_cent(conn, r["id"]), "steuerhinweis": r["steuerhinweis"],
-        }
-        for r in conn.execute(
-            "SELECT * FROM rechnung WHERE gewerbe_id = ? AND status = 'versendet' ORDER BY datum, id", (gewerbe_id,)
+    """Versendete Rechnungen, auf denen noch etwas offen ist (nach Teilzahlungen/Skonto)."""
+    out = []
+    for r in conn.execute(
+        "SELECT * FROM rechnung WHERE gewerbe_id = ? AND status = 'versendet' ORDER BY datum, id", (gewerbe_id,)
+    ):
+        st = zahlungen.stand(conn, r)
+        if st["offen_cent"] <= 0:
+            continue
+        # Skonto nur auf die ganze, noch unberührte Rechnung (wie Haben)
+        sk = zahlungen.skonto_cent(st["summe_cent"], r["skonto_bp"]) if not st["zahlungen"] else 0
+        out.append(
+            {
+                "id": r["id"], "nummer": r["nummer"], "empfaenger_name": r["empfaenger_name"], "datum": r["datum"],
+                "faellig_am": r["faellig_am"], "summe_cent": st["summe_cent"], "offen_cent": st["offen_cent"],
+                "steuerhinweis": r["steuerhinweis"], "skonto_bp": r["skonto_bp"] if sk else None,
+                "skonto_tage": r["skonto_tage"] if sk else None, "skonto_cent": sk,
+                "skonto_bis": zahlungen.skonto_bis(r["datum"], r["skonto_tage"]) if sk else None,
+            }
         )
-    ]
+    return out
 
 
 def rechnung_treffer(offen: list[dict], u: dict) -> list[dict]:
@@ -58,10 +68,17 @@ def rechnung_treffer(offen: list[dict], u: dict) -> list[dict]:
     text = _norm(f"{u['verwendungszweck'] or ''} {u['referenz'] or ''}")
     treffer = []
     for r in offen:
-        punkte, gruende = 0, []
-        if r["summe_cent"] == u["betrag_cent"]:
+        punkte, gruende, skonto_match = 0, [], False
+        if r["offen_cent"] == u["betrag_cent"]:
             punkte += 50
             gruende.append("Betrag stimmt exakt")
+        elif r["skonto_cent"] and r["offen_cent"] - r["skonto_cent"] == u["betrag_cent"] and zahlungen.skonto_gilt(r, u["datum"]):
+            punkte += 50
+            skonto_match = True
+            gruende.append(f"Betrag mit {r['skonto_bp'] / 100:.2f} % Skonto".replace(".", ",") + ", in der Frist")
+        elif 0 < u["betrag_cent"] < r["offen_cent"]:
+            punkte += 5
+            gruende.append("Teilbetrag des offenen Betrags")
         if _norm(r["nummer"]) and _norm(r["nummer"]) in text:
             punkte += 40
             gruende.append("Rechnungsnummer im Verwendungszweck")
@@ -69,7 +86,7 @@ def rechnung_treffer(offen: list[dict], u: dict) -> list[dict]:
             punkte += 15
             gruende.append("Name passt")
         if punkte >= SCHWELLE:
-            treffer.append({**r, "punkte": punkte, "gruende": gruende})
+            treffer.append({**r, "punkte": punkte, "gruende": gruende, "skonto_match": skonto_match})
     treffer.sort(key=lambda t: (-t["punkte"], t["datum"]))
     return treffer
 

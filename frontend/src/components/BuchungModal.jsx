@@ -140,6 +140,8 @@ export default function BuchungModal({
   presetDatum,
   presetRichtung,
   rechnungId,
+  zahlungId,
+  restAusbuchen,
   umsatzId,
   wizard,
   onClose,
@@ -313,6 +315,8 @@ export default function BuchungModal({
           beleg_ids: preBelege.map((b) => b.id),
           ...(rechnungId ? { rechnung_id: rechnungId } : {}),
           ...(umsatzId ? { bank_umsatz_id: umsatzId } : {}),
+          ...(zahlungId ? { zahlung_id: zahlungId } : {}),
+          ...(restAusbuchen ? { rest_ausbuchen: restAusbuchen } : {}),
         });
         toast.success('Buchung angelegt.');
       }

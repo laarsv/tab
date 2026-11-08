@@ -62,6 +62,7 @@ AUDIT_TABELLEN: dict[str, Callable[[str], str]] = {
     "bankkonto": _gid_direkt,
     "bank_import": _gid_direkt,
     "bank_umsatz": _gid_direkt,
+    "rechnung_zahlung": _gid_direkt,
 }
 
 

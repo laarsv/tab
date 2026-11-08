@@ -180,6 +180,7 @@ def build_mahnung_pdf(
             f"Bitte überweisen Sie {format_cent_de(mahnung['gesamt_cent'])} EUR bis zum "
             f"{_date_de(mahnung['frist_am'])}{konto} unter Angabe der Rechnungsnummer "
             f"{rechnung['nummer']}."
+            + (" Das Skonto aus der Rechnung ist mit Ablauf der Skontofrist entfallen." if rechnung["skonto_bp"] else "")
         ),
         align="L",
     )
