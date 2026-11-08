@@ -525,6 +525,61 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=21,
+        sql="""
+        -- v21: Bank-Import (Kontoauszug als CAMT.053 oder CSV, KEIN Bankabruf). Jeder Umsatz
+        --      wird einer Buchung zugeordnet (buchung_id), ignoriert (privat/Umbuchung) oder
+        --      bleibt offen. Zugeordnet = buchung_id IS NOT NULL — wird die Buchung gelöscht,
+        --      ist der Umsatz automatisch wieder offen (ON DELETE SET NULL).
+        CREATE TABLE bankkonto (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            name        TEXT    NOT NULL,
+            iban        TEXT,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (gewerbe_id, iban)
+        );
+        CREATE TABLE bank_import (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            konto_id         INTEGER NOT NULL REFERENCES bankkonto(id) ON DELETE CASCADE,
+            gewerbe_id       INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            dateiname        TEXT,
+            sha256           TEXT    NOT NULL,
+            format           TEXT    NOT NULL,
+            von              TEXT,
+            bis              TEXT,
+            anzahl_neu       INTEGER NOT NULL DEFAULT 0,
+            anzahl_dubletten INTEGER NOT NULL DEFAULT 0,
+            saldo_pruefung   TEXT,
+            importiert_am    TEXT    NOT NULL,
+            importiert_von   TEXT
+        );
+        CREATE INDEX idx_bank_import_konto ON bank_import(konto_id);
+        CREATE TABLE bank_umsatz (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            konto_id         INTEGER NOT NULL REFERENCES bankkonto(id) ON DELETE CASCADE,
+            gewerbe_id       INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            import_id        INTEGER REFERENCES bank_import(id) ON DELETE SET NULL,
+            datum            TEXT    NOT NULL,
+            wert_datum       TEXT,
+            betrag_cent      INTEGER NOT NULL,      -- mit Vorzeichen: + Eingang, - Ausgang
+            gegenpartei      TEXT,
+            gegenpartei_iban TEXT,
+            verwendungszweck TEXT,
+            referenz         TEXT,
+            fingerprint      TEXT    NOT NULL,
+            status           TEXT    NOT NULL DEFAULT 'offen' CHECK (status IN ('offen', 'ignoriert')),
+            ignoriert_grund  TEXT,
+            buchung_id       INTEGER REFERENCES buchung(id) ON DELETE SET NULL,
+            zugeordnet_am    TEXT,
+            created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (konto_id, fingerprint)
+        );
+        CREATE INDEX idx_umsatz_konto_datum ON bank_umsatz(konto_id, datum);
+        CREATE INDEX idx_umsatz_buchung ON bank_umsatz(buchung_id);
+        """,
+    ),
 ]
 
 

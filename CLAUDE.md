@@ -6,8 +6,8 @@ Arbeitsanweisungen für Claude Code in diesem Repo. Kurz halten, beim Ändern ak
 
 Schlanke EÜR-Buchhaltung für Einzelunternehmer mit **Kleinunternehmerregelung (§19 UStG)**.
 Belege erfassen → Kategorien → am Jahresende **EÜR-Summenblatt pro Anlage-EÜR-Zeile** +
-**Beleg-Journal (CSV)** exportieren. Kein ELSTER-Direktversand, kein Bankabruf, nur manuell
-erfasste Belege. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
+**Beleg-Journal (CSV)** exportieren. Kein ELSTER-Direktversand, **kein Bankabruf** (kein PSD2) — Kontoauszüge nur als
+Datei (CAMT.053/CSV, siehe Bank-Import); Belege manuell, per Mail oder Handy-Teilen. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 **Keine Steuerberatung.**
 
 ## Verbindliche Quellen
@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -263,6 +263,29 @@ der Mapping-Version des Jahres aufgelöst.
   Schadensersatz/Zins, **kein Entgelt**: keine USt, keine automatische Buchung (Hinweis im
   Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Teilzahlungen (Rechnung
   ist bezahlt oder nicht), Skonto, Mahnbescheid.
+- **Bank-Import (`/bank`, `pages/Bank.jsx`, `routes/bank.py`, `services/bank_import.py` +
+  `bank_match.py`, v21):** **Kein Bankabruf** — der Nutzer importiert die Datei seiner Bank:
+  **CAMT.053** (XML) oder **CSV** (Trennzeichen/Kodierung/Kopfzeile werden erkannt, Vorspann wird
+  übersprungen, IBAN aus dem Vorspann; Spalten werden aus den Überschriften geraten — DKB,
+  Sparkasse-CSV, Soll/Haben getestet — und sind im Import-Dialog mit Vorschau änderbar, auch
+  getrennte Spalten für Gegenpartei bei Eingang/Ausgang). XML mit DOCTYPE/ENTITY wird abgelehnt
+  (XXE). Aufbau nach Haben (Konto aus der IBAN, Dubletten, Saldenprüfung, Zuordnungs-Vorschläge mit
+  Begründung). **Dubletten:** Fingerprint aus Datum, Betrag, Gegenpartei, Zweck, Referenz + laufender
+  Index je gleichem Umsatz — dieselbe/überlappende Datei darf beliebig oft importiert werden.
+  Saldenprüfung nur bei CAMT (Anfangs-/Endsaldo). Fremdwährung und Vorgemerktes werden übersprungen.
+  **Zugeordnet = `bank_umsatz.buchung_id IS NOT NULL`** (nicht gespeichert; Buchung löschen →
+  Umsatz automatisch wieder offen), sonst `status` offen/ignoriert (mit Grund: privat, Umbuchung …).
+  **Zuordnen läuft über das normale Buchungs-Fenster** (`BuchungModal`, Props `presetDatum`,
+  `presetRichtung`, `umsatzId`): `POST /api/buchungen` mit `bank_umsatz_id` verknüpft den Umsatz in
+  derselben Transaktion; zusammen mit `rechnung_id` wird die Rechnung `bezahlt` (am Umsatzdatum).
+  So bleiben Kategorie-, Beleg- und Rechnungslogik an einer Stelle; die Jahres-Sperre gilt
+  automatisch. **Vorschläge:** Eingang → offene (versendete) Rechnungen (Betrag exakt 50, Nummer im
+  Zweck 40, Name 15, ab 40 Punkten; weicht der Betrag ab, gebucht wird der tatsächliche
+  Zahlungseingang); Ausgang → Kategorie aus früheren Buchungen (`beleg_extract._kategorie_vorschlag`)
+  und offene PDF/XML-Eingangs-Belege mit lesbarem Betrag (max. 25 geprüft, Bilder wegen OCR-Dauer
+  nur per Auswahl). Die Tabellen stehen im Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut:
+  Teilzahlungen/Skonto, Splitbuchung eines Umsatzes, automatisches Buchen, mehrere Dateien auf
+  einmal, gespeicherte Originaldateien.
 - **Festschreibung / Jahresabschluss (`/abschluss`, `pages/Abschluss.jsx`, `routes/abschluss.py`,
   `services/audit.py` + `services/abschluss.py`, v20):** Aufbau nach Haben (Sperre + Protokoll als
   Datenbank-Trigger, Hash-Kette, Siegel, „Alles prüfen“, Prüfsummen im Archiv), eigenständig in

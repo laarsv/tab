@@ -11,6 +11,7 @@ import JahresCheck from './pages/JahresCheck.jsx';
 import Fahrten from './pages/Fahrten.jsx';
 import Fristen from './pages/Fristen.jsx';
 import Abschluss from './pages/Abschluss.jsx';
+import Bank from './pages/Bank.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
 import Mahnwesen from './pages/Mahnwesen.jsx';
 import MahnungNeu from './pages/MahnungNeu.jsx';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/fahrten" element={<Fahrten />} />
         <Route path="/fristen" element={<Fristen />} />
         <Route path="/abschluss" element={<Abschluss />} />
+        <Route path="/bank" element={<Bank />} />
         <Route path="/rechnungen" element={<Rechnungen />} />
         <Route path="/rechnungen/wiederkehrend" element={<Rechnungen tab="wiederkehrend" />} />
         <Route path="/rechnungen/mahnwesen" element={<Mahnwesen />} />

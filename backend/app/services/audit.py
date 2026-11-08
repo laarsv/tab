@@ -59,6 +59,9 @@ AUDIT_TABELLEN: dict[str, Callable[[str], str]] = {
     "rechnung_position": _gid_kind("rechnung", "rechnung_id"),
     "mahnung": _gid_kind("rechnung", "rechnung_id"),
     "jahr_abschluss": _gid_direkt,
+    "bankkonto": _gid_direkt,
+    "bank_import": _gid_direkt,
+    "bank_umsatz": _gid_direkt,
 }
 
 

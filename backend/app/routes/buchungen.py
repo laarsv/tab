@@ -40,6 +40,7 @@ class BuchungIn(BaseModel):
     positionen: list[PositionIn] = Field(min_length=1)
     beleg_ids: list[int] = Field(default_factory=list)  # Eingangs-Belege verknüpfen
     rechnung_id: int | None = None  # „Als Einnahme buchen" aus einer Rechnung
+    bank_umsatz_id: int | None = None  # Zuordnung aus dem Bank-Import (verknüpft den Umsatz atomar)
 
     @field_validator("datum")
     @classmethod
@@ -176,6 +177,15 @@ def create_buchung(
         if rech["buchung_id"] is not None:
             raise HTTPException(409, "Diese Rechnung ist bereits als Einnahme gebucht.")
 
+    # Bankumsatz, dem diese Buchung zugeordnet wird: gleiches Gewerbe, noch keiner Buchung zugeordnet.
+    umsatz = None
+    if body.bank_umsatz_id is not None:
+        umsatz = db.execute("SELECT * FROM bank_umsatz WHERE id = ?", (body.bank_umsatz_id,)).fetchone()
+        if umsatz is None or umsatz["gewerbe_id"] != body.gewerbe_id:
+            raise HTTPException(404, "Umsatz nicht gefunden.")
+        if umsatz["buchung_id"] is not None:
+            raise HTTPException(409, "Dieser Umsatz ist schon einer Buchung zugeordnet.")
+
     cur = db.execute(
         "INSERT INTO buchung (gewerbe_id, datum, beschreibung) VALUES (?, ?, ?)",
         (body.gewerbe_id, body.datum, (body.beschreibung or "").strip() or None),
@@ -193,6 +203,19 @@ def create_buchung(
         db.execute("UPDATE beleg SET buchung_id = ? WHERE id = ?", (buchung_id, bid))
     if body.rechnung_id is not None:
         db.execute("UPDATE rechnung SET buchung_id = ? WHERE id = ?", (buchung_id, body.rechnung_id))
+    if umsatz is not None:
+        db.execute(
+            "UPDATE bank_umsatz SET buchung_id = ?, status = 'offen', ignoriert_grund = NULL, "
+            "zugeordnet_am = datetime('now') WHERE id = ?",
+            (buchung_id, umsatz["id"]),
+        )
+        # Eingang einer Rechnung: sie ist damit bezahlt (am Tag des Zahlungseingangs)
+        if body.rechnung_id is not None:
+            db.execute(
+                "UPDATE rechnung SET status = 'bezahlt', bezahlt_am = ?, updated_at = datetime('now') "
+                "WHERE id = ? AND status IN ('entwurf', 'versendet')",
+                (umsatz["datum"], body.rechnung_id),
+            )
     db.commit()
     return _row(db, buchung_id)
 

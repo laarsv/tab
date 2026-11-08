@@ -237,6 +237,12 @@ export const IconClock = (p) => (
     <path d="M12 7v5l3 2" />
   </Svg>
 );
+export const IconBank = (p) => (
+  <Svg {...p}>
+    <path d="M3 10 12 4l9 6" />
+    <path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18" />
+  </Svg>
+);
 export const IconLock = (p) => (
   <Svg {...p}>
     <rect x="4" y="11" width="16" height="10" rx="2" />

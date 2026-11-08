@@ -127,6 +127,7 @@ function emptyPos() {
 // presetKategorieId/-BetragCent/-Beschreibung: starten die neue Buchung vorausgefüllt
 // (Jahres-Check, Fahrten-Liste). wizard: { pos, total, onSkip } — Eingang-Abarbeiten-Modus.
 // rechnungId: verknüpft die neue Buchung mit der Rechnung („Als Einnahme buchen").
+// presetDatum/-Richtung + umsatzId: Zuordnung aus dem Bank-Import (verknüpft den Umsatz atomar).
 export default function BuchungModal({
   buchung,
   preBelege = [],
@@ -136,7 +137,10 @@ export default function BuchungModal({
   presetKategorieId,
   presetBetragCent,
   presetBeschreibung,
+  presetDatum,
+  presetRichtung,
   rechnungId,
+  umsatzId,
   wizard,
   onClose,
   onSaved,
@@ -156,7 +160,7 @@ export default function BuchungModal({
     );
     if (typen.size === 1) return [...typen][0];
     if (typen.size > 1) return null;
-    return katById[String(presetKategorieId)]?.typ || 'ausgabe';
+    return katById[String(presetKategorieId)]?.typ || presetRichtung || 'ausgabe';
   });
   const options = useMemo(
     () =>
@@ -169,7 +173,7 @@ export default function BuchungModal({
     [kategorien, richtung],
   );
 
-  const [datum, setDatum] = useState(buchung?.datum || todayISO());
+  const [datum, setDatum] = useState(buchung?.datum || presetDatum || todayISO());
   const [beschreibung, setBeschreibung] = useState(buchung?.beschreibung || presetBeschreibung || '');
   const [positionen, setPositionen] = useState(() =>
     buchung?.positionen?.length
@@ -308,6 +312,7 @@ export default function BuchungModal({
           positionen: payloadPos,
           beleg_ids: preBelege.map((b) => b.id),
           ...(rechnungId ? { rechnung_id: rechnungId } : {}),
+          ...(umsatzId ? { bank_umsatz_id: umsatzId } : {}),
         });
         toast.success('Buchung angelegt.');
       }

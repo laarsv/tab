@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 24,
+    datum: '2026-11-08',
+    titel: 'Neue Seite: Bank',
+    text: 'Importiere deinen Kontoauszug als CAMT.053 (XML) oder CSV und ordne jeden Umsatz zu: Tab erkennt DKB, Sparkasse und andere CSV-Formate, schlägt zu Eingängen die passende offene Rechnung vor (Betrag, Rechnungsnummer, Name) und bucht sie mit einem Klick als bezahlt. Ausgaben buchst du mit dem Umsatz vorbelegt, auf Wunsch mit einem passenden Beleg aus dem Eingang; Privates ignorierst du. Eine Datei kannst du beliebig oft importieren, schon vorhandene Umsätze erkennt Tab. Tab ruft dein Konto nicht ab — die Datei kommt von dir.',
+  },
+  {
     id: 23,
     datum: '2026-11-08',
     titel: 'Jahresabschluss: Jahr sperren und versiegeln',
