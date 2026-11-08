@@ -26,6 +26,21 @@ STEUERHINWEISE = {
 }
 
 
+_ERSATZ = {
+    "–": "-", "—": "-", "„": '"', "“": '"', "”": '"', "‚": "'", "’": "'", "‘": "'",
+    "€": "EUR", "…": "...", " ": " ", "​": "",
+}
+
+
+def latin1(text: str | None) -> str:
+    """Core-Fonts sind Latin-1: typografische Zeichen ersetzen, Rest verlustbehaftet wandeln.
+    Ohne das bricht die PDF-Erzeugung bei einem Gedankenstrich in einer Position ab."""
+    s = text or ""
+    for a, b in _ERSATZ.items():
+        s = s.replace(a, b)
+    return s.encode("latin-1", "replace").decode("latin-1")
+
+
 def _menge_de(menge: float) -> str:
     if float(menge) == int(menge):
         return str(int(menge))
@@ -47,7 +62,7 @@ def build_rechnung_pdf(
     absender_einzeilig = " · ".join(z.strip() for z in absender_block.splitlines() if z.strip())
     pdf.set_font("helvetica", "", 7.5)
     pdf.set_text_color(*MUTED)
-    pdf.cell(0, 4, absender_einzeilig, new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 4, latin1(absender_einzeilig), new_x="LMARGIN", new_y="NEXT")
     pdf.set_draw_color(*LINE)
     pdf.line(22, pdf.get_y() + 0.5, 120, pdf.get_y() + 0.5)
     pdf.ln(6)
@@ -59,7 +74,7 @@ def build_rechnung_pdf(
     empf = rechnung["empfaenger_name"] + (
         "\n" + rechnung["empfaenger_anschrift"] if rechnung["empfaenger_anschrift"] else ""
     )
-    pdf.multi_cell(95, 5.2, empf)
+    pdf.multi_cell(95, 5.2, latin1(empf))
 
     pdf.set_xy(135, y_start)
     meta = [
@@ -67,6 +82,8 @@ def build_rechnung_pdf(
         ("Rechnungsdatum", _date_de(rechnung["datum"])),
         ("Leistungsdatum", rechnung["leistungsdatum"] or _date_de(rechnung["datum"])),
     ]
+    if rechnung["faellig_am"]:
+        meta.append(("Fällig am", _date_de(rechnung["faellig_am"])))
     if gewerbe["steuernummer"]:
         meta.append(("Steuernummer", gewerbe["steuernummer"]))
     for label, wert in meta:
@@ -76,7 +93,7 @@ def build_rechnung_pdf(
         pdf.cell(32, 4.6, label)
         pdf.set_font("helvetica", "", 9.5)
         pdf.set_text_color(*INK)
-        pdf.cell(0, 4.6, str(wert), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 4.6, latin1(str(wert)), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_y(max(pdf.get_y(), y_start + 34) + 10)
 
@@ -105,7 +122,7 @@ def build_rechnung_pdf(
         summe += betrag
         y0 = pdf.get_y()
         pdf.set_font("helvetica", "", 10)
-        pdf.multi_cell(w_pos, 5.4, p["beschreibung"])
+        pdf.multi_cell(w_pos, 5.4, latin1(p["beschreibung"]))
         y1 = pdf.get_y()
         pdf.set_xy(22 + w_pos, y0)
         pdf.cell(w_menge, 5.4, _menge_de(p["menge"]), align="R")
@@ -136,18 +153,21 @@ def build_rechnung_pdf(
     pdf.ln(6)
     pdf.set_font("helvetica", "", 10)
     pdf.set_text_color(*INK)
+    if rechnung["faellig_am"]:
+        pdf.cell(0, 5.4, f"Zahlbar bis zum {_date_de(rechnung['faellig_am'])}.",
+                 new_x="LMARGIN", new_y="NEXT")
     if gewerbe["iban"]:
-        pdf.cell(0, 5.4, f"Bitte überweisen Sie den Betrag auf: IBAN {gewerbe['iban']}",
+        pdf.cell(0, 5.4, latin1(f"Bitte überweisen Sie den Betrag auf: IBAN {gewerbe['iban']}"),
                  new_x="LMARGIN", new_y="NEXT")
     if gewerbe["rechnung_fusszeile"]:
         pdf.set_font("helvetica", "", 9)
         pdf.set_text_color(*MUTED)
         for zeile in gewerbe["rechnung_fusszeile"].splitlines():
-            pdf.cell(0, 4.8, zeile, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 4.8, latin1(zeile), new_x="LMARGIN", new_y="NEXT")
     if rechnung["notiz"]:
         pdf.ln(3)
         pdf.set_font("helvetica", "", 10)
         pdf.set_text_color(*INK)
-        pdf.multi_cell(0, 5.4, rechnung["notiz"])
+        pdf.multi_cell(0, 5.4, latin1(rechnung["notiz"]))
 
     return bytes(pdf.output())

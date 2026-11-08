@@ -27,6 +27,7 @@ from .routes import (
     gewerbe,
     kategorien,
     kontakte,
+    mahnwesen,
     meta,
     news,
     rechnungen,
@@ -114,6 +115,7 @@ app.include_router(afa.router)
 app.include_router(fahrten.router)
 app.include_router(rechnungen.router)
 app.include_router(abos.router)
+app.include_router(mahnwesen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)

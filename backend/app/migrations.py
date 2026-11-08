@@ -413,6 +413,46 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=17,
+        sql="""
+        -- v17: Fälligkeit + Mahnwesen.
+        --  * rechnung.zahlungsziel_tage / faellig_am: NULL = Bestand ohne vereinbartes Ziel
+        --    (die Überfällig-Logik nimmt dann Rechnungsdatum + 30 Tage, § 286 Abs. 3 BGB).
+        --  * gewerbe: Standard-Zahlungsziel, Mahnfrist, Mahngebühr je Stufe, Basiszinssatz
+        --    (Basispunkte; NULL = keine Verzugszinsen).
+        --  * mahnung: unveränderlicher Schnappschuss je erstelltem Schreiben (Stufe 1-3).
+        ALTER TABLE gewerbe ADD COLUMN zahlungsziel_tage INTEGER NOT NULL DEFAULT 14;
+        ALTER TABLE gewerbe ADD COLUMN mahn_frist_tage INTEGER NOT NULL DEFAULT 10;
+        ALTER TABLE gewerbe ADD COLUMN mahn_gebuehr_1_cent INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE gewerbe ADD COLUMN mahn_gebuehr_2_cent INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE gewerbe ADD COLUMN mahn_gebuehr_3_cent INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE gewerbe ADD COLUMN basiszinssatz_bp INTEGER;
+
+        ALTER TABLE rechnung ADD COLUMN zahlungsziel_tage INTEGER;
+        ALTER TABLE rechnung ADD COLUMN faellig_am TEXT;
+
+        CREATE TABLE mahnung (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            rechnung_id    INTEGER NOT NULL REFERENCES rechnung(id) ON DELETE CASCADE,
+            stufe          INTEGER NOT NULL CHECK (stufe IN (1, 2, 3)),
+            datum          TEXT    NOT NULL,
+            frist_am       TEXT    NOT NULL,
+            offen_cent     INTEGER NOT NULL,
+            gebuehr_cent   INTEGER NOT NULL DEFAULT 0,
+            pauschale_cent INTEGER NOT NULL DEFAULT 0,
+            zinsen_cent    INTEGER NOT NULL DEFAULT 0,
+            zinssatz_bp    INTEGER NOT NULL DEFAULT 0,
+            zinstage       INTEGER NOT NULL DEFAULT 0,
+            gesamt_cent    INTEGER NOT NULL,
+            einleitung     TEXT    NOT NULL,
+            schluss        TEXT,
+            gesendet_am    TEXT,
+            created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_mahnung_rechnung ON mahnung(rechnung_id);
+        """,
+    ),
 ]
 
 

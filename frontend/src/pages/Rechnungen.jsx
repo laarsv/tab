@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -9,14 +9,17 @@ import BuchungModal from '../components/BuchungModal.jsx';
 import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
-  IconBan, IconBookIn, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil, IconPlay,
-  IconPlus, IconRepeat, IconSend, IconTrash, IconUsers, IconZap,
+  IconBan, IconBell, IconBookIn, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil,
+  IconPlay, IconPlus, IconRepeat, IconSend, IconTrash, IconUsers, IconZap,
 } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
+import RechnungenTabs from '../components/RechnungenTabs.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
+import { faelligkeit } from '../lib/fristen.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 import { INTERVALL_LABELS, naechsterTermin } from '../lib/intervall.js';
+import { naechsteStufe, openMahnungPdf, STUFEN } from '../lib/mahnwesen.js';
 
 // Status der Rechnung: Farbe des Kreises + Zustandswort (kein Chip).
 const STATUS = {
@@ -48,10 +51,14 @@ async function openPdf(id) {
   }
 }
 
-export default function Rechnungen() {
+// tab: 'alle' (Rechnungsliste) | 'wiederkehrend' (Abos); der Mahnwesen-Reiter ist eine eigene Seite.
+export default function Rechnungen({ tab = 'alle' }) {
   const { gewerbeId, jahr, gewerbe, reloadBadges } = useOutletContext();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [ueberfaellig, setUeberfaellig] = useState(0);
+  const [sendenMahnung, setSendenMahnung] = useState(null); // { rechnung, mahnung }
   const [abos, setAbos] = useState([]);
   const [kategorien, setKategorien] = useState([]);
   const [mail, setMail] = useState(null); // { email, konfiguriert }
@@ -72,14 +79,16 @@ export default function Rechnungen() {
     }
     setLoading(true);
     try {
-      const [r, kat, m, a, ko] = await Promise.all([
+      const [r, kat, m, a, ko, ue] = await Promise.all([
         api.get('/api/rechnungen', { params: { gewerbe_id: gewerbeId, jahr } }),
         api.get('/api/kategorien', { params: { jahr } }),
         api.get('/api/einstellungen/mail'),
         api.get('/api/rechnungsabos', { params: { gewerbe_id: gewerbeId } }),
         api.get('/api/kontakte', { params: { gewerbe_id: gewerbeId } }),
+        api.get('/api/mahnwesen/ueberfaellig', { params: { gewerbe_id: gewerbeId } }),
       ]);
       setItems(r.data);
+      setUeberfaellig(ue.data.items.length);
       setKategorien(kat.data);
       setMail(m.data);
       setAbos(a.data);
@@ -100,6 +109,7 @@ export default function Rechnungen() {
       await api.post(`/api/rechnungen/${r.id}/status`, { status });
       toast.success(status === 'bezahlt' ? 'Als bezahlt markiert.' : 'Status geändert.');
       await load();
+      reloadBadges?.();
     } catch (e) {
       toast.error(apiError(e));
     }
@@ -110,6 +120,17 @@ export default function Rechnungen() {
     try {
       await api.delete(`/api/rechnungen/${r.id}`);
       toast.success('Gelöscht.');
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  async function removeMahnung(m) {
+    if (!window.confirm(`${STUFEN[m.stufe]} vom ${formatDateDE(m.datum)} löschen?`)) return;
+    try {
+      await api.delete(`/api/mahnwesen/${m.id}`);
+      toast.success('Mahnung gelöscht.');
       await load();
     } catch (e) {
       toast.error(apiError(e));
@@ -166,7 +187,7 @@ export default function Rechnungen() {
       <PageHeader
         title="Rechnungen"
         accent={jahr}
-        sub={`Fortlaufende Nummern, §19-Hinweis automatisch drauf · Versand von ${mail?.email || '…'}`}
+        sub={`Fortlaufende Nummern, §19-Hinweis und Fälligkeit automatisch drauf · Versand von ${mail?.email || '…'}`}
       >
         <IconButton
           icon={IconUsers}
@@ -177,6 +198,7 @@ export default function Rechnungen() {
           <IconPlus className="mr-1 h-4 w-4" /> Rechnung
         </button>
       </PageHeader>
+      <RechnungenTabs ueberfaellig={ueberfaellig} />
 
       {(!gewerbeRow?.anschrift || (mail && !mail.konfiguriert)) && (
         <div className="mt-5 space-y-3">
@@ -198,7 +220,13 @@ export default function Rechnungen() {
         </div>
       )}
 
-      {abos.length > 0 && (
+      {tab === 'wiederkehrend' && abos.length === 0 && (
+        <Leer>
+          Noch keine wiederkehrenden Rechnungen. Beim Anlegen einer Rechnung den Schalter „Rechnung wiederholt sich“
+          einschalten, oder an einer bestehenden Rechnung „Als wiederkehrendes Abo anlegen“ wählen.
+        </Leer>
+      )}
+      {tab === 'wiederkehrend' && abos.length > 0 && (
         <>
           <SectionHead label="Wiederkehrende Rechnungen" count={abos.length} />
           {abos.map((a) => (
@@ -247,6 +275,8 @@ export default function Rechnungen() {
         </>
       )}
 
+      {tab === 'alle' && (
+        <>
       <SectionHead label={`Rechnungen ${jahr}`} count={items.length} />
       {items.length === 0 ? (
         <Leer>
@@ -256,10 +286,11 @@ export default function Rechnungen() {
       ) : (
         items.map((r) => {
           const st = STATUS[r.status];
+          const istUeberfaellig = r.ueberfaellig_tage > 0;
           return (
             <Row
               key={r.id}
-              kind={st.kind}
+              kind={istUeberfaellig ? 'neg' : st.kind}
               icon={IconFileText}
               muted={r.status === 'storniert'}
               title={
@@ -269,9 +300,19 @@ export default function Rechnungen() {
               }
               sub={
                 <>
-                  <Zustand ton={st.ton}>{st.label}</Zustand>
+                  {istUeberfaellig ? (
+                    <Zustand ton="neg">Überfällig · {r.ueberfaellig_tage} Tage</Zustand>
+                  ) : (
+                    <Zustand ton={st.ton}>{st.label}</Zustand>
+                  )}
                   {PUNKT}
                   <span className="tabular-nums">{formatDateDE(r.datum)}</span>
+                  {r.faellig_am && (r.status === 'entwurf' || r.status === 'versendet') && (
+                    <>
+                      {PUNKT}
+                      <span>fällig {formatDateDE(r.faellig_am)}</span>
+                    </>
+                  )}
                   {r.versendet_am && (
                     <>
                       {PUNKT}
@@ -335,6 +376,7 @@ export default function Rechnungen() {
                           empfaenger_email: r.empfaenger_email || '',
                           notiz: r.notiz || '',
                           steuerhinweis: r.steuerhinweis || 'ku19',
+                          zahlungsziel_tage: r.zahlungsziel_tage,
                           positionen: r.positionen.map((p) => ({
                             beschreibung: p.beschreibung,
                             menge: String(p.menge).replace('.', ','),
@@ -342,6 +384,14 @@ export default function Rechnungen() {
                           })),
                         })
                       }
+                    />
+                  )}
+                  {istUeberfaellig && (
+                    <IconButton
+                      icon={IconBell}
+                      variant="primary"
+                      label={`${STUFEN[naechsteStufe(r.mahnungen[0])]} erstellen`}
+                      onClick={() => navigate(`/rechnungen/mahnwesen/${r.id}`)}
                     />
                   )}
                   {(r.status === 'entwurf' || r.status === 'versendet') && (
@@ -365,9 +415,43 @@ export default function Rechnungen() {
                   )}
                 </>
               }
-            />
+            >
+              {r.mahnungen.length > 0 && (
+                <div className="mt-1.5 space-y-0.5">
+                  {r.mahnungen.map((m) => (
+                    <div key={m.id} className="flex items-center gap-1 text-[13px] text-ink/70">
+                      <span className="min-w-0 flex-1">
+                        {STUFEN[m.stufe]} vom {formatDateDE(m.datum)}
+                        <span className="mx-1.5 text-ink/45">·</span>
+                        Frist {formatDateDE(m.frist_am)}
+                        <span className="mx-1.5 text-ink/45">·</span>
+                        <span className="tabular-nums">{formatEuro(m.gesamt_cent)}</span>
+                        {m.gesendet_am && (
+                          <>
+                            <span className="mx-1.5 text-ink/45">·</span>
+                            versendet {formatDateDE(m.gesendet_am)}
+                          </>
+                        )}
+                      </span>
+                      <IconButton icon={IconFileText} label="Mahnung ansehen" onClick={() => openMahnungPdf(m.id)} />
+                      <IconButton
+                        icon={IconSend}
+                        label={mail?.konfiguriert ? 'Mahnung per E-Mail senden' : 'Erst E-Mail-Versand im Profilmenü einrichten'}
+                        onClick={() => setSendenMahnung({ rechnung: r, mahnung: m })}
+                        disabled={!mail?.konfiguriert}
+                      />
+                      {!m.gesendet_am && (
+                        <IconButton icon={IconTrash} variant="danger" label="Mahnung löschen" onClick={() => removeMahnung(m)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Row>
           );
         })
+      )}
+        </>
       )}
 
       {editing && (
@@ -377,6 +461,7 @@ export default function Rechnungen() {
           gewerbeId={gewerbeId}
           jahr={jahr}
           kontakte={kontakte}
+          standardZiel={gewerbeRow?.zahlungsziel_tage ?? 14}
           mailKonfiguriert={Boolean(mail?.konfiguriert)}
           onSaved={load}
         />
@@ -388,6 +473,15 @@ export default function Rechnungen() {
 
       {senden && (
         <SendenModal rechnung={senden} user={user} onClose={() => setSenden(null)} onSent={load} />
+      )}
+      {sendenMahnung && (
+        <SendenModal
+          rechnung={sendenMahnung.rechnung}
+          mahnung={sendenMahnung.mahnung}
+          user={user}
+          onClose={() => setSendenMahnung(null)}
+          onSent={load}
+        />
       )}
 
       {aboModal && (
@@ -422,7 +516,7 @@ export default function Rechnungen() {
   );
 }
 
-function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], mailKonfiguriert, onSaved }) {
+function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], standardZiel = 14, mailKonfiguriert, onSaved }) {
   const [busy, setBusy] = useState(false);
   const isEdit = Boolean(editing.id);
   const [form, setForm] = useState(() => ({
@@ -433,6 +527,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
     empfaenger_email: editing.empfaenger_email || '',
     notiz: editing.notiz || '',
     steuerhinweis: editing.steuerhinweis || 'ku19',
+    zahlungsziel: String(editing.zahlungsziel_tage ?? standardZiel),
     positionen: editing.positionen?.length ? editing.positionen : [emptyRPos()],
     wiederholen: false,
     intervall: 'monatlich',
@@ -449,10 +544,19 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
     [form.positionen],
   );
 
+  // Zahlungsziel in Tagen; Fälligkeit = Rechnungsdatum + Ziel, auf einen Werktag verschoben (§ 193 BGB).
+  const ziel = Number(form.zahlungsziel);
+  const zielGueltig = form.zahlungsziel.trim() !== '' && Number.isInteger(ziel) && ziel >= 0 && ziel <= 120;
+  const faelligAm = zielGueltig && form.datum ? faelligkeit(form.datum, ziel) : null;
+
   // Gemeinsamer Payload für Speichern + Vorschau; null = Validierungsfehler (getoastet).
   function baueBody() {
     if (!form.empfaenger_name.trim()) {
       toast.error('Empfänger ist Pflicht.');
+      return null;
+    }
+    if (!zielGueltig) {
+      toast.error('Zahlungsziel: ganze Tage von 0 bis 120.');
       return null;
     }
     const payloadPos = [];
@@ -481,6 +585,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
       empfaenger_email: form.empfaenger_email.trim() || null,
       notiz: form.notiz.trim() || null,
       steuerhinweis: form.steuerhinweis,
+      zahlungsziel_tage: ziel,
       positionen: payloadPos,
     };
   }
@@ -601,7 +706,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
             onChange={(e) => setForm({ ...form, empfaenger_anschrift: e.target.value })}
             placeholder={'Musterstraße 1\n20095 Hamburg'} />
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Rechnungsdatum</span>
             <input type="date" className="input" value={form.datum}
@@ -612,6 +717,15 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
             <input className="input" value={form.leistungsdatum}
               onChange={(e) => setForm({ ...form, leistungsdatum: e.target.value })}
               placeholder="leer = Rechnungsdatum" />
+          </label>
+          <label className="block">
+            <span className="field-label">Zahlungsziel in Tagen</span>
+            <input className="input" inputMode="numeric" value={form.zahlungsziel}
+              onChange={(e) => setForm({ ...form, zahlungsziel: e.target.value })}
+              aria-invalid={!zielGueltig} />
+            <span className="mt-1 block text-xs text-ink/60">
+              {faelligAm ? `fällig ${formatDateDE(faelligAm)}` : 'ganze Tage von 0 bis 120'}
+            </span>
           </label>
         </div>
         {jahrMismatch && !isEdit && (
@@ -641,7 +755,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
           <span className="field-label">Notiz auf der Rechnung (optional)</span>
           <input className="input" value={form.notiz}
             onChange={(e) => setForm({ ...form, notiz: e.target.value })}
-            placeholder="z. B. Zahlbar innerhalb von 14 Tagen." />
+            placeholder="z. B. Vielen Dank für den Auftrag." />
         </label>
 
         {!isEdit && (
@@ -707,12 +821,16 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], ma
   );
 }
 
-function SendenModal({ rechnung, user, onClose, onSent }) {
+// Rechnung oder (mit `mahnung`) eine Mahnung zu dieser Rechnung per Mail senden.
+function SendenModal({ rechnung, mahnung, user, onClose, onSent }) {
   const [busy, setBusy] = useState(false);
+  const name = mahnung ? `${STUFEN[mahnung.stufe]} zu Rechnung ${rechnung.nummer}` : `Rechnung ${rechnung.nummer}`;
   const [an, setAn] = useState(rechnung.empfaenger_email || '');
-  const [betreff, setBetreff] = useState(`Rechnung ${rechnung.nummer}`);
+  const [betreff, setBetreff] = useState(name);
   const [text, setText] = useState(
-    `Guten Tag,\n\nanbei erhalten Sie die Rechnung ${rechnung.nummer} über ${formatEuro(rechnung.summe_cent)}.\n\nMit freundlichen Grüßen\n${user?.name || ''}`,
+    mahnung
+      ? `Guten Tag,\n\nzur Rechnung ${rechnung.nummer} erhalten Sie im Anhang eine ${STUFEN[mahnung.stufe]}. Bitte überweisen Sie ${formatEuro(mahnung.gesamt_cent)} bis zum ${formatDateDE(mahnung.frist_am)}.\n\nMit freundlichen Grüßen\n${user?.name || ''}`
+      : `Guten Tag,\n\nanbei erhalten Sie die Rechnung ${rechnung.nummer} über ${formatEuro(rechnung.summe_cent)}.\n\nMit freundlichen Grüßen\n${user?.name || ''}`,
   );
 
   async function send(e) {
@@ -720,8 +838,11 @@ function SendenModal({ rechnung, user, onClose, onSent }) {
     if (!an.trim()) return toast.error('Bitte Empfänger-Adresse angeben.');
     setBusy(true);
     try {
-      await api.post(`/api/rechnungen/${rechnung.id}/senden`, { an: an.trim(), betreff, text });
-      toast.success(`Rechnung ${rechnung.nummer} versendet.`);
+      await api.post(
+        mahnung ? `/api/mahnwesen/${mahnung.id}/senden` : `/api/rechnungen/${rechnung.id}/senden`,
+        { an: an.trim(), betreff, text },
+      );
+      toast.success(`${name} versendet.`);
       onClose();
       await onSent();
     } catch (err) {
@@ -732,7 +853,7 @@ function SendenModal({ rechnung, user, onClose, onSent }) {
   }
 
   return (
-    <Modal title={`Rechnung ${rechnung.nummer} senden`} onClose={onClose}>
+    <Modal title={`${name} senden`} onClose={onClose}>
       <form onSubmit={send} className="space-y-4">
         <label className="block">
           <span className="field-label">An</span>
@@ -747,8 +868,8 @@ function SendenModal({ rechnung, user, onClose, onSent }) {
           <textarea className="input min-h-[140px]" value={text} onChange={(e) => setText(e.target.value)} />
         </label>
         <p className="text-[13px] leading-snug text-ink/60">
-          PDF (E-Rechnung, ZUGFeRD) hängt automatisch an · Absender: {user?.email} (landet in deinem
-          „Gesendet"-Ordner)
+          {mahnung ? 'Die Mahnung als PDF' : 'PDF (E-Rechnung, ZUGFeRD)'} hängt automatisch an · Absender:{' '}
+          {user?.email} (landet in deinem „Gesendet"-Ordner)
         </p>
         <DialogFuss>
           <button type="button" className="btn-ghost" onClick={onClose}>

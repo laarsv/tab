@@ -24,7 +24,7 @@ import {
 
 const NAV = [
   { to: '/buchungen', label: 'Buchungen', icon: IconList },
-  { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt },
+  { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt, badge: 'rechnungen' },
   { to: '/check', label: 'Jahres-Check', icon: IconChecklist, badge: 'check' },
   { to: '/afa', label: 'Abschreibungen', icon: IconTrendDown },
 ];
@@ -150,6 +150,7 @@ export default function Sidebar({
   jahrVorlaeufig,
   eingang,
   checkOffen,
+  mahnOffen = 0,
   onNavigate,
   onNeueBuchung,
   onUpload,
@@ -242,7 +243,12 @@ export default function Sidebar({
 
       <div className="mt-2 space-y-0.5">
         {NAV.map((n) => (
-          <NavItem key={n.to} item={n} badge={n.badge === 'check' ? checkOffen : 0} onNavigate={onNavigate} />
+          <NavItem
+            key={n.to}
+            item={n}
+            badge={n.badge === 'check' ? checkOffen : n.badge === 'rechnungen' ? mahnOffen : 0}
+            onNavigate={onNavigate}
+          />
         ))}
       </div>
 

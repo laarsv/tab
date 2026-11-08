@@ -17,7 +17,7 @@ import { todayISO } from '../lib/format.js';
 // Tab-Leiste am Handy (unter lg): die drei Hauptziele + „Mehr“ öffnet die Schublade.
 const TABS = [
   { to: '/buchungen', label: 'Buchungen', icon: IconList },
-  { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt },
+  { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt, badge: 'rechnungen' },
   { to: '/check', label: 'Check', icon: IconChecklist, badge: 'check' },
 ];
 
@@ -55,6 +55,7 @@ export default function Layout() {
   const [jahre, setJahre] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkOffen, setCheckOffen] = useState(0);
+  const [mahnOffen, setMahnOffen] = useState(0); // überfällige Rechnungen (Badge an „Rechnungen")
 
   const [gewerbeId, setGewerbeId] = useState(
     () => localStorage.getItem('tab_gewerbe') || '',
@@ -85,15 +86,18 @@ export default function Layout() {
   const loadBadges = useCallback(async (gid, j) => {
     if (!gid) {
       setCheckOffen(0);
+      setMahnOffen(0);
       setEingang({ offen: 0, ueberfaellig: 0 });
       return;
     }
     try {
-      const [kat, buch, bel] = await Promise.all([
+      const [kat, buch, bel, mahn] = await Promise.all([
         api.get('/api/kategorien', { params: { jahr: j } }),
         api.get('/api/buchungen', { params: { gewerbe_id: gid, jahr: j } }),
         api.get('/api/belege', { params: { gewerbe_id: gid, status: 'offen' } }),
+        api.get('/api/mahnwesen/ueberfaellig', { params: { gewerbe_id: gid } }),
       ]);
+      setMahnOffen(mahn.data.items.length);
       setCheckOffen(countOffeneTopics(kat.data, buch.data, loadCheckState(gid, j)));
       const heute = todayISO();
       setEingang({
@@ -102,6 +106,7 @@ export default function Layout() {
       });
     } catch {
       setCheckOffen(0);
+      setMahnOffen(0);
     }
   }, []);
 
@@ -187,6 +192,7 @@ export default function Layout() {
     jahrVorlaeufig,
     eingang,
     checkOffen,
+    mahnOffen,
     onNeueBuchung: () => {
       setDrawer(false);
       navigate(`/buchungen?neu=${Date.now()}`);
@@ -309,6 +315,11 @@ export default function Layout() {
                 {t.badge === 'check' && checkOffen > 0 && (
                   <span className="absolute left-1/2 top-1.5 ml-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-royal px-1 text-[10px] font-bold tabular-nums text-paper">
                     {checkOffen}
+                  </span>
+                )}
+                {t.badge === 'rechnungen' && mahnOffen > 0 && (
+                  <span className="absolute left-1/2 top-1.5 ml-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-700 px-1 text-[10px] font-bold tabular-nums text-paper">
+                    {mahnOffen}
                   </span>
                 )}
               </NavLink>

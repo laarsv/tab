@@ -16,8 +16,10 @@ from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.e_rechnung import rechnungs_pdf
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
+from ..services.fristen import faelligkeit
+from ..services.mahnwesen import effektive_faelligkeit, mahnungen_zu, tage_ueberfaellig
 from ..services.rechnung_pdf import STEUERHINWEISE
-from ..services.rechnungen import erstelle_rechnung
+from ..services.rechnungen import erstelle_rechnung, standard_zahlungsziel
 from .kontakte import upsert_kontakt
 
 router = APIRouter(prefix="/api/rechnungen", tags=["rechnungen"])
@@ -46,6 +48,7 @@ class RechnungIn(BaseModel):
     empfaenger_email: str | None = None
     notiz: str | None = None
     steuerhinweis: str = "ku19"
+    zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)  # None = Standard des Gewerbes
     positionen: list[RPositionIn] = Field(min_length=1)
 
     @field_validator("datum")
@@ -69,6 +72,7 @@ class RechnungPatch(BaseModel):
     empfaenger_email: str | None = None
     notiz: str | None = None
     steuerhinweis: str | None = None
+    zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)
     positionen: list[RPositionIn] | None = None
 
     @field_validator("datum")
@@ -108,6 +112,12 @@ def _row(db: sqlite3.Connection, rechnung_id: int) -> dict:
     d = dict(r)
     d["positionen"] = _positionen(db, rechnung_id)
     d["summe_cent"] = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in d["positionen"])
+    d["mahnungen"] = mahnungen_zu(db, rechnung_id)
+    # Überfällig nur bei versendeten, noch nicht bezahlten Rechnungen (ohne Ziel: Datum + 30 Tage).
+    d["ueberfaellig_tage"] = 0
+    if d["status"] == "versendet":
+        faellig = effektive_faelligkeit(d["datum"], d["faellig_am"])
+        d["ueberfaellig_tage"] = tage_ueberfaellig(faellig, dt.date.today().isoformat())
     return d
 
 
@@ -147,9 +157,15 @@ def rechnung_vorschau(
         ).fetchone()[0]
         + 1
     )
+    ziel = (
+        body.zahlungsziel_tage
+        if body.zahlungsziel_tage is not None
+        else standard_zahlungsziel(db, body.gewerbe_id)
+    )
     rechnung = {
         "nummer": f"{jahr}-{lauf:04d}",
         "datum": body.datum,
+        "faellig_am": faelligkeit(body.datum, ziel),
         "leistungsdatum": (body.leistungsdatum or "").strip() or None,
         "empfaenger_name": body.empfaenger_name.strip(),
         "empfaenger_anschrift": (body.empfaenger_anschrift or "").strip() or None,
@@ -182,6 +198,7 @@ def create_rechnung(
         notiz=body.notiz,
         steuerhinweis=body.steuerhinweis,
         positionen=[p.model_dump() for p in body.positionen],
+        zahlungsziel_tage=body.zahlungsziel_tage,
     )
     # Empfänger automatisch als Kontakt merken (füllt den Kontakte-Speicher von selbst).
     upsert_kontakt(db, body.gewerbe_id, body.empfaenger_name,
@@ -202,7 +219,8 @@ def update_rechnung(
     inhalt_geaendert = any(
         v is not None
         for v in (body.datum, body.leistungsdatum, body.empfaenger_name,
-                  body.empfaenger_anschrift, body.steuerhinweis, body.positionen)
+                  body.empfaenger_anschrift, body.steuerhinweis, body.positionen,
+                  body.zahlungsziel_tage)
     )
     if inhalt_geaendert and cur["status"] != "entwurf":
         raise HTTPException(
@@ -227,6 +245,16 @@ def update_rechnung(
     ]:
         if val is not None:
             fields.append(f"{col} = ?"); values.append(val.strip() or None)
+    if body.datum is not None or body.zahlungsziel_tage is not None:
+        # Fälligkeit neu rechnen (nur Entwürfe, siehe oben). Ohne eigenes Ziel: das bisherige,
+        # bei Bestand ohne Ziel das Standard-Zahlungsziel des Gewerbes.
+        ziel = body.zahlungsziel_tage
+        if ziel is None:
+            ziel = cur["zahlungsziel_tage"]
+        if ziel is None:
+            ziel = standard_zahlungsziel(db, cur["gewerbe_id"])
+        fields += ["zahlungsziel_tage = ?", "faellig_am = ?"]
+        values += [ziel, faelligkeit(body.datum or cur["datum"], ziel)]
     if fields:
         fields.append("updated_at = datetime('now')")
         db.execute(f"UPDATE rechnung SET {', '.join(fields)} WHERE id = ?", (*values, rechnung_id))

@@ -3,10 +3,30 @@ import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus } from '../components/Icons.jsx';
-import { DialogFuss, SchalterZeile } from '../components/DialogParts.jsx';
+import { DialogFuss, Gruppe, SchalterZeile } from '../components/DialogParts.jsx';
 import Modal from '../components/Modal.jsx';
 import { Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
+import { centToInput, parseEuroToCent } from '../lib/format.js';
+
+// "1,27" -> 127 Basispunkte; leer -> null (keine Verzugszinsen); ungültig -> undefined.
+function parseBasiszins(text) {
+  const s = String(text ?? '').trim();
+  if (!s) return null;
+  const n = Number(s.replace(',', '.'));
+  if (!Number.isFinite(n) || n < -10 || n > 20) return undefined;
+  return Math.round(n * 100);
+}
+
+// Ganze Zahl im Bereich, sonst undefined.
+function ganzeZahl(text, min, max) {
+  const s = String(text ?? '').trim();
+  const n = Number(s);
+  return s !== '' && Number.isInteger(n) && n >= min && n <= max ? n : undefined;
+}
+
+const bpZuText = (bp) => (bp === null || bp === undefined ? '' : (bp / 100).toFixed(2).replace('.', ','));
+const gebuehrText = (cent) => (cent ? centToInput(cent) : '');
 
 export default function Gewerbe() {
   const { reloadGewerbe, setGewerbeId } = useOutletContext();
@@ -41,6 +61,25 @@ export default function Gewerbe() {
       rechnung_fusszeile: editing.rechnung_fusszeile?.trim() || null,
     };
     if (!body.name) return toast.error('Name ist Pflicht.');
+    if (editing.id) {
+      // Zahlung & Mahnwesen (nur beim Bearbeiten; ein neues Gewerbe startet mit den Standardwerten)
+      const ziel = ganzeZahl(editing.zahlungsziel_tage, 0, 120);
+      const mahnFrist = ganzeZahl(editing.mahn_frist_tage, 1, 90);
+      const basis = parseBasiszins(editing.basiszins);
+      const gebuehren = [1, 2, 3].map((n) =>
+        editing[`gebuehr_${n}`]?.trim() ? parseEuroToCent(editing[`gebuehr_${n}`]) : 0,
+      );
+      if (ziel === undefined) return toast.error('Zahlungsziel: ganze Tage von 0 bis 120.');
+      if (mahnFrist === undefined) return toast.error('Zahlungsfrist der Mahnung: ganze Tage von 1 bis 90.');
+      if (gebuehren.some((g) => g === null || g < 0)) return toast.error('Mahngebühr: bitte einen gültigen Betrag eintragen.');
+      if (basis === undefined) return toast.error('Basiszinssatz: bitte eine Zahl zwischen -10 und 20 eintragen.');
+      body.zahlungsziel_tage = ziel;
+      body.mahn_frist_tage = mahnFrist;
+      body.mahn_gebuehr_1_cent = gebuehren[0];
+      body.mahn_gebuehr_2_cent = gebuehren[1];
+      body.mahn_gebuehr_3_cent = gebuehren[2];
+      body.basiszinssatz_bp = basis;
+    }
     try {
       if (editing.id) {
         await api.patch(`/api/gewerbe/${editing.id}`, body);
@@ -69,6 +108,28 @@ export default function Gewerbe() {
   }
 
   if (loading) return <PageSpinner />;
+
+  // Basiszinssatz bei der Bundesbank abfragen; gespeichert wird erst mit „Speichern".
+  async function basiszinsAbrufen() {
+    try {
+      const res = await api.get('/api/mahnwesen/basiszinssatz');
+      const wert = bpZuText(res.data.basiszinssatz_bp);
+      const stand = `${res.data.monat.slice(5, 7)}/${res.data.monat.slice(0, 4)}`;
+      if (res.data.aktuell) {
+        setEditing((e) => ({ ...e, basiszins: wert }));
+        toast.success(`Basiszinssatz ${wert} % eingetragen (Bundesbank, Stand ${stand}). Gilt nach dem Speichern.`, {
+          duration: 7000,
+        });
+      } else {
+        toast(
+          `Die Bundesbank meldet ${wert} % mit Stand ${stand}; der Satz für das neue Halbjahr steht noch nicht in der Zeitreihe. Das Feld bleibt unverändert — später erneut abrufen oder von Hand eintragen.`,
+          { duration: 10000 },
+        );
+      }
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
 
   function neu() {
     setEditing({
@@ -130,6 +191,12 @@ export default function Gewerbe() {
                         anschrift: g.anschrift || '',
                         iban: g.iban || '',
                         rechnung_fusszeile: g.rechnung_fusszeile || '',
+                        zahlungsziel_tage: String(g.zahlungsziel_tage ?? 14),
+                        mahn_frist_tage: String(g.mahn_frist_tage ?? 10),
+                        gebuehr_1: gebuehrText(g.mahn_gebuehr_1_cent),
+                        gebuehr_2: gebuehrText(g.mahn_gebuehr_2_cent),
+                        gebuehr_3: gebuehrText(g.mahn_gebuehr_3_cent),
+                        basiszins: bpZuText(g.basiszinssatz_bp),
                       })
                     }
                   />
@@ -149,6 +216,7 @@ export default function Gewerbe() {
         <Modal
           title={editing.id ? 'Gewerbe bearbeiten' : 'Neues Gewerbe'}
           onClose={() => setEditing(null)}
+          maxWidth="max-w-xl"
         >
           <form onSubmit={save} className="space-y-4">
             <label className="block">
@@ -197,7 +265,7 @@ export default function Gewerbe() {
                   className="input"
                   value={editing.rechnung_fusszeile}
                   onChange={(e) => setEditing({ ...editing, rechnung_fusszeile: e.target.value })}
-                  placeholder="z. B. Bank, Zahlungsziel 14 Tage"
+                  placeholder="z. B. Bankname, Kontoinhaber"
                 />
               </label>
             </div>
@@ -210,6 +278,69 @@ export default function Gewerbe() {
                 setEditing({ ...editing, besteuerung: an ? 'kleinunternehmer' : 'regelbesteuerung' })
               }
             />
+
+            {editing.id && (
+              <Gruppe titel="Zahlung & Mahnwesen" className="border-t border-ink/[0.08] pt-4">
+                <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="field-label">Zahlungsziel neuer Rechnungen (Tage)</span>
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      value={editing.zahlungsziel_tage}
+                      onChange={(e) => setEditing({ ...editing, zahlungsziel_tage: e.target.value })}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="field-label">Zahlungsfrist in Mahnungen (Tage)</span>
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      value={editing.mahn_frist_tage}
+                      onChange={(e) => setEditing({ ...editing, mahn_frist_tage: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-3">
+                  {[
+                    [1, 'Erinnerung'],
+                    [2, '1. Mahnung'],
+                    [3, 'Letzte Mahnung'],
+                  ].map(([n, label]) => (
+                    <label key={n} className="block">
+                      <span className="field-label">Gebühr {label} (€)</span>
+                      <input
+                        className="input"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={editing[`gebuehr_${n}`]}
+                        onChange={(e) => setEditing({ ...editing, [`gebuehr_${n}`]: e.target.value })}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
+                  <label className="block w-full sm:w-56">
+                    <span className="field-label">Basiszinssatz (% p. a.)</span>
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      placeholder="leer = keine Verzugszinsen"
+                      value={editing.basiszins}
+                      onChange={(e) => setEditing({ ...editing, basiszins: e.target.value })}
+                    />
+                  </label>
+                  <button type="button" className="btn-outline" onClick={basiszinsAbrufen}>
+                    Bei der Bundesbank abrufen
+                  </button>
+                </div>
+                <p className="text-xs leading-snug text-ink/60">
+                  Der Basiszinssatz ändert sich zum 1. Januar und 1. Juli. Verzugszinsen = Basiszins + 9 Punkte
+                  (Geschäftskunden) bzw. + 5 Punkte (Verbraucher), § 288 BGB. Mahngebühren nur in der Höhe, in der dir
+                  tatsächlich Kosten entstehen.
+                </p>
+              </Gruppe>
+            )}
 
             <DialogFuss>
               <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>

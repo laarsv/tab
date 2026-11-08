@@ -5,6 +5,15 @@ from __future__ import annotations
 
 import sqlite3
 
+from .fristen import faelligkeit
+
+
+def standard_zahlungsziel(conn: sqlite3.Connection, gewerbe_id: int) -> int:
+    row = conn.execute(
+        "SELECT zahlungsziel_tage FROM gewerbe WHERE id = ?", (gewerbe_id,)
+    ).fetchone()
+    return row["zahlungsziel_tage"] if row else 14
+
 
 def erstelle_rechnung(
     conn: sqlite3.Connection,
@@ -18,9 +27,12 @@ def erstelle_rechnung(
     notiz: str | None,
     steuerhinweis: str,
     positionen: list[dict],  # {beschreibung, menge, einzelpreis_cent}
+    zahlungsziel_tage: int | None = None,  # None = Standard-Zahlungsziel des Gewerbes
 ) -> int:
     """Legt Rechnung + Positionen an (ohne Commit) und gibt die Rechnungs-ID zurück."""
     jahr = int(datum[:4])
+    if zahlungsziel_tage is None:
+        zahlungsziel_tage = standard_zahlungsziel(conn, gewerbe_id)
     lauf = (
         conn.execute(
             "SELECT COALESCE(MAX(laufnummer), 0) FROM rechnung WHERE gewerbe_id = ? AND jahr = ?",
@@ -32,8 +44,8 @@ def erstelle_rechnung(
         """
         INSERT INTO rechnung (gewerbe_id, jahr, laufnummer, nummer, datum, leistungsdatum,
                               empfaenger_name, empfaenger_anschrift, empfaenger_email, notiz,
-                              steuerhinweis)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              steuerhinweis, zahlungsziel_tage, faellig_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             gewerbe_id,
@@ -47,6 +59,8 @@ def erstelle_rechnung(
             (empfaenger_email or "").strip() or None,
             (notiz or "").strip() or None,
             steuerhinweis,
+            zahlungsziel_tage,
+            faelligkeit(datum, zahlungsziel_tage),
         ),
     )
     rid = cur.lastrowid

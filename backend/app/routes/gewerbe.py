@@ -39,6 +39,14 @@ class GewerbePatch(BaseModel):
     anschrift: str | None = None
     iban: str | None = None
     rechnung_fusszeile: str | None = None
+    # Zahlung & Mahnwesen (v17)
+    zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)
+    mahn_frist_tage: int | None = Field(default=None, ge=1, le=90)
+    mahn_gebuehr_1_cent: int | None = Field(default=None, ge=0, le=100_000)
+    mahn_gebuehr_2_cent: int | None = Field(default=None, ge=0, le=100_000)
+    mahn_gebuehr_3_cent: int | None = Field(default=None, ge=0, le=100_000)
+    # Basispunkte (127 = 1,27 %); explizit null = keine Verzugszinsen -> model_fields_set
+    basiszinssatz_bp: int | None = Field(default=None, ge=-1_000, le=2_000)
 
     @field_validator("besteuerung")
     @classmethod
@@ -109,6 +117,17 @@ def update_gewerbe(
     ]:
         if val is not None:
             fields.append(f"{col} = ?"); values.append(val.strip() or None)
+    for col, val in [
+        ("zahlungsziel_tage", body.zahlungsziel_tage),
+        ("mahn_frist_tage", body.mahn_frist_tage),
+        ("mahn_gebuehr_1_cent", body.mahn_gebuehr_1_cent),
+        ("mahn_gebuehr_2_cent", body.mahn_gebuehr_2_cent),
+        ("mahn_gebuehr_3_cent", body.mahn_gebuehr_3_cent),
+    ]:
+        if val is not None:
+            fields.append(f"{col} = ?"); values.append(val)
+    if "basiszinssatz_bp" in body.model_fields_set:
+        fields.append("basiszinssatz_bp = ?"); values.append(body.basiszinssatz_bp)
     if fields:
         fields.append("updated_at = datetime('now')")
         db.execute(f"UPDATE gewerbe SET {', '.join(fields)} WHERE id = ?", (*values, gewerbe_id))

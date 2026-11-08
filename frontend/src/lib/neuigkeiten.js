@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 20,
+    datum: '2026-11-08',
+    titel: 'Fälligkeit und Mahnwesen',
+    text: 'Jede Rechnung hat jetzt ein Zahlungsziel (Standard 14 Tage, beim Gewerbe einstellbar) und trägt ihre Fälligkeit im PDF und in der E-Rechnung. Überfällige Rechnungen siehst du an der Seitenleiste und im neuen Reiter „Mahnwesen“: Zahlungserinnerung, 1. Mahnung und letzte Mahnung mit PDF, Mail-Versand, optionaler Mahngebühr, Verzugspauschale und Verzugszinsen. Den Basiszinssatz holst du beim Gewerbe mit einem Klick bei der Bundesbank. Wiederkehrende Rechnungen haben einen eigenen Reiter. Außerdem behoben: Ein Gedankenstrich oder typografische Anführungszeichen in einer Position ließen die PDF-Erstellung scheitern. Hinweis: Rechnungen aus der Zeit vor diesem Update haben kein Zahlungsziel; sie gelten 30 Tage nach dem Rechnungsdatum als überfällig, solange sie nicht als bezahlt markiert sind.',
+  },
+  {
     id: 19,
     datum: '2026-11-01',
     titel: 'Anlage EÜR 2026 ist da',

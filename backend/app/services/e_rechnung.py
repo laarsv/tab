@@ -33,6 +33,10 @@ def _datum_102(iso: str) -> str:
     return iso[:10].replace("-", "")
 
 
+def _datum_de(iso: str) -> str:
+    return f"{iso[8:10]}.{iso[5:7]}.{iso[:4]}"
+
+
 def parse_anschrift(text: str | None) -> dict:
     """Freitext-Anschrift tolerant zerlegen: erste Zeile = Name, Zeile vor der
     PLZ-Zeile = Straße, PLZ/Ort per Muster. Fehlt etwas, bleibt es leer."""
@@ -115,6 +119,17 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
         <ram:PayeePartyCreditorFinancialAccount><ram:IBANID>{escape(iban)}</ram:IBANID></ram:PayeePartyCreditorFinancialAccount>
       </ram:SpecifiedTradeSettlementPaymentMeans>"""
 
+    # Fälligkeit (BT-9) + Zahlungsbedingungen: Pflicht, wenn ein Betrag zu zahlen ist (BR-CO-25).
+    zahlungsbedingungen_xml = ""
+    if rechnung["faellig_am"]:
+        zahlungsbedingungen_xml = (
+            "\n      <ram:SpecifiedTradePaymentTerms>"
+            f"<ram:Description>Zahlbar bis zum {_datum_de(rechnung['faellig_am'])}.</ram:Description>"
+            '<ram:DueDateDateTime><udt:DateTimeString format="102">'
+            f"{_datum_102(rechnung['faellig_am'])}</udt:DateTimeString></ram:DueDateDateTime>"
+            "</ram:SpecifiedTradePaymentTerms>"
+        )
+
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice
   xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
@@ -153,7 +168,7 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
         <ram:BasisAmount>{_eur(summe)}</ram:BasisAmount>
         <ram:CategoryCode>E</ram:CategoryCode>
         <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>
-      </ram:ApplicableTradeTax>
+      </ram:ApplicableTradeTax>{zahlungsbedingungen_xml}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
         <ram:LineTotalAmount>{_eur(summe)}</ram:LineTotalAmount>
         <ram:TaxBasisTotalAmount>{_eur(summe)}</ram:TaxBasisTotalAmount>

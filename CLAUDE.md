@@ -72,7 +72,8 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 (wiederkehrende Rechnungen, Positionen als JSON), v9 = `kontakt` (inkl. Backfill
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
-v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login).
+v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -234,7 +235,38 @@ der Mapping-Version des Jahres aufgelöst.
   direkt im Anlege-Formular (Rechnung = erste Instanz, Abo startet eine Periode
   später, `lib/intervall.js` spiegelt naechster_termin); „Wiederholen…" an
   bestehenden Rechnungen ist ebenfalls eine Periode nach deren Datum vorbelegt.
-  Abo-Liste mit Jetzt ausführen/Pausieren oben auf der Rechnungen-Seite.
+  Abo-Liste mit Jetzt ausführen/Pausieren im Reiter „Wiederkehrend" der Rechnungen-Seite.
+- **Fälligkeit + Mahnwesen (`routes/mahnwesen.py`, `services/mahnwesen.py`,
+  `services/fristen.py`, `services/mahnung_pdf.py`, v17):** Aufbau und Abläufe nach **Haben**
+  (github.com/firsttris/haben; Lars: „Aufbau nicht Farben" — bei neuen Seiten dort zuerst
+  nachsehen, **AGPL: nur Ideen/Abläufe, keinen Code kopieren**). Rechnungen-Seite hat drei
+  Reiter (`components/RechnungenTabs.jsx`): Alle Rechnungen · Wiederkehrend · Mahnwesen
+  (`pages/Mahnwesen.jsx` Liste, `pages/MahnungNeu.jsx` Formular links + Forderungsaufstellung
+  rechts, Route `/rechnungen/mahnwesen/:id`). **Fälligkeit** = Rechnungsdatum + Zahlungsziel
+  (Standard je Gewerbe, 14 Tage; je Rechnung änderbar, nur im Entwurf), auf den nächsten
+  Werktag verschoben (§ 193 BGB, nur **bundesweite** Feiertage, kein Bundesland); Ziel 0 =
+  sofort ohne Verschiebung. `services/fristen.py` ↔ `lib/fristen.js` spiegeln sich — beide
+  ändern. Steht auf PDF (Meta + „Zahlbar bis") und in der E-Rechnung (BT-9
+  `DueDateDateTime`, BR-CO-25). **Überfällig** = Status `versendet` + Fälligkeit < heute;
+  **Bestand ohne `faellig_am`** (vor v17) gilt als fällig bei Rechnungsdatum + 30 Tage
+  (§ 286 Abs. 3 BGB, `effektive_faelligkeit`). Badge an „Rechnungen" in der Seitenleiste.
+  **Mahnung:** Stufen 1 Zahlungserinnerung · 2 1. Mahnung · 3 Letzte Mahnung (nie rückwärts,
+  nach Stufe 3 wiederholbar), Neue Frist (Gewerbe-Vorgabe 10 Tage), Mahngebühr je Stufe,
+  **Verzugspauschale 40 €** (§ 288 Abs. 5 BGB, nur Geschäftskunden; eine Mahngebühr wird
+  darauf angerechnet), **Verzugszinsen** = Basiszins + 9 (Geschäftskunde) / + 5 (Verbraucher)
+  Punkte, taggenau ab dem Tag nach Fälligkeit, 365-Tage-Jahr, kaufmännisch gerundet — nur
+  mit hinterlegtem Basiszinssatz (Gewerbe-Dialog, Knopf holt ihn von der Bundesbank-SDMX-API;
+  im Januar/Juli oft noch der alte Satz → dann wird nichts übernommen). Tabelle `mahnung` ist
+  ein **unveränderlicher Schnappschuss** (PDF wird bei jedem Abruf aus den Werten neu
+  gebaut); löschen nur, solange nicht versendet. Frontend rechnet die Forderung live nach
+  (`lib/mahnwesen.js`, gleiche Formel) — maßgeblich ist der Server. Mahnungen sind
+  Schadensersatz/Zins, **kein Entgelt**: keine USt, keine automatische Buchung (Hinweis im
+  Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Teilzahlungen (Rechnung
+  ist bezahlt oder nicht), GiroCode, Skonto, Mahnbescheid.
+- **PDF-Texte (`rechnung_pdf.latin1`):** Core-Font Helvetica ist Latin-1 — jeder
+  Nutzertext (Position, Notiz, Anschrift, Fußzeile, Mahntexte) läuft durch `latin1()`
+  (Gedankenstrich/Anführungszeichen/€ werden ersetzt), sonst bricht die PDF-Erzeugung ab.
+  Neue PDF-Felder immer damit umhüllen.
 - **Beleg-Erkennung (`services/beleg_extract.py`, GET `/belege/{id}/vorschlag`):**
   3-stufig lokal — (1) E-Rechnung: XRechnung-XML/ZUGFeRD-XML-im-PDF exakt geparst
   (tolerant über local-names), (2) PDF-Textebene via PyMuPDF + Heuristiken

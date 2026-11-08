@@ -10,6 +10,8 @@ import Gewerbe from './pages/Gewerbe.jsx';
 import JahresCheck from './pages/JahresCheck.jsx';
 import Fahrten from './pages/Fahrten.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
+import Mahnwesen from './pages/Mahnwesen.jsx';
+import MahnungNeu from './pages/MahnungNeu.jsx';
 import Einrichtung from './pages/Einrichtung.jsx';
 
 function Protected({ children }) {
@@ -36,6 +38,9 @@ export default function App() {
         <Route path="/check" element={<JahresCheck />} />
         <Route path="/fahrten" element={<Fahrten />} />
         <Route path="/rechnungen" element={<Rechnungen />} />
+        <Route path="/rechnungen/wiederkehrend" element={<Rechnungen tab="wiederkehrend" />} />
+        <Route path="/rechnungen/mahnwesen" element={<Mahnwesen />} />
+        <Route path="/rechnungen/mahnwesen/:id" element={<MahnungNeu />} />
         <Route path="/einrichtung" element={<Einrichtung />} />
         <Route path="/export" element={<Export />} />
         <Route path="/gewerbe" element={<Gewerbe />} />
