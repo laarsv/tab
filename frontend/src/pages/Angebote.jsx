@@ -4,10 +4,12 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
+import VorlagenModal from '../components/VorlagenModal.jsx';
+import { TextbausteinWahl } from '../components/Vorlagen.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
   IconArrowRight, IconBan, IconCheck, IconCircleCheck, IconCopy, IconFileText, IconPencil, IconPlus, IconSend,
-  IconTrash, IconButton,
+  IconTrash, IconButton, IconBookmark,
 } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
@@ -65,6 +67,7 @@ export default function Angebote() {
   const [mail, setMail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [vorlagenModal, setVorlagenModal] = useState(false);
   const [senden, setSenden] = useState(null);
   const [umwandeln, setUmwandeln] = useState(null);
 
@@ -137,6 +140,7 @@ export default function Angebote() {
         accent={jahr}
         sub="Eigener Nummernkreis, optionale Positionen, nach der Zusage mit einem Klick eine Rechnung"
       >
+        <IconButton icon={IconBookmark} label="Artikel & Texte" onClick={() => setVorlagenModal(true)} />
         <button className="btn-primary" onClick={() => setEditing({ positionen: [leerePosition()] })}>
           <IconPlus className="mr-1 h-4 w-4" /> Angebot
         </button>
@@ -308,6 +312,7 @@ export default function Angebote() {
         })
       )}
 
+      {vorlagenModal && <VorlagenModal gewerbeId={gewerbeId} onClose={() => setVorlagenModal(false)} />}
       {editing && (
         <AngebotModal
           editing={editing}
@@ -480,11 +485,14 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
           </Hinweis>
         )}
 
-        <label className="block">
-          <span className="field-label">Einleitung (nach „Sehr geehrte Damen und Herren,")</span>
+        <div className="block">
+          <div className="flex items-center justify-between gap-3">
+            <span className="field-label">Einleitung (nach „Sehr geehrte Damen und Herren,")</span>
+            <TextbausteinWahl gewerbeId={gewerbeId} aktuell={form.einleitung} onText={(t) => setForm({ ...form, einleitung: t })} />
+          </div>
           <textarea className="input min-h-[64px]" value={form.einleitung}
             onChange={(e) => setForm({ ...form, einleitung: e.target.value })} />
-        </label>
+        </div>
 
         <PositionenEditor
           positionen={form.positionen}
@@ -493,6 +501,7 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
           optionalCent={optional}
           mitOptional
           platzhalter="Leistung, z. B. Konzept und Umsetzung"
+          gewerbeId={gewerbeId}
         />
 
         <div className="block">
@@ -503,11 +512,14 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
             options={STEUERHINWEIS_OPTIONS}
           />
         </div>
-        <label className="block">
-          <span className="field-label">Hinweis am Ende (optional)</span>
-          <input className="input" value={form.notiz} placeholder="z. B. Zahlung nach Leistung."
+        <div className="block">
+          <div className="flex items-center justify-between gap-3">
+            <span className="field-label">Hinweis am Ende (optional)</span>
+            <TextbausteinWahl gewerbeId={gewerbeId} aktuell={form.notiz} onText={(t) => setForm({ ...form, notiz: t })} />
+          </div>
+          <textarea className="input min-h-[56px]" value={form.notiz} placeholder="z. B. Zahlung nach Leistung."
             onChange={(e) => setForm({ ...form, notiz: e.target.value })} />
-        </label>
+        </div>
 
         <DialogFuss>
           <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>

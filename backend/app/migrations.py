@@ -702,6 +702,34 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE afa_buchung ADD COLUMN linear_ab_jahr INTEGER;
         """,
     ),
+    Migration(
+        version=26,
+        sql="""
+        -- v26: Rechnungs-Komfort. rechnung.bestellnummer = "Ihre Bestellnummer" (BT-13), gewerbe.logo_datei =
+        --      Dateiname des Logos unter UPLOAD_ROOT/logos, artikel = Katalog häufiger Positionen (Preis brutto,
+        --      Kleinunternehmer), textbaustein = wiederverwendbare Texte für Rechnungs- und Angebotstexte.
+        ALTER TABLE rechnung ADD COLUMN bestellnummer TEXT;
+        ALTER TABLE gewerbe ADD COLUMN logo_datei TEXT;
+        CREATE TABLE artikel (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            bezeichnung TEXT    NOT NULL COLLATE NOCASE,
+            preis_cent  INTEGER NOT NULL CHECK (preis_cent > 0),
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (gewerbe_id, bezeichnung)
+        );
+        CREATE TABLE textbaustein (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            name        TEXT    NOT NULL COLLATE NOCASE,
+            text        TEXT    NOT NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (gewerbe_id, name)
+        );
+        """,
+    ),
 ]
 
 

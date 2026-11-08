@@ -15,6 +15,7 @@ from fpdf.enums import MethodReturnValue
 from .export import format_cent_de, _date_de
 from .fristen import add_days
 from .girocode import GIRO_MM, epc_payload, kontoinhaber, zeichne_qr
+from .logo import zeichne_logo
 
 INK = (22, 26, 36)       # ink
 MUTED = (110, 115, 125)
@@ -73,6 +74,7 @@ def build_rechnung_pdf(
     pdf.set_auto_page_break(auto=True, margin=25)
     pdf.set_margins(left=22, top=18, right=20)
     pdf.add_page()
+    zeichne_logo(pdf, gewerbe)
 
     # Absenderzeile klein (Fensterumschlag-Stil)
     absender_block = (gewerbe["anschrift"] or gewerbe["name"] or "").strip()
@@ -101,6 +103,8 @@ def build_rechnung_pdf(
     ]
     if rechnung["faellig_am"]:
         meta.append(("Fällig am", _date_de(rechnung["faellig_am"])))
+    if "bestellnummer" in rechnung.keys() and rechnung["bestellnummer"]:
+        meta.append(("Ihre Bestellnr.", rechnung["bestellnummer"]))
     if gewerbe["steuernummer"]:
         meta.append(("Steuernummer", gewerbe["steuernummer"]))
     for label, wert in meta:

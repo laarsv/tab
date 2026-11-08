@@ -13,6 +13,7 @@ from fpdf.enums import MethodReturnValue
 from .export import _date_de, format_cent_de
 from .girocode import absender_name
 from .rechnung_pdf import INK, LINE, MUTED, ROYAL, STEUERHINWEISE, _menge_de, latin1
+from .logo import zeichne_logo
 
 
 def build_angebot_pdf(
@@ -26,6 +27,7 @@ def build_angebot_pdf(
     pdf.set_auto_page_break(auto=True, margin=25)
     pdf.set_margins(left=22, top=18, right=20)
     pdf.add_page()
+    zeichne_logo(pdf, gewerbe)
 
     if entwurf:
         with pdf.rotation(angle=40, x=105, y=150):

@@ -67,6 +67,7 @@ class RechnungIn(BaseModel):
     zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)  # None = Standard des Gewerbes
     skonto_prozent: float | None = Field(default=None, gt=0, le=10)    # Skonto bei früher Zahlung
     skonto_tage: int | None = Field(default=None, ge=1, le=120)
+    bestellnummer: str | None = Field(default=None, max_length=80)  # "Ihre Bestellnummer" (BT-13)
     positionen: list[RPositionIn] = Field(min_length=1)
 
     @field_validator("datum")
@@ -93,6 +94,7 @@ class RechnungPatch(BaseModel):
     zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)
     skonto_prozent: float | None = Field(default=None, gt=0, le=10)  # explizit null = Skonto entfernen
     skonto_tage: int | None = Field(default=None, ge=1, le=120)
+    bestellnummer: str | None = Field(default=None, max_length=80)
     positionen: list[RPositionIn] | None = None
 
     @field_validator("datum")
@@ -202,6 +204,7 @@ def rechnung_vorschau(
         "empfaenger_name": body.empfaenger_name.strip(),
         "empfaenger_anschrift": (body.empfaenger_anschrift or "").strip() or None,
         "notiz": (body.notiz or "").strip() or None,
+        "bestellnummer": (body.bestellnummer or "").strip() or None,
         "steuerhinweis": body.steuerhinweis,
     }
     pdf = rechnungs_pdf(rechnung, [p.model_dump() for p in body.positionen], g)
@@ -235,6 +238,7 @@ def create_rechnung(
         zahlungsziel_tage=body.zahlungsziel_tage,
         skonto_bp=skonto_bp,
         skonto_tage=skonto_tage,
+        bestellnummer=body.bestellnummer,
     )
     # Empfänger automatisch als Kontakt merken (füllt den Kontakte-Speicher von selbst).
     upsert_kontakt(db, body.gewerbe_id, body.empfaenger_name,
@@ -256,7 +260,7 @@ def update_rechnung(
         v is not None
         for v in (body.datum, body.leistungsdatum, body.empfaenger_name,
                   body.empfaenger_anschrift, body.steuerhinweis, body.positionen,
-                  body.zahlungsziel_tage)
+                  body.zahlungsziel_tage, body.bestellnummer)
     ) or bool({"skonto_prozent", "skonto_tage"} & body.model_fields_set)
     if inhalt_geaendert and cur["status"] != "entwurf":
         raise HTTPException(
@@ -278,6 +282,7 @@ def update_rechnung(
         ("empfaenger_anschrift", body.empfaenger_anschrift),
         ("empfaenger_email", body.empfaenger_email),
         ("notiz", body.notiz),
+        ("bestellnummer", body.bestellnummer),
     ]:
         if val is not None:
             fields.append(f"{col} = ?"); values.append(val.strip() or None)

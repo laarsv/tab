@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -265,6 +265,24 @@ der Mapping-Version des Jahres aufgelöst.
   Das Modal schickt `rechnung_id` mit (BuchungModal-Prop `rechnungId`); gebucht wird seit v22 je
   **Zahlung** (siehe „Zahlungen auf Rechnungen“), `rechnung.buchung_id` zeigt nur noch auf die zuletzt
   gebuchte Zahlung. 409, wenn alles Gezahlte schon gebucht ist; Buchung löschen → die Zahlung ist wieder „ungebucht“.
+- **Rechnungs-Komfort (v26, `routes/vorlagen.py`, `services/logo.py`, `components/Vorlagen.jsx` + `VorlagenModal.jsx` +
+  `LogoFeld.jsx`):** Aufbau nach Haben, schlank für Kleinunternehmer. **Bestellnummer** (`rechnung.bestellnummer`,
+  „Ihre Bestellnummer“, max. 80 Zeichen): Feld im Rechnungsfenster, PDF-Meta „Ihre Bestellnr.“ und in der E-Rechnung
+  als **BT-13** (`BuyerOrderReferencedDocument/IssuerAssignedID` nach `BuyerTradeParty`, XSD-geprüft im Test); wie der
+  übrige Inhalt nur im Entwurf änderbar. Abos und Angebot→Rechnung tragen sie nicht mit. **Artikelkatalog** (`artikel`:
+  Bezeichnung + Preis in Cent, eindeutig je Gewerbe case-insensitiv; kein Steuersatz/keine Einheit — Positionen haben
+  beides nicht): `POST /api/artikel` ist ein Upsert (201 neu, 200 Preis aktualisiert), im `PositionenEditor` (Prop
+  `gewerbeId`, wirkt in Rechnung, Angebot und Abo) per Auswahl „Aus dem Katalog einfügen“, Lesezeichen „Als Artikel
+  speichern“ und automatischem Preis, wenn die getippte Bezeichnung genau passt. **Textbausteine** (`textbaustein`:
+  Name + Text bis 2000 Zeichen): „Textbaustein einfügen“ hängt den Text als neuen Absatz an Notiz der Rechnung bzw.
+  Einleitung/Hinweis des Angebots. Verwaltung für beides: Knopf „Artikel & Texte“ auf Rechnungen und Angebote
+  (`VorlagenModal`). Rechnungen/Angebote speichern immer eigene Werte — Katalog ändern oder löschen berührt sie nicht.
+  **Logo** (`gewerbe.logo_datei`, Datei `UPLOAD_ROOT/logos/{gewerbe_id}.png`): Upload im Gewerbe-Dialog (PNG/JPG ≤ 2 MB,
+  ≤ 4000 px, wird geprüft, auf 900×360 verkleinert und als PNG mit Transparenz gespeichert), `POST/GET/DELETE
+  /api/gewerbe/{id}/logo`; die Gewerbe-API gibt nur `hat_logo` aus, nie den Dateinamen. `services/logo.zeichne_logo`
+  setzt es oben rechts (≤ 50 × 17 mm) auf Rechnung, Mahnung und Angebot und **blockiert nie** (fehlende/kaputte Datei →
+  PDF ohne Logo). Liegt im Uploads-Ordner, also im Backup. Nicht gebaut: Einheit/Steuersatz am Artikel, Artikelnummer,
+  CSV-Import, Textbausteine je Kunde, Logo-Position/-Größe einstellbar, Bestellnummer im Abo.
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via

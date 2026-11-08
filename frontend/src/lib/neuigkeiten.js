@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 31,
+    datum: '2026-11-08',
+    titel: 'Rechnungen: Logo, Artikel, Textbausteine und Bestellnummer',
+    text: 'Dein Logo steht jetzt oben rechts auf Rechnung, Mahnung und Angebot — hochladen kannst du es unter „Gewerbe“ (PNG oder JPG). Neu im Rechnungsfenster: Mit dem Knopf „Artikel & Texte“ legst du Positionen an, die du oft brauchst (z. B. Stundensatz), und fügst sie per Auswahl ein; das Lesezeichen neben einer Position speichert sie als Artikel. Textbausteine für die Notiz der Rechnung und die Texte im Angebot (z. B. Dank oder Zahlungsbedingungen) fügst du genauso ein. Außerdem gibt es das Feld „Ihre Bestellnummer“: Sie steht auf dem PDF und in der E-Rechnung, was Firmenkunden oft verlangen.',
+  },
+  {
     id: 30,
     datum: '2026-11-08',
     titel: 'Neue Startseite: die Übersicht',

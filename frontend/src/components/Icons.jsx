@@ -350,3 +350,9 @@ export const IconGrid = (p) => (
     <rect x="13" y="13" width="7" height="7" rx="1.5" />
   </Svg>
 );
+// Lesezeichen (Artikel & Texte, „als Artikel speichern")
+export const IconBookmark = (p) => (
+  <Svg {...p}>
+    <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z" />
+  </Svg>
+);

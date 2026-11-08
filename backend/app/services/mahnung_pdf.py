@@ -22,6 +22,7 @@ from .girocode import (
 )
 from .mahnwesen import STUFEN, effektive_faelligkeit
 from .rechnung_pdf import INK, LINE, MUTED, ROYAL, latin1 as _t
+from .logo import zeichne_logo
 
 
 def _prozent(bp: int) -> str:
@@ -40,6 +41,7 @@ def build_mahnung_pdf(
     pdf.set_auto_page_break(auto=True, margin=25)
     pdf.set_margins(left=22, top=18, right=20)
     pdf.add_page()
+    zeichne_logo(pdf, gewerbe)
 
     if entwurf:
         with pdf.rotation(angle=40, x=105, y=150):

@@ -186,6 +186,7 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
           onChange={(positionen) => setForm((f) => ({ ...f, positionen }))}
           summeCent={total}
           platzhalter="z. B. Betreuung {monat}"
+          gewerbeId={gewerbeId}
         />
         <Hinweis className="text-xs">
           Platzhalter <code>{'{monat}'}</code> wird durch den Abrechnungsmonat ersetzt (z. B. „Betreuung 08/2026") —

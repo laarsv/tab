@@ -5,11 +5,13 @@ import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import AboModal from '../components/AboModal.jsx';
 import KontakteModal from '../components/KontakteModal.jsx';
+import VorlagenModal from '../components/VorlagenModal.jsx';
+import { TextbausteinWahl } from '../components/Vorlagen.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
 import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
-  IconBan, IconBell, IconBookIn, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil,
+  IconBan, IconBell, IconBookIn, IconBookmark, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil,
   IconPlay, IconPlus, IconRepeat, IconSend, IconTrash, IconUsers, IconZap,
 } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
@@ -71,6 +73,7 @@ export default function Rechnungen({ tab = 'alle' }) {
   const [aboModal, setAboModal] = useState(null); // { abo? , prefill? }
   const [kontakte, setKontakte] = useState([]);
   const [kontakteModal, setKontakteModal] = useState(false);
+  const [vorlagenModal, setVorlagenModal] = useState(false);
 
   const gewerbeRow = gewerbe.find((g) => String(g.id) === String(gewerbeId));
 
@@ -208,6 +211,7 @@ export default function Rechnungen({ tab = 'alle' }) {
           label={`Kontakte${kontakte.length > 0 ? ` (${kontakte.length})` : ''}`}
           onClick={() => setKontakteModal(true)}
         />
+        <IconButton icon={IconBookmark} label="Artikel & Texte" onClick={() => setVorlagenModal(true)} />
         <button className="btn-primary" onClick={() => setEditing({ positionen: [emptyRPos()] })}>
           <IconPlus className="mr-1 h-4 w-4" /> Rechnung
         </button>
@@ -397,6 +401,7 @@ export default function Rechnungen({ tab = 'alle' }) {
                           empfaenger_anschrift: r.empfaenger_anschrift || '',
                           empfaenger_email: r.empfaenger_email || '',
                           notiz: r.notiz || '',
+                          bestellnummer: r.bestellnummer || '',
                           steuerhinweis: r.steuerhinweis || 'ku19',
                           zahlungsziel_tage: r.zahlungsziel_tage,
                           skonto_prozent: r.skonto_prozent,
@@ -522,6 +527,7 @@ export default function Rechnungen({ tab = 'alle' }) {
         />
       )}
 
+      {vorlagenModal && <VorlagenModal gewerbeId={gewerbeId} onClose={() => setVorlagenModal(false)} />}
       {kontakteModal && (
         <KontakteModal gewerbeId={gewerbeId} onClose={() => setKontakteModal(false)} onChanged={load} />
       )}
@@ -595,6 +601,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
     empfaenger_anschrift: editing.empfaenger_anschrift || '',
     empfaenger_email: editing.empfaenger_email || '',
     notiz: editing.notiz || '',
+    bestellnummer: editing.bestellnummer || '',
     steuerhinweis: editing.steuerhinweis || 'ku19',
     zahlungsziel: String(editing.zahlungsziel_tage ?? standardZiel),
     skontoProzent: editing.skonto_prozent ? String(editing.skonto_prozent).replace('.', ',') : '',
@@ -680,6 +687,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
       empfaenger_anschrift: form.empfaenger_anschrift.trim() || null,
       empfaenger_email: form.empfaenger_email.trim() || null,
       notiz: form.notiz.trim() || null,
+      bestellnummer: form.bestellnummer.trim(),
       steuerhinweis: form.steuerhinweis,
       zahlungsziel_tage: ziel,
       skonto_prozent: skontoP,
@@ -717,7 +725,8 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
     setBusy(true);
     try {
       if (isEdit) {
-        await api.patch(`/api/rechnungen/${editing.id}`, body);
+        // Beim Ändern bedeutet null „unverändert“ — leere Texte gehen als "" raus, damit sie sich löschen lassen.
+        await api.patch(`/api/rechnungen/${editing.id}`, { ...body, notiz: form.notiz.trim() });
         toast.success('Gespeichert.');
       } else {
         const res = await api.post('/api/rechnungen', { gewerbe_id: Number(gewerbeId), ...body });
@@ -857,6 +866,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
           onChange={(positionen) => setForm((f) => ({ ...f, positionen }))}
           summeCent={total}
           platzhalter="Leistung, z. B. Beratung März 2026"
+          gewerbeId={gewerbeId}
         />
 
         <div className="block">
@@ -868,12 +878,22 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
           />
         </div>
 
-        <label className="block">
-          <span className="field-label">Notiz auf der Rechnung (optional)</span>
-          <input className="input" value={form.notiz}
+        <label className="block sm:max-w-xs">
+          <span className="field-label">Ihre Bestellnummer (optional)</span>
+          <input className="input" value={form.bestellnummer} maxLength={80}
+            onChange={(e) => setForm({ ...form, bestellnummer: e.target.value })}
+            placeholder="steht auch in der E-Rechnung" />
+        </label>
+
+        <div className="block">
+          <div className="flex items-center justify-between gap-3">
+            <span className="field-label">Notiz auf der Rechnung (optional)</span>
+            <TextbausteinWahl gewerbeId={gewerbeId} aktuell={form.notiz} onText={(t) => setForm({ ...form, notiz: t })} />
+          </div>
+          <textarea className="input min-h-[64px]" value={form.notiz} maxLength={2000}
             onChange={(e) => setForm({ ...form, notiz: e.target.value })}
             placeholder="z. B. Vielen Dank für den Auftrag." />
-        </label>
+        </div>
 
         {!isEdit && (
           <div>

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus } from '../components/Icons.jsx';
 import { DialogFuss, Gruppe, SchalterZeile } from '../components/DialogParts.jsx';
+import LogoFeld from '../components/LogoFeld.jsx';
 import Modal from '../components/Modal.jsx';
 import { Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -194,6 +195,7 @@ export default function Gewerbe() {
                         iban: g.iban || '',
                         kontoinhaber: g.kontoinhaber || '',
                         rechnung_fusszeile: g.rechnung_fusszeile || '',
+                        hat_logo: Boolean(g.hat_logo),
                         zahlungsziel_tage: String(g.zahlungsziel_tage ?? 14),
                         mahn_frist_tage: String(g.mahn_frist_tage ?? 10),
                         gebuehr_1: gebuehrText(g.mahn_gebuehr_1_cent),
@@ -287,6 +289,20 @@ export default function Gewerbe() {
                 Empfängername zum Konto passt — trag hier den Namen ein, auf den dein Konto läuft.
               </span>
             </label>
+
+            {editing.id && (
+              <Gruppe titel="Logo" className="border-t border-ink/[0.08] pt-4">
+                <LogoFeld
+                  gewerbeId={editing.id}
+                  hatLogo={editing.hat_logo}
+                  onChanged={(g) => {
+                    setEditing((e) => ({ ...e, hat_logo: Boolean(g.hat_logo) }));
+                    load();
+                    reloadGewerbe();
+                  }}
+                />
+              </Gruppe>
+            )}
 
             <SchalterZeile
               titel="Kleinunternehmer §19 UStG"

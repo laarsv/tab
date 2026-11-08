@@ -1,5 +1,8 @@
-import { IconButton, IconPlus, IconX } from './Icons.jsx';
-import { formatEuro } from '../lib/format.js';
+import toast from 'react-hot-toast';
+import { api, apiError } from '../api/client.js';
+import { IconBookmark, IconButton, IconPlus, IconX } from './Icons.jsx';
+import { ArtikelWahl, useVorlagen } from './Vorlagen.jsx';
+import { centToInput, formatEuro, parseEuroToCent } from '../lib/format.js';
 
 // Bausteine für Dialoge im Recap-Stil (DESIGN.md §6): Schalter statt Häkchen, Fußzeile mit
 // Haarlinie, ruhige Gruppen, Positionen als getönte Flächen statt Rahmen.
@@ -67,9 +70,48 @@ export function leerePosition() {
 // Einzelpreis) + Summe. Gemeinsam für RechnungModal und AboModal.
 // mitOptional (Angebote): je Position ein Schalter „Optional“ — optionale Positionen zählen nicht zur Summe
 // (optionalCent zeigt sie getrennt).
-export function PositionenEditor({ positionen, onChange, summeCent, platzhalter, mitOptional = false, optionalCent = 0 }) {
+export function PositionenEditor({
+  positionen,
+  onChange,
+  summeCent,
+  platzhalter,
+  mitOptional = false,
+  optionalCent = 0,
+  gewerbeId = null, // mit Gewerbe: Artikelkatalog (Auswahl, Lesezeichen, Preis aus der Bezeichnung)
+}) {
+  const [artikel, setArtikel] = useVorlagen('/api/artikel', gewerbeId);
+  const artikelZu = (text) => artikel.find((a) => a.bezeichnung.toLowerCase() === text.trim().toLowerCase());
+
   function setPos(i, patch) {
     onChange(positionen.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  }
+
+  // Beschreibung getippt: passt sie genau zu einem Artikel und der Preis ist noch leer, kommt der Preis dazu.
+  function beschreibungAendern(i, text) {
+    const a = !positionen[i].preisInput?.trim() ? artikelZu(text) : null;
+    setPos(i, a ? { beschreibung: text, preisInput: centToInput(a.preis_cent) } : { beschreibung: text });
+  }
+
+  function artikelEinfuegen(a) {
+    const neu = { beschreibung: a.bezeichnung, menge: '1', preisInput: centToInput(a.preis_cent) };
+    const nurLeer = positionen.length === 1 && !positionen[0].beschreibung.trim() && !positionen[0].preisInput?.trim();
+    onChange(nurLeer ? [neu] : [...positionen, neu]);
+  }
+
+  async function alsArtikelSpeichern(p) {
+    const preis = parseEuroToCent(p.preisInput);
+    try {
+      const res = await api.post('/api/artikel', {
+        gewerbe_id: Number(gewerbeId),
+        bezeichnung: p.beschreibung.trim(),
+        preis_cent: preis,
+      });
+      setArtikel((alt) => [...alt.filter((x) => x.id !== res.data.id), res.data]
+        .sort((x, y) => x.bezeichnung.localeCompare(y.bezeichnung, 'de')));
+      toast.success(res.status === 200 ? 'Artikel aktualisiert.' : 'Als Artikel gespeichert.');
+    } catch (e) {
+      toast.error(apiError(e, 'Artikel konnte nicht gespeichert werden.'));
+    }
   }
   return (
     <Gruppe titel="Positionen">
@@ -80,8 +122,21 @@ export function PositionenEditor({ positionen, onChange, summeCent, platzhalter,
               className="input flex-1"
               value={p.beschreibung}
               placeholder={platzhalter}
-              onChange={(e) => setPos(i, { beschreibung: e.target.value })}
+              onChange={(e) => beschreibungAendern(i, e.target.value)}
             />
+            {gewerbeId && (() => {
+              const preis = parseEuroToCent(p.preisInput);
+              const bekannt = artikelZu(p.beschreibung);
+              const gleich = bekannt && bekannt.preis_cent === preis;
+              return (
+                <IconButton
+                  icon={IconBookmark}
+                  label={gleich ? 'Steht schon im Katalog' : bekannt ? 'Artikelpreis im Katalog aktualisieren' : 'Als Artikel speichern'}
+                  disabled={!p.beschreibung.trim() || !preis || preis <= 0 || Boolean(gleich)}
+                  onClick={() => alsArtikelSpeichern(p)}
+                />
+              );
+            })()}
             {positionen.length > 1 && (
               <IconButton
                 icon={IconX}
@@ -126,9 +181,12 @@ export function PositionenEditor({ positionen, onChange, summeCent, platzhalter,
         </div>
       ))}
       <div className="flex items-center justify-between">
-        <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...positionen, leerePosition()])}>
-          <IconPlus className="mr-1 h-3.5 w-3.5" /> Position
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...positionen, leerePosition()])}>
+            <IconPlus className="mr-1 h-3.5 w-3.5" /> Position
+          </button>
+          {gewerbeId && <ArtikelWahl artikel={artikel} onWahl={artikelEinfuegen} />}
+        </div>
         <span className="text-sm tabular-nums text-ink/60">
           {mitOptional ? 'Angebotssumme' : 'Summe'} {formatEuro(summeCent)}
           {mitOptional && optionalCent > 0 && ` · optional ${formatEuro(optionalCent)}`}

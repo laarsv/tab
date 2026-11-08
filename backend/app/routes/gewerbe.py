@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user, ist_admin
 from ..db import get_db
+from ..services import logo as logo_svc
 
 router = APIRouter(prefix="/api/gewerbe", tags=["gewerbe"], dependencies=[Depends(get_current_user)])
 
@@ -58,6 +60,14 @@ class GewerbePatch(BaseModel):
         return v
 
 
+def _ausgabe(row: sqlite3.Row) -> dict:
+    """Gewerbe für die API: der Logo-Dateiname bleibt intern, nach außen nur „hat_logo“."""
+    d = dict(row)
+    d["hat_logo"] = logo_svc.logo_pfad(row) is not None
+    d.pop("logo_datei", None)
+    return d
+
+
 @router.get("")
 def list_gewerbe(
     include_inactive: bool = False,
@@ -69,7 +79,7 @@ def list_gewerbe(
     if not include_inactive:
         sql += " AND aktiv = 1"
     sql += " ORDER BY aktiv DESC, name COLLATE NOCASE"
-    return [dict(r) for r in db.execute(sql, (user["email"],))]
+    return [_ausgabe(r) for r in db.execute(sql, (user["email"],))]
 
 
 @router.post("", status_code=201)
@@ -93,7 +103,7 @@ def create_gewerbe(
         ),
     )
     db.commit()
-    return dict(db.execute("SELECT * FROM gewerbe WHERE id = ?", (cur.lastrowid,)).fetchone())
+    return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (cur.lastrowid,)).fetchone())
 
 
 @router.patch("/{gewerbe_id}")
@@ -136,4 +146,39 @@ def update_gewerbe(
         fields.append("updated_at = datetime('now')")
         db.execute(f"UPDATE gewerbe SET {', '.join(fields)} WHERE id = ?", (*values, gewerbe_id))
         db.commit()
-    return dict(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone())
+    return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone())
+
+
+# ── Logo (Rechnung, Mahnung, Angebot) ───────────────────────────────────────
+
+@router.post("/{gewerbe_id}/logo")
+def logo_hochladen(
+    gewerbe_id: int,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    check_gewerbe(db, user, gewerbe_id)
+    try:
+        logo_svc.speichere_logo(db, gewerbe_id, file.file.read(logo_svc.MAX_LOGO_BYTES + 1))
+    except logo_svc.LogoAbgelehnt as e:
+        raise HTTPException(400, str(e))
+    db.commit()
+    return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone())
+
+
+@router.get("/{gewerbe_id}/logo")
+def logo_ansehen(gewerbe_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    row = check_gewerbe(db, user, gewerbe_id)
+    pfad = logo_svc.logo_pfad(row)
+    if pfad is None:
+        raise HTTPException(404, "Kein Logo hinterlegt.")
+    return FileResponse(pfad, media_type="image/png", headers={"Cache-Control": "no-cache"})
+
+
+@router.delete("/{gewerbe_id}/logo")
+def logo_entfernen(gewerbe_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    check_gewerbe(db, user, gewerbe_id)
+    logo_svc.loesche_logo(db, gewerbe_id)
+    db.commit()
+    return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone())

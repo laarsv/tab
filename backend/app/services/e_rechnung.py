@@ -102,6 +102,16 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
     )
     kaeufer["name"] = rechnung["empfaenger_name"]
 
+    # BT-13: Bestellreferenz des Käufers (steht auch im PDF als „Ihre Bestellnr.")
+    bestell_xml = ""
+    bestellnummer = (rechnung["bestellnummer"] if "bestellnummer" in rechnung.keys() else None) or ""
+    if bestellnummer.strip():
+        bestell_xml = (
+            "\n      <ram:BuyerOrderReferencedDocument>"
+            f"<ram:IssuerAssignedID>{escape(bestellnummer.strip())}</ram:IssuerAssignedID>"
+            "</ram:BuyerOrderReferencedDocument>"
+        )
+
     steuernr_xml = ""
     if gewerbe["steuernummer"]:
         steuernr_xml = (
@@ -163,7 +173,7 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
       <ram:BuyerTradeParty>
         <ram:Name>{escape(kaeufer["name"])}</ram:Name>
         {_adresse_xml(kaeufer)}
-      </ram:BuyerTradeParty>
+      </ram:BuyerTradeParty>{bestell_xml}
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery/>
     <ram:ApplicableHeaderTradeSettlement>
