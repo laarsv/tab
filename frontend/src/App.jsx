@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext.jsx';
 import { PageSpinner } from './components/Spinner.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
+import Uebersicht from './pages/Uebersicht.jsx';
 import Buchungen from './pages/Buchungen.jsx';
 import Afa from './pages/Afa.jsx';
 import Export from './pages/Export.jsx';
@@ -37,6 +38,7 @@ export default function App() {
           </Protected>
         }
       >
+        <Route path="/uebersicht" element={<Uebersicht />} />
         <Route path="/buchungen" element={<Buchungen />} />
         <Route path="/eingang" element={<Navigate to="/buchungen" replace />} />
         <Route path="/afa" element={<Afa />} />
@@ -54,7 +56,7 @@ export default function App() {
         <Route path="/einrichtung" element={<Einrichtung />} />
         <Route path="/export" element={<Export />} />
         <Route path="/gewerbe" element={<Gewerbe />} />
-        <Route path="*" element={<Navigate to="/buchungen" replace />} />
+        <Route path="*" element={<Navigate to="/uebersicht" replace />} />
       </Route>
     </Routes>
   );

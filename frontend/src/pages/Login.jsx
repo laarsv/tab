@@ -26,7 +26,7 @@ export default function Login() {
   }, []);
 
   if (loading) return <PageSpinner />;
-  if (user) return <Navigate to="/buchungen" replace />;
+  if (user) return <Navigate to="/uebersicht" replace />;
 
   function wechsle(m) {
     setModus(m);
@@ -40,7 +40,7 @@ export default function Login() {
     try {
       if (modus === 'login') {
         await api.post('/api/auth/passwort-login', { email: form.email, passwort: form.passwort });
-        window.location.href = '/buchungen';
+        window.location.href = '/uebersicht';
       } else if (modus === 'register') {
         if (form.passwort.length < 8) throw { selbst: 'Passwort: mindestens 8 Zeichen.' };
         if (form.passwort !== form.passwort2) throw { selbst: 'Die Passwörter stimmen nicht überein.' };
@@ -51,7 +51,7 @@ export default function Login() {
         setModus('verify');
       } else if (modus === 'verify') {
         await api.post('/api/auth/verify', { email: form.email, code: form.code.trim() });
-        window.location.href = '/buchungen';
+        window.location.href = '/uebersicht';
       } else if (modus === 'reset1') {
         await api.post('/api/auth/reset-anfordern', { email: form.email });
         setHinweis({ typ: 'ok', text: 'Falls ein Konto existiert, ist ein Code unterwegs.' });

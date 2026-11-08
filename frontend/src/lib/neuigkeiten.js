@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 30,
+    datum: '2026-11-08',
+    titel: 'Neue Startseite: die Übersicht',
+    text: 'Nach dem Login landest du jetzt auf der Übersicht. Oben stehen Einnahmen, Ausgaben und Saldo des Jahres mit dem Vorjahr zum Vergleich, dazu deine offenen Forderungen und der Umsatz nach § 19 mit den Grenzen. Darunter sammelt „Zu erledigen“, was gerade wartet: überfällige Rechnungen, dringende Steuerfristen, fällige Dauerbelege, Belege im Eingang, Bankumsätze ohne Zuordnung, Rechnungsentwürfe, Angebote ohne Antwort und ein noch nicht abgeschlossenes Vorjahr. Jede Zeile hat einen Knopf, der direkt an die richtige Stelle führt. Darunter siehst du die offenen Rechnungen und deine letzten Buchungen. Am Handy ist die Übersicht der erste Reiter unten.',
+  },
+  {
     id: 29,
     datum: '2026-11-08',
     titel: 'GWG-Grenze korrigiert: 800 € inklusive USt',

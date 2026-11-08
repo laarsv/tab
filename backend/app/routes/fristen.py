@@ -65,6 +65,9 @@ def _fristen(db: sqlite3.Connection, email: str) -> list[dict]:
     )
 
 
+fristen_des_nutzers = _fristen  # für die Übersicht
+
+
 @router.get("")
 def liste(user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     items = _fristen(db, user["email"])

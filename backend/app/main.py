@@ -38,6 +38,7 @@ from .routes import (
     meta,
     news,
     rechnungen,
+    uebersicht,
 )
 from .seed import seed
 from .services.abo import run_faellige_abos
@@ -140,6 +141,7 @@ app.include_router(abschluss.router)
 app.include_router(bank.router)
 app.include_router(angebote.router)
 app.include_router(dauerbelege.router)
+app.include_router(uebersicht.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)

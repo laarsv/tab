@@ -341,3 +341,12 @@ export const IconArchive = (p) => (
     <path d="M5 9v10h14V9M10 13h4" />
   </Svg>
 );
+// Übersicht (Startseite): vier Felder
+export const IconGrid = (p) => (
+  <Svg {...p}>
+    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+  </Svg>
+);

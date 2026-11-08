@@ -195,9 +195,9 @@ der Mapping-Version des Jahres aufgelöst.
 - **Layout = Royal-Seitenleiste (Recap-Stil, 2026-10-27, DESIGN.md §6):** `components/Layout.jsx`
   (Rahmen, lädt Gewerbe/Jahre/Badges/Eingang-Zähler) + `components/Sidebar.jsx` (262 px, ab `lg`
   fest links; darunter dieselbe Leiste als **Schublade** + Royal-Leiste oben + **Tab-Leiste unten**
-  mit Buchungen/Rechnungen/Check/Mehr). Inhalt: Wortmarke, „Neue Buchung" + Upload-Icon,
+  mit Übersicht/Buchungen/Rechnungen/Check/Mehr). Inhalt: Wortmarke, „Neue Buchung" + Upload-Icon,
   Gewerbe/Jahr-Kapseln, **„Jetzt"-Zeile = Beleg-Eingang** (nur wenn etwas wartet), Nav
-  (Buchungen · Rechnungen · Jahres-Check mit Badge · Abschreibungen), „Weitere" (Export, Gewerbe,
+  (Übersicht · Buchungen · Rechnungen · Jahres-Check mit Badge · Abschreibungen), „Weitere" (Export, Gewerbe,
   Einrichtung & Hilfe), unten die Profilzeile (Menü: E-Mail-Versand, Neuigkeiten, Abmelden).
   **Keine Wellen** (Lars: die sind recap-Sprache). Aufrufe von außen per URL an `/buchungen`:
   `?neu=…` öffnet das BuchungModal, `?abarbeiten=…` startet den Eingang-Wizard, `?geteilt=…` ist
@@ -212,6 +212,21 @@ der Mapping-Version des Jahres aufgelöst.
   Jahres-Check). Neue Seiten/Listen nur noch mit diesen Bausteinen bauen. **Dialoge:** `Modal`
   (Titel 26/900, `subtitle`, Kreuz) + `components/DialogParts.jsx` (`SchalterZeile` statt Häkchen,
   `DialogFuss`, `Gruppe`, `PositionenEditor`) — keine nativen Checkboxen und keine Rahmen-Kästen mehr.
+- **Übersicht (`/uebersicht`, `pages/Uebersicht.jsx`, `routes/uebersicht.py`, Startseite):** Aufbau nach Haben
+  (Kennzahlen + Aufgabenliste „Zu erledigen“ + offene/letzte Zeilen), **rechnet nichts selbst** — `GET
+  /api/uebersicht?gewerbe_id=&jahr=` sammelt aus vorhandenen Diensten: Kennzahlen (`services/kennzahlen.py`,
+  gemeinsam mit `/api/kennzahlen` und Vorjahr), Forderungen (versendete Rechnungen mit offenem Rest über
+  `zahlungen.offen_cent`, Fälligkeit über `mahnwesen.effektive_faelligkeit`), `aufgaben` und die letzten 5 Buchungen
+  (jahresunabhängig). **Aufgaben** nur, was wirklich offen ist, je mit `ton` (`neg` überfällig → `warn` → `leise`,
+  stabil sortiert), Ziel und der einen Hauptaktion: überfällige Rechnungen (→ Mahnwesen), dringende Steuerfrist
+  (gleiche Regel wie der Zähler an „Fristen“, `fristen_des_nutzers`), fällige Dauerbeleg-Termine, Beleg-Eingang
+  (startet den Wizard, `?abarbeiten=`), Bankumsätze ohne Zuordnung, Rechnungsentwürfe, Angebote ohne Antwort,
+  jüngstes nicht abgeschlossenes Vorjahr mit Buchungen. Der **Jahres-Check** kommt nur aus dem Frontend (sein Stand
+  liegt in localStorage, `checkOffen` aus dem Layout-Context) und wird als letzte Zeile angehängt. Neue
+  Aufgabenart = Block in `_aufgaben()` + Icon in `ICON` (Uebersicht.jsx). `KuGuard` (Warnband bei Überschreiten der
+  KU-Grenzen) lebt in `components/KuGuard.jsx` und läuft auf Buchungen und Übersicht. Login, OAuth-Callback und
+  Wortmarke führen hierher (`*` → `/uebersicht`). Nicht gebaut: Monatsverlauf/Diagramm, Kontostand, Einnahmen-
+  Vergleich über mehrere Gewerbe, frei wählbare Kacheln.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.

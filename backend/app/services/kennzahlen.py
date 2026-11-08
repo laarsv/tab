@@ -1,0 +1,48 @@
+"""Kennzahlen eines Gewerbes in einem Jahr — gemeinsam für die Buchungen-Seite und die Übersicht."""
+from __future__ import annotations
+
+import sqlite3
+
+from .privatanteil import BETRIEBLICH_SQL
+
+# §19 UStG Kleinunternehmer-Grenzen (brutto), in Cent.
+KU_GRENZE_VORJAHR_CENT = 25_000_00
+KU_GRENZE_LAUFEND_CENT = 100_000_00
+
+
+def summen(db: sqlite3.Connection, gewerbe_id: int, jahr: int) -> dict:
+    """Einnahmen, Ausgaben (nur der betriebliche Teil) und KU-Umsatz in Cent.
+
+    ku_umsatz: Gesamtumsatz i. S. d. §19 Abs. 2 UStG — steuerfreie Umsätze nach §4 Nr. 11 (Courtage)
+    und Verkäufe von Anlagevermögen bleiben außer Ansatz.
+    """
+    row = db.execute(
+        f"""
+        SELECT
+          COALESCE(SUM(CASE WHEN k.typ='einnahme' THEN p.betrag_cent ELSE 0 END), 0) AS einnahmen,
+          COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN {BETRIEBLICH_SQL} ELSE 0 END), 0) AS ausgaben,
+          COALESCE(SUM(CASE WHEN k.key='einnahme_ku' THEN p.betrag_cent ELSE 0 END), 0) AS ku_umsatz
+        FROM buchung_position p
+        JOIN buchung b ON b.id = p.buchung_id
+        JOIN kategorie k ON k.id = p.kategorie_id
+        WHERE b.gewerbe_id = ? AND substr(b.datum,1,4) = ?
+        """,
+        (gewerbe_id, str(jahr)),
+    ).fetchone()
+    return {
+        "einnahmen_cent": row["einnahmen"],
+        "ausgaben_cent": row["ausgaben"],
+        "ku_umsatz_cent": row["ku_umsatz"],
+    }
+
+
+def mit_ku_guard(werte: dict) -> dict:
+    """Ergänzt Grenzen und Warnungen (Vorjahres- und laufende Grenze)."""
+    ku = werte["ku_umsatz_cent"]
+    return {
+        **werte,
+        "ku_grenze_vorjahr_cent": KU_GRENZE_VORJAHR_CENT,
+        "ku_grenze_laufend_cent": KU_GRENZE_LAUFEND_CENT,
+        "ku_warn_vorjahr": ku > KU_GRENZE_VORJAHR_CENT,
+        "ku_warn_laufend": ku > KU_GRENZE_LAUFEND_CENT,
+    }

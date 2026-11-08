@@ -10,6 +10,7 @@ import {
   IconChecklist,
   IconChevronDown,
   IconDownload,
+  IconGrid,
   IconInfo,
   IconList,
   IconLock,
@@ -27,6 +28,7 @@ import {
 // Farben nur Weiß mit Alpha auf Royal (Text mindestens 78 %).
 
 const NAV = [
+  { to: '/uebersicht', label: 'Übersicht', icon: IconGrid },
   { to: '/buchungen', label: 'Buchungen', icon: IconList },
   { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt, badge: 'rechnungen' },
   { to: '/bank', label: 'Bank', icon: IconBank, badge: 'bank' },
@@ -175,9 +177,9 @@ export default function Sidebar({
   return (
     <nav aria-label="Seitenleiste, Navigation" className="flex h-full w-full flex-col overflow-y-auto bg-royal px-3.5 pb-3.5 pt-5 text-paper">
       <Link
-        to="/buchungen"
+        to="/uebersicht"
         onClick={onNavigate}
-        title="Zu den Buchungen"
+        title="Zur Übersicht"
         className="self-start rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-paper/70"
       >
         <Wordmark onRoyal className="text-[22px] leading-none" />

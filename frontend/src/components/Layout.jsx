@@ -8,7 +8,7 @@ import MailSetupModal from './MailSetupModal.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
 import Sidebar from './Sidebar.jsx';
 import Wordmark from './Wordmark.jsx';
-import { IconChecklist, IconInbox, IconList, IconMenu, IconReceipt, IconX } from './Icons.jsx';
+import { IconChecklist, IconGrid, IconInbox, IconList, IconMenu, IconReceipt, IconX } from './Icons.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
 import { syncGelesen, ungelesene } from '../lib/neuigkeiten.js';
 import { ACCEPT } from '../lib/belege.js';
@@ -16,6 +16,7 @@ import { todayISO } from '../lib/format.js';
 
 // Tab-Leiste am Handy (unter lg): die drei Hauptziele + „Mehr“ öffnet die Schublade.
 const TABS = [
+  { to: '/uebersicht', label: 'Übersicht', icon: IconGrid },
   { to: '/buchungen', label: 'Buchungen', icon: IconList },
   { to: '/rechnungen', label: 'Rechnungen', icon: IconReceipt, badge: 'rechnungen' },
   { to: '/check', label: 'Check', icon: IconChecklist, badge: 'check' },
@@ -174,6 +175,7 @@ export default function Layout() {
     reloadGewerbe: loadGewerbe,
     reloadBadges: () => loadBadges(gewerbeId, jahr),
     jahrAbgeschlossen,
+    checkOffen,
     setGewerbeId,
     openMailSetup: () => setMailModal(true),
     uploadBelege,
@@ -254,7 +256,7 @@ export default function Layout() {
       {/* Handy/Tablet: schmale Royal-Leiste oben */}
       <header className="sticky top-0 z-30 bg-royal pt-[env(safe-area-inset-top)] text-paper lg:hidden">
         <div className="flex h-14 items-center gap-2 px-4">
-          <Link to="/buchungen" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-paper/70">
+          <Link to="/uebersicht" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-paper/70">
             <Wordmark onRoyal className="text-xl leading-none" />
           </Link>
           <div className="flex-1" />
