@@ -21,7 +21,7 @@ import os
 import sqlite3
 
 from ..config import settings
-from .afa import jahres_afa_cent
+from .afa import afa_jahr
 from .audit import jetzt_iso, kette_pruefen, trigger_fehlen
 
 SIEGEL_VERSION = 1
@@ -52,7 +52,7 @@ def _datei_sha256(stored_name: str) -> str:
 def _afa_betrifft(a: sqlite3.Row, jahr: int) -> bool:
     if int(a["anschaffungsdatum"][:4]) > jahr:
         return False
-    return not a["abgang_datum"] or int(a["abgang_datum"][:4]) >= jahr
+    return not a["abgang_datum"] or a["afa_methode"] == "sammelposten" or int(a["abgang_datum"][:4]) >= jahr
 
 
 def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, dict]:
@@ -79,14 +79,12 @@ def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, d
     # Nur, was die Sperre schützt: Bezeichnung/Beschreibung und ein Abgang NACH dem Jahr bleiben
     # änderbar und gehören deshalb nicht ins Siegel. Ein Abgang im Jahr selbst steckt im berechneten
     # Jahres-AfA-Betrag.
+    # degressiv_bp/linear_ab_jahr nur, wenn gesetzt: Siegel aus der Zeit vor v25 bleiben nachrechenbar
     afa = [
         [
             a["id"], a["kategorie_id"], a["anschaffungsdatum"], a["anschaffungskosten_cent"],
-            a["nutzungsdauer_jahre"], a["afa_methode"],
-            jahres_afa_cent(
-                a["anschaffungskosten_cent"], a["anschaffungsdatum"], a["nutzungsdauer_jahre"], jahr, a["abgang_datum"]
-            ),
-        ]
+            a["nutzungsdauer_jahre"], a["afa_methode"], afa_jahr(a, jahr),
+        ] + ([a["degressiv_bp"], a["linear_ab_jahr"]] if a["degressiv_bp"] or a["linear_ab_jahr"] else [])
         for a in conn.execute("SELECT * FROM afa_buchung WHERE gewerbe_id = ? ORDER BY id", (gewerbe_id,))
         if _afa_betrifft(a, jahr)
     ]

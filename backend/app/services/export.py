@@ -19,7 +19,7 @@ import os
 import sqlite3
 import zipfile
 
-from .afa import jahres_afa_cent
+from .afa import afa_jahr, methode_text
 from .privatanteil import betrieblich_cent
 from ..config import settings
 from ..seed import nie_befuellt
@@ -117,7 +117,7 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
     # AfA -> Jahres-AfA-Betrag in die jeweilige (ist_afa-)Zeile.
     for r in conn.execute(
         "SELECT kategorie_id, anschaffungskosten_cent, anschaffungsdatum, "
-        "nutzungsdauer_jahre, abgang_datum "
+        "nutzungsdauer_jahre, abgang_datum, afa_methode, degressiv_bp, linear_ab_jahr "
         "FROM afa_buchung WHERE gewerbe_id = ?",
         (gewerbe_id,),
     ):
@@ -126,13 +126,7 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
                 f"AfA-Kategorie „{kategorien[r['kategorie_id']]['name']}“ hat kein "
                 f"EÜR-Mapping für {jahr}. Mapping in seed.py ergänzen und neu deployen."
             )
-        betrag = jahres_afa_cent(
-            r["anschaffungskosten_cent"],
-            r["anschaffungsdatum"],
-            r["nutzungsdauer_jahre"],
-            jahr,
-            r["abgang_datum"],
-        )
+        betrag = afa_jahr(r, jahr)
         if betrag <= 0:
             continue
         nummer = mapping[r["kategorie_id"]]
@@ -274,20 +268,15 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
     for r in conn.execute(
         """
         SELECT a.anschaffungskosten_cent, a.anschaffungsdatum, a.nutzungsdauer_jahre,
-               a.abgang_datum, a.bezeichnung, a.kategorie_id, k.name AS kat_name
+               a.abgang_datum, a.afa_methode, a.degressiv_bp, a.linear_ab_jahr,
+               a.bezeichnung, a.kategorie_id, k.name AS kat_name
         FROM afa_buchung a JOIN kategorie k ON k.id = a.kategorie_id
         WHERE a.gewerbe_id = ?
         ORDER BY a.anschaffungsdatum, a.id
         """,
         (gewerbe_id,),
     ):
-        betrag = jahres_afa_cent(
-            r["anschaffungskosten_cent"],
-            r["anschaffungsdatum"],
-            r["nutzungsdauer_jahre"],
-            jahr,
-            r["abgang_datum"],
-        )
+        betrag = afa_jahr(r, jahr)
         if betrag <= 0:
             continue
         zeile = mapping.get(r["kategorie_id"], "")
@@ -300,7 +289,7 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
                 format_cent_de(betrag),
                 "100",
                 f"Jahres-AfA {r['bezeichnung']} (Anschaffung {_date_de(r['anschaffungsdatum'])}, "
-                f"ND {r['nutzungsdauer_jahre']} J."
+                + (f"ND {r['nutzungsdauer_jahre']} J." if r["afa_methode"] in (None, "linear") else methode_text(r))
                 + (f", Abgang {_date_de(r['abgang_datum'])}" if r["abgang_datum"] else "")
                 + ")",
                 "",

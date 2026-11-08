@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 28,
+    datum: '2026-11-08',
+    titel: 'Mehr Abschreibungsmethoden bei der AfA',
+    text: 'Unter „Abschreibungen“ wählst du jetzt die Methode: linear wie bisher, degressiv (für Anschaffungen vom 01.07.2025 bis 31.12.2027 bis zu 30 %, Tab wechselt von selbst zur linearen AfA, sobald sie höher ist), die Staffel für Elektrofahrzeuge (75/10/5/5/3/2 %) und den Sammelposten für Anschaffungen von 250,01 bis 1.000 € (je ein Fünftel in fünf Jahren). Tab zeigt dir beim Anlegen den kompletten Plan mit dem Restwert je Jahr und bietet nur Methoden an, die für das Datum gelten. Bestehende Anlagen bleiben linear und rechnen wie vorher. Die gewählte Methode steht im Journal. Welche Methode für dich sinnvoll ist, klärst du im Zweifel mit der Steuerberatung.',
+  },
+  {
     id: 27,
     datum: '2026-11-08',
     titel: 'Dauerbelege und Privatanteil',

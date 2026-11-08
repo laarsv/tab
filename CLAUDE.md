@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -102,6 +102,31 @@ der Mapping-Version des Jahres aufgelöst.
   Jahres-AfA fließt in die AfA-Zeile (2025: 33, 2026: 34), wird **berechnet, nicht gespeichert**. **Abgang**
   (`abgang_datum`): AfA endet mit dem Abgangsmonat; `restbuchwert_cent` wird berechnet und im
   UI als Hinweis gezeigt (manuell als Buchung in der Restbuchwert-Zeile erfassen, Erlös Zeile 19).
+- **AfA-Methoden (`afa_buchung.afa_methode`, `degressiv_bp`, `linear_ab_jahr`, v25; Aufbau nach Haben):**
+  `linear` (Standard; die Rechnung ist seit jeher unverändert, Altanlagen und alte Siegel rechnen gleich),
+  `degressiv` (§ 7 Abs. 2 EStG), `elektro` (§ 7 Abs. 2a), `sammelposten` (§ 6 Abs. 2a). **Alles läuft über
+  `services/afa.verlauf()`** (Plan je Jahr mit Buchwert); `afa_jahr(row, jahr)`, `afa_restbuchwert(row)` und
+  `methode_text(row)` sind die Einstiege für Export, Siegel und Liste — nie `jahres_afa_cent` mit Teilfeldern
+  direkt aufrufen. **Degressiv:** fester Satz vom Buchwert am Jahresanfang, im Anschaffungsjahr ab dem
+  Anschaffungsmonat; **Wechsel zur linearen AfA**, sobald diese (Buchwert / Restmonate) ≥ der degressiven ist
+  (§ 7 Abs. 3), oder ab `linear_ab_jahr`. Zulässig nur für Anschaffungen **01.07.2025–31.12.2027** (höchstens
+  Dreifaches des linearen Satzes, max. 30 %), **01.04.–31.12.2024** (2×, max. 20 %), **2020–2022** (2,5×, max.
+  25 %) und Nutzungsdauer ≥ 2 — `degressiv_grenze()` ist die einzige Quelle; ohne Satz gilt der Höchstsatz.
+  Kontrolle gegen Habens Rechenbeispiel (100.000 €, 30 %, ND 10) auf den Cent im Test. **Elektro:** Staffel
+  75/10/5/5/3/2 % der AK, Anschaffung 01.07.2025–31.12.2027, Dauer fest 6 Jahre; bei Abgang zählt das Jahr
+  zeitanteilig bis zum Abgangsmonat. Ob es wirklich ein reines E-Fahrzeug ist, prüft Tab nicht (Nutzer
+  entscheidet). **Sammelposten:** je ein Fünftel im Anschaffungsjahr und den vier Folgejahren, unabhängig vom
+  Monat, Dauer fest 5; **ein Abgang ändert nichts** (kein Restbuchwert) — deshalb gilt die Jahres-Sperre für
+  Sammelposten auch nach dem Abgangsjahr (`_afa_betrifft` in `audit.py` und `abschluss.py`). Die Grenzen
+  250,01–1.000 € sind nur ein **weicher Hinweis** (kommt als `hinweise` aus der API, mit dem Hinweis auf das
+  einheitliche Wahlrecht je Wirtschaftsjahr). **Elektro/Sammelposten setzen die Nutzungsdauer selbst.**
+  **Formular:** `GET /api/afa/optionen` (zulässige Methoden + Höchstsatz) und `POST /api/afa/vorschau` (Plan vor
+  dem Speichern); Methoden, die für das Datum nicht gelten, fallen auf linear zurück. **Sperre/Siegel:**
+  `afa_methode`/`degressiv_bp`/`linear_ab_jahr` sind in abgeschlossenen Jahren gesperrt (Trigger), im Siegel
+  stecken Satz und Wechseljahr nur, wenn gesetzt (Siegel vor v25 bleiben nachrechenbar). Das Journal nennt bei
+  nicht linearen Anlagen die Methode statt „ND n J.“. Nicht gebaut: Erinnerungswert 1 €, Übernahme mit
+  Restbuchwert zum Stichtag (Tab rechnet immer ab dem Anschaffungsdatum), Anlage AVEÜR, Sonderabschreibung
+  § 7g, Antriebsprüfung beim E-Fahrzeug.
 - **GWG:** weicher Hinweis im UI (800 € netto ≈ 952 € brutto), keine harte Prüfung. Weitere
   Soft-Hinweise: Geschenke > 50 € (Freigrenze), Homeoffice > 1.260 €/Jahr.
 - **Rechner-Helfer (`BuchungModal.jsx`, `CALCULATORS`):** Fahrtkosten (km × 0,30 €),

@@ -169,6 +169,9 @@ keine eigene Kategorie, bei Bedarf als „Sonstige" erfassen und mit dem Steuerb
    2026: Zeile 34), nicht der Kaufpreis. **Computer-Hardware/Software:** Nutzungsdauer 1 Jahr
    zulässig → faktisch Vollabzug im Kaufjahr, läuft aber als AfA über die AfA-Zeile (nicht als
    laufende Ausgabe).
+   **Methoden:** linear (Standard), degressiv (Anschaffung 01.07.2025–31.12.2027: bis 30 %, höchstens das
+   Dreifache des linearen Satzes), Elektro-Staffel 75/10/5/5/3/2 % (§ 7 Abs. 2a EStG) und Sammelposten
+   (250,01–1.000 €, je ein Fünftel in fünf Jahren) — alle in dieselbe AfA-Zeile.
 2. **GWG ≤800 € netto** → Sofortabzug (2025: Zeile 36, 2026: Zeile 37), kein AfA-Plan nötig.
 3. **Bewirtung:** Tool speichert 100 % des Belegs, EÜR-Export rechnet **70 %** in die
    Bewirtungszeile (2025: 63, 2026: 64). Die 30 % nicht abziehbar nicht doppelt erfassen.

@@ -116,7 +116,8 @@ def _afa_betrifft(r: str) -> str:
     return (
         "EXISTS (SELECT 1 FROM jahr_abschluss a WHERE a.abgeschlossen = 1 "
         f"AND a.gewerbe_id = {r}.gewerbe_id AND a.jahr >= {_jahr(r + '.anschaffungsdatum')} "
-        f"AND ({r}.abgang_datum IS NULL OR a.jahr <= {_jahr(r + '.abgang_datum')}))"
+        f"AND ({r}.abgang_datum IS NULL OR {r}.afa_methode = 'sammelposten' "
+        f"OR a.jahr <= {_jahr(r + '.abgang_datum')}))"  # der Sammelposten läuft nach einem Abgang weiter
     )
 
 
@@ -182,7 +183,9 @@ def _sperr_trigger() -> dict[str, str]:
         "OR OLD.anschaffungskosten_cent IS NOT NEW.anschaffungskosten_cent "
         "OR OLD.anschaffungsdatum IS NOT NEW.anschaffungsdatum "
         "OR OLD.nutzungsdauer_jahre IS NOT NEW.nutzungsdauer_jahre "
-        "OR OLD.afa_methode IS NOT NEW.afa_methode)"
+        "OR OLD.afa_methode IS NOT NEW.afa_methode "
+        "OR OLD.degressiv_bp IS NOT NEW.degressiv_bp "
+        "OR OLD.linear_ab_jahr IS NOT NEW.linear_ab_jahr)"
     )
     neu(
         "tab_lock_afa_upd", "BEFORE UPDATE ON afa_buchung",

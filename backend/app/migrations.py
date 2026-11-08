@@ -692,6 +692,16 @@ MIGRATIONS: list[Migration] = [
             WHERE dauerbeleg_id IS NOT NULL;
         """,
     ),
+    Migration(
+        version=25,
+        sql="""
+        -- v25: AfA-Methoden. Die Methode steht in afa_methode (seit v1: 'linear', jetzt auch 'degressiv',
+        --      'elektro', 'sammelposten'). degressiv_bp = Satz in Basispunkten (3000 = 30 %), linear_ab_jahr =
+        --      freiwilliger früherer Wechsel zur linearen AfA. Bestehende Anlagen bleiben linear.
+        ALTER TABLE afa_buchung ADD COLUMN degressiv_bp INTEGER;
+        ALTER TABLE afa_buchung ADD COLUMN linear_ab_jahr INTEGER;
+        """,
+    ),
 ]
 
 
