@@ -10,8 +10,10 @@ from __future__ import annotations
 import sqlite3
 
 from fpdf import FPDF
+from fpdf.enums import MethodReturnValue
 
 from .export import format_cent_de, _date_de
+from .girocode import GIRO_MM, epc_payload, kontoinhaber, zeichne_qr
 
 INK = (22, 26, 36)       # ink
 MUTED = (110, 115, 125)
@@ -39,6 +41,20 @@ def latin1(text: str | None) -> str:
     for a, b in _ERSATZ.items():
         s = s.replace(a, b)
     return s.encode("latin-1", "replace").decode("latin-1")
+
+
+def _giro_payload(rechnung, gewerbe, summe_cent: int) -> str | None:
+    """GiroCode-Text für diese Rechnung; None, wenn nichts (mehr) zu zahlen ist oder die
+    Angaben nicht reichen. Bezahlte und stornierte Rechnungen bekommen keinen Code."""
+    status = rechnung["status"] if "status" in rechnung.keys() else None  # Vorschau hat keinen
+    if status in ("bezahlt", "storniert"):
+        return None
+    return epc_payload(
+        name=kontoinhaber(gewerbe),
+        iban=gewerbe["iban"],
+        betrag_cent=summe_cent,
+        verwendungszweck=f"Rechnung {rechnung['nummer']}",
+    )
 
 
 def _menge_de(menge: float) -> str:
@@ -120,8 +136,14 @@ def build_rechnung_pdf(
     for p in positionen:
         betrag = round(p["menge"] * p["einzelpreis_cent"])
         summe += betrag
-        y0 = pdf.get_y()
         pdf.set_font("helvetica", "", 10)
+        # Zeile als Ganzes auf eine Seite: passt sie nicht mehr, vorher umbrechen. Sonst bricht die
+        # Bezeichnung um, und die Beträge landen auf der alten Seite (y0 gilt nur dort).
+        zeilen_n = len(pdf.multi_cell(w_pos, 5.4, latin1(p["beschreibung"]),
+                                      dry_run=True, output=MethodReturnValue.LINES))
+        if pdf.get_y() + max(5.4, zeilen_n * 5.4) + 3 > pdf.page_break_trigger:
+            pdf.add_page()
+        y0 = pdf.get_y()
         pdf.multi_cell(w_pos, 5.4, latin1(p["beschreibung"]))
         y1 = pdf.get_y()
         pdf.set_xy(22 + w_pos, y0)
@@ -149,21 +171,32 @@ def build_rechnung_pdf(
     hinweis = STEUERHINWEISE.get(rechnung["steuerhinweis"], STEUERHINWEISE["ku19"])
     pdf.multi_cell(0, 5, hinweis)
 
-    # Zahlungsinfo
+    # Zahlungsinfo — rechts daneben der GiroCode (EPC-QR), wenn es etwas zu zahlen gibt
     pdf.ln(6)
+    giro = _giro_payload(rechnung, gewerbe, summe)
+    if giro and pdf.get_y() + GIRO_MM + 2 > 272:  # Block samt Code nicht über den Seitenumbruch
+        pdf.add_page()
+    y_zahlung = pdf.get_y()
+    breite = 135 if giro else 0  # Textspalte; rechts bleiben 26 mm + Ruhezone für den Code
     pdf.set_font("helvetica", "", 10)
     pdf.set_text_color(*INK)
     if rechnung["faellig_am"]:
-        pdf.cell(0, 5.4, f"Zahlbar bis zum {_date_de(rechnung['faellig_am'])}.",
+        pdf.cell(breite, 5.4, f"Zahlbar bis zum {_date_de(rechnung['faellig_am'])}.",
                  new_x="LMARGIN", new_y="NEXT")
     if gewerbe["iban"]:
-        pdf.cell(0, 5.4, latin1(f"Bitte überweisen Sie den Betrag auf: IBAN {gewerbe['iban']}"),
-                 new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(breite, 5.4, latin1(f"Bitte überweisen Sie den Betrag auf: IBAN {gewerbe['iban']}"),
+                       align="L", new_x="LMARGIN", new_y="NEXT")
+    if (gewerbe["kontoinhaber"] or "").strip():
+        pdf.multi_cell(breite, 5.4, latin1(f"Kontoinhaber: {gewerbe['kontoinhaber'].strip()}"),
+                       align="L", new_x="LMARGIN", new_y="NEXT")
     if gewerbe["rechnung_fusszeile"]:
         pdf.set_font("helvetica", "", 9)
         pdf.set_text_color(*MUTED)
         for zeile in gewerbe["rechnung_fusszeile"].splitlines():
-            pdf.cell(0, 4.8, latin1(zeile), new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(breite, 4.8, latin1(zeile), align="L", new_x="LMARGIN", new_y="NEXT")
+    if giro:
+        zeichne_qr(pdf, giro, 190 - GIRO_MM, y_zahlung, GIRO_MM)
+        pdf.set_y(max(pdf.get_y(), y_zahlung + GIRO_MM + 1))
     if rechnung["notiz"]:
         pdf.ln(3)
         pdf.set_font("helvetica", "", 10)

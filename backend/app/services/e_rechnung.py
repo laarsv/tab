@@ -113,10 +113,13 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
     zahlung_xml = ""
     if gewerbe["iban"]:
         iban = gewerbe["iban"].replace(" ", "")
+        # Name des Zahlungskontos (BT-85) nur, wenn ein Kontoinhaber ausdrücklich hinterlegt ist
+        konto_name = (gewerbe["kontoinhaber"] or "").strip()
+        konto_name_xml = f"<ram:AccountName>{escape(konto_name)}</ram:AccountName>" if konto_name else ""
         zahlung_xml = f"""
       <ram:SpecifiedTradeSettlementPaymentMeans>
         <ram:TypeCode>58</ram:TypeCode>
-        <ram:PayeePartyCreditorFinancialAccount><ram:IBANID>{escape(iban)}</ram:IBANID></ram:PayeePartyCreditorFinancialAccount>
+        <ram:PayeePartyCreditorFinancialAccount><ram:IBANID>{escape(iban)}</ram:IBANID>{konto_name_xml}</ram:PayeePartyCreditorFinancialAccount>
       </ram:SpecifiedTradeSettlementPaymentMeans>"""
 
     # Fälligkeit (BT-9) + Zahlungsbedingungen: Pflicht, wenn ein Betrag zu zahlen ist (BR-CO-25).

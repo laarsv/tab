@@ -12,6 +12,14 @@ import sqlite3
 from fpdf import FPDF
 
 from .export import _date_de, format_cent_de
+from .girocode import (
+    GIRO_MM,
+    absender_name,
+    epc_payload,
+    kontoinhaber,
+    zeichne_platzhalter,
+    zeichne_qr,
+)
 from .mahnwesen import STUFEN, effektive_faelligkeit
 from .rechnung_pdf import INK, LINE, MUTED, ROYAL, latin1 as _t
 
@@ -146,12 +154,28 @@ def build_mahnung_pdf(
              new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
 
-    # Zahlungsaufforderung
+    # Zahlungsaufforderung — rechts daneben der GiroCode über den Gesamtbetrag (im Entwurf nur ein
+    # Platzhalter: ein Entwurf soll nicht bezahlt werden)
+    giro = epc_payload(
+        name=kontoinhaber(gewerbe),
+        iban=gewerbe["iban"],
+        betrag_cent=mahnung["gesamt_cent"],
+        verwendungszweck=f"Rechnung {rechnung['nummer']}",
+    )
+    if giro and pdf.get_y() + GIRO_MM + 2 > 272:
+        pdf.add_page()
+    y_zahlung = pdf.get_y()
+    if giro:
+        if entwurf:
+            zeichne_platzhalter(pdf, 190 - GIRO_MM, y_zahlung)
+        else:
+            zeichne_qr(pdf, giro, 190 - GIRO_MM, y_zahlung)
+        pdf.set_xy(22, y_zahlung)
     pdf.set_font("helvetica", "B", 10)
     pdf.set_text_color(*INK)
     konto = f" auf das Konto IBAN {gewerbe['iban']}" if gewerbe["iban"] else ""
     pdf.multi_cell(
-        0, 5.4,
+        135 if giro else 0, 5.4,
         _t(
             f"Bitte überweisen Sie {format_cent_de(mahnung['gesamt_cent'])} EUR bis zum "
             f"{_date_de(mahnung['frist_am'])}{konto} unter Angabe der Rechnungsnummer "
@@ -159,6 +183,8 @@ def build_mahnung_pdf(
         ),
         align="L",
     )
+    if giro:
+        pdf.set_y(max(pdf.get_y(), y_zahlung + GIRO_MM + 1))
     pdf.ln(3)
     pdf.set_font("helvetica", "", 10)
     if (mahnung["schluss"] or "").strip():
@@ -166,7 +192,7 @@ def build_mahnung_pdf(
         pdf.ln(3)
     pdf.ln(2)
     pdf.cell(0, 5.4, "Mit freundlichen Grüßen", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 5.4, _t(gewerbe["name"] or ""), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5.4, _t(absender_name(gewerbe)), new_x="LMARGIN", new_y="NEXT")
 
     if gewerbe["rechnung_fusszeile"]:
         pdf.ln(6)

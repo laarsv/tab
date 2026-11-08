@@ -21,6 +21,7 @@ class GewerbeIn(BaseModel):
     besteuerung: str = "kleinunternehmer"
     anschrift: str | None = None          # Rechnungs-Absender (Name + Adresse, mehrzeilig)
     iban: str | None = None
+    kontoinhaber: str | None = Field(default=None, max_length=70)  # GiroCode/BT-85; leer = Anschrift
     rechnung_fusszeile: str | None = None
 
     @field_validator("besteuerung")
@@ -38,6 +39,7 @@ class GewerbePatch(BaseModel):
     besteuerung: str | None = None
     anschrift: str | None = None
     iban: str | None = None
+    kontoinhaber: str | None = Field(default=None, max_length=70)
     rechnung_fusszeile: str | None = None
     # Zahlung & Mahnwesen (v17)
     zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)
@@ -77,14 +79,15 @@ def create_gewerbe(
     db: sqlite3.Connection = Depends(get_db),
 ):
     cur = db.execute(
-        "INSERT INTO gewerbe (name, steuernummer, besteuerung, anschrift, iban, "
-        "rechnung_fusszeile, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO gewerbe (name, steuernummer, besteuerung, anschrift, iban, kontoinhaber, "
+        "rechnung_fusszeile, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             body.name.strip(),
             (body.steuernummer or "").strip() or None,
             body.besteuerung,
             (body.anschrift or "").strip() or None,
             (body.iban or "").strip() or None,
+            (body.kontoinhaber or "").strip() or None,
             (body.rechnung_fusszeile or "").strip() or None,
             user["email"],
         ),
@@ -113,6 +116,7 @@ def update_gewerbe(
     for col, val in [
         ("anschrift", body.anschrift),
         ("iban", body.iban),
+        ("kontoinhaber", body.kontoinhaber),
         ("rechnung_fusszeile", body.rechnung_fusszeile),
     ]:
         if val is not None:

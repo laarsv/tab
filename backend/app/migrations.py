@@ -453,6 +453,15 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_mahnung_rechnung ON mahnung(rechnung_id);
         """,
     ),
+    Migration(
+        version=18,
+        sql="""
+        -- v18: Kontoinhaber für den GiroCode (EPC-QR) und die E-Rechnung (BT-85). Banken prüfen
+        --      beim Überweisen, ob der Empfängername zum Konto passt (Empfängerüberprüfung).
+        --      NULL = erste Zeile der Rechnungs-Anschrift.
+        ALTER TABLE gewerbe ADD COLUMN kontoinhaber TEXT;
+        """,
+    ),
 ]
 
 

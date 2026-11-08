@@ -792,7 +792,8 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
 
         <Hinweis className="text-xs">
           Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen automatisch aufs PDF —
-          das zugleich eine <strong>E-Rechnung</strong> ist (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden
+          samt <strong>GiroCode</strong> zum Bezahlen per QR-Scan —, das zugleich eine <strong>E-Rechnung</strong>{' '}
+          ist (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden
           bei „Als Einnahme buchen" der Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
         </Hinweis>
 

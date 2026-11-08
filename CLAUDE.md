@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`.
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -262,7 +262,17 @@ der Mapping-Version des Jahres aufgelöst.
   (`lib/mahnwesen.js`, gleiche Formel) — maßgeblich ist der Server. Mahnungen sind
   Schadensersatz/Zins, **kein Entgelt**: keine USt, keine automatische Buchung (Hinweis im
   Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Teilzahlungen (Rechnung
-  ist bezahlt oder nicht), GiroCode, Skonto, Mahnbescheid.
+  ist bezahlt oder nicht), Skonto, Mahnbescheid.
+- **GiroCode (`services/girocode.py`, v18):** EPC-QR (Version 002, UTF-8, Fehlerkorrektur M,
+  Bibliothek `segno`, als Vektor ins PDF gezeichnet) neben der Zahlungsinfo der Rechnung und der
+  Zahlungsaufforderung der Mahnung (Betrag = Rechnungssumme bzw. Mahn-Gesamtbetrag,
+  Verwendungszweck „Rechnung {nr}"). **Nie blockierend:** ohne IBAN, mit ungültiger IBAN
+  (Prüfziffer mod 97), Betrag 0 oder leerem Namen kommt das PDF ohne Code; bezahlte/stornierte
+  Rechnungen und der Mahn-Entwurf (Platzhalter) bekommen keinen. Empfängername =
+  `gewerbe.kontoinhaber`, sonst erste Zeile der Anschrift (`absender_name` — der interne
+  Gewerbe-Name ist oft nur ein Etikett wie „Makler"); Banken prüfen ihn bei der
+  Empfängerüberprüfung. Ausdrücklich gesetzter Kontoinhaber steht auch im PDF und als
+  `AccountName` (BT-85) in der E-Rechnung. Die Positionstabelle bricht Zeilen nur als Ganzes um.
 - **PDF-Texte (`rechnung_pdf.latin1`):** Core-Font Helvetica ist Latin-1 — jeder
   Nutzertext (Position, Notiz, Anschrift, Fußzeile, Mahntexte) läuft durch `latin1()`
   (Gedankenstrich/Anführungszeichen/€ werden ersetzt), sonst bricht die PDF-Erzeugung ab.

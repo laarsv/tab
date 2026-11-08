@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 21,
+    datum: '2026-11-08',
+    titel: 'GiroCode auf Rechnung und Mahnung',
+    text: 'Rechnungen und Mahnungen tragen jetzt einen GiroCode: Dein Kunde scannt ihn mit der Banking-App, und die Überweisung ist mit IBAN, Betrag und Rechnungsnummer ausgefüllt. Voraussetzung ist deine IBAN beim Gewerbe. Dort kannst du auch den Kontoinhaber eintragen — Banken prüfen beim Überweisen, ob der Empfängername zum Konto passt. Bezahlte und stornierte Rechnungen bekommen keinen Code. Außerdem behoben: Sehr lange Rechnungen rissen eine Position über den Seitenumbruch, und die Mahnung grüßte mit dem internen Gewerbe-Namen statt mit deinem Namen.',
+  },
+  {
     id: 20,
     datum: '2026-11-08',
     titel: 'Fälligkeit und Mahnwesen',

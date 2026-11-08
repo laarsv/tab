@@ -58,6 +58,7 @@ export default function Gewerbe() {
       besteuerung: editing.besteuerung || 'kleinunternehmer',
       anschrift: editing.anschrift?.trim() || null,
       iban: editing.iban?.trim() || null,
+      kontoinhaber: editing.kontoinhaber?.trim() || null,
       rechnung_fusszeile: editing.rechnung_fusszeile?.trim() || null,
     };
     if (!body.name) return toast.error('Name ist Pflicht.');
@@ -138,6 +139,7 @@ export default function Gewerbe() {
       besteuerung: 'kleinunternehmer',
       anschrift: '',
       iban: '',
+      kontoinhaber: '',
       rechnung_fusszeile: '',
     });
   }
@@ -190,6 +192,7 @@ export default function Gewerbe() {
                         besteuerung: g.besteuerung || 'kleinunternehmer',
                         anschrift: g.anschrift || '',
                         iban: g.iban || '',
+                        kontoinhaber: g.kontoinhaber || '',
                         rechnung_fusszeile: g.rechnung_fusszeile || '',
                         zahlungsziel_tage: String(g.zahlungsziel_tage ?? 14),
                         mahn_frist_tage: String(g.mahn_frist_tage ?? 10),
@@ -269,6 +272,21 @@ export default function Gewerbe() {
                 />
               </label>
             </div>
+
+            <label className="block">
+              <span className="field-label">Kontoinhaber (optional)</span>
+              <input
+                className="input"
+                value={editing.kontoinhaber}
+                maxLength={70}
+                onChange={(e) => setEditing({ ...editing, kontoinhaber: e.target.value })}
+                placeholder="leer = erste Zeile der Anschrift"
+              />
+              <span className="mt-1 block text-xs text-ink/60">
+                Mit IBAN druckt Tab einen GiroCode auf Rechnung und Mahnung. Banken prüfen beim Überweisen, ob der
+                Empfängername zum Konto passt — trag hier den Namen ein, auf den dein Konto läuft.
+              </span>
+            </label>
 
             <SchalterZeile
               titel="Kleinunternehmer §19 UStG"
