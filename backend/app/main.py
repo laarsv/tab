@@ -24,6 +24,7 @@ from .routes import (
     afa,
     angebote,
     bank,
+    berater,
     belege,
     buchungen,
     dauerbelege,
@@ -45,7 +46,9 @@ from .seed import seed
 from .services.abo import run_faellige_abos
 from .services.audit import SPERR_PRAEFIX, ensure_triggers
 from .services.mail_import import run_mail_import
+from .auth.berater_guard import berater_erlaubt
 from .auth.router import router as auth_router
+from .auth.session import decode_session
 
 ABO_INTERVALL_SEKUNDEN = 6 * 3600
 MAIL_IMPORT_INTERVALL_SEKUNDEN = 10 * 60
@@ -103,6 +106,16 @@ async def integritaet_fehler(request: Request, exc: sqlite3.IntegrityError):
         return JSONResponse(status_code=409, content={"detail": text.split(": ", 1)[1]})
     raise exc
 
+@app.middleware("http")
+async def steuerberatung_nur_lesen(request: Request, call_next):
+    """Sitzungen der Steuerberatung dürfen nur die Abfragen aus auth/berater_guard.py — alles andere 403."""
+    token = request.cookies.get(settings.COOKIE_NAME)
+    payload = decode_session(token) if token else None
+    if payload and payload.get("berater") and not berater_erlaubt(request.method, request.url.path):
+        return JSONResponse(status_code=403, content={"detail": "Der Zugang für die Steuerberatung kann nur lesen."})
+    return await call_next(request)
+
+
 # OAuth-State (Authlib) läuft über die Starlette-Session (signiertes Cookie).
 app.add_middleware(
     SessionMiddleware,
@@ -143,6 +156,7 @@ app.include_router(bank.router)
 app.include_router(angebote.router)
 app.include_router(dauerbelege.router)
 app.include_router(uebersicht.router)
+app.include_router(berater.router)
 app.include_router(vorlagen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)

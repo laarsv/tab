@@ -19,6 +19,10 @@ import Dauerbelege from './pages/Dauerbelege.jsx';
 import Mahnwesen from './pages/Mahnwesen.jsx';
 import MahnungNeu from './pages/MahnungNeu.jsx';
 import Einrichtung from './pages/Einrichtung.jsx';
+import Steuerberatung from './pages/Steuerberatung.jsx';
+import Einladung from './pages/Einladung.jsx';
+import Berater from './pages/Berater.jsx';
+import BeraterLayout from './components/BeraterLayout.jsx';
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -28,9 +32,22 @@ function Protected({ children }) {
 }
 
 export default function App() {
+  const { user } = useAuth();
+  // Die Steuerberatung bekommt ihre eigene, lesende Oberfläche — nichts vom Rest der App.
+  if (user?.rolle === 'steuerberatung') {
+    return (
+      <Routes>
+        <Route element={<BeraterLayout />}>
+          <Route path="/berater" element={<Berater />} />
+          <Route path="*" element={<Navigate to="/berater" replace />} />
+        </Route>
+      </Routes>
+    );
+  }
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/einladung/:token" element={<Einladung />} />
       <Route
         element={
           <Protected>
@@ -54,6 +71,7 @@ export default function App() {
         <Route path="/rechnungen/mahnwesen" element={<Mahnwesen />} />
         <Route path="/rechnungen/mahnwesen/:id" element={<MahnungNeu />} />
         <Route path="/einrichtung" element={<Einrichtung />} />
+        <Route path="/steuerberatung" element={<Steuerberatung />} />
         <Route path="/export" element={<Export />} />
         <Route path="/gewerbe" element={<Gewerbe />} />
         <Route path="*" element={<Navigate to="/uebersicht" replace />} />

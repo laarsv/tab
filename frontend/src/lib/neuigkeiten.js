@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 32,
+    datum: '2026-11-08',
+    titel: 'Zugang für deine Steuerberatung',
+    text: 'Unter „Steuerberatung“ (Seitenleiste, Bereich Weitere) erzeugst du einen Einladungslink für deine Steuerberatung. Mit dem Link legt sie einen eigenen Zugang an und sieht deine Auswertung (EÜR-Summenblatt), die Buchungen mit Belegen, die versendeten Rechnungen und die Abschreibungen. Journal und Jahresarchiv kann sie herunterladen. Der Zugang kann nur lesen: Buchen, Ändern, Löschen, Bank, Einstellungen und Backup bleiben bei dir, und der Server lehnt alles andere bei jeder Anfrage ab. Der Link gilt einmal und 72 Stunden, du siehst ihn nur beim Erzeugen. Jeden Zugang kannst du jederzeit sperren oder entfernen, das wirkt sofort.',
+  },
+  {
     id: 31,
     datum: '2026-11-08',
     titel: 'Rechnungen: Logo, Artikel, Textbausteine und Bestellnummer',

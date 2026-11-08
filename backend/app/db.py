@@ -55,6 +55,8 @@ def _akteur(request: Request) -> str | None:
 
     token = request.cookies.get(settings.COOKIE_NAME)
     payload = decode_session(token) if token else None
+    if (payload or {}).get("berater"):
+        return f"berater:{payload['berater']}"  # nur lesend, taucht im Protokoll nie als Schreiber auf
     email = (payload or {}).get("email")
     return email.lower() if email else None
 

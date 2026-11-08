@@ -26,7 +26,7 @@ export default function Login() {
   }, []);
 
   if (loading) return <PageSpinner />;
-  if (user) return <Navigate to="/uebersicht" replace />;
+  if (user) return <Navigate to={user.rolle === 'steuerberatung' ? '/berater' : '/uebersicht'} replace />;
 
   function wechsle(m) {
     setModus(m);
@@ -38,7 +38,10 @@ export default function Login() {
     setHinweis(null);
     setBusy(true);
     try {
-      if (modus === 'login') {
+      if (modus === 'berater') {
+        await api.post('/api/berater/login', { email: form.email, passwort: form.passwort });
+        window.location.href = '/berater';
+      } else if (modus === 'login') {
         await api.post('/api/auth/passwort-login', { email: form.email, passwort: form.passwort });
         window.location.href = '/uebersicht';
       } else if (modus === 'register') {
@@ -207,11 +210,33 @@ export default function Login() {
             </form>
           )}
 
+          {modus === 'berater' && (
+            <form onSubmit={absenden} className="space-y-3">
+              <div className="text-sm font-bold">Zugang für die Steuerberatung</div>
+              <p className="text-xs text-ink/60">Du hast eine Einladung per Link bekommen? Dann legst du dort deinen Zugang an. Hier meldest du dich danach an.</p>
+              <input className={feld} type="email" placeholder="E-Mail" value={form.email} autoFocus
+                onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <input className={feld} type="password" placeholder="Passwort" value={form.passwort}
+                onChange={(e) => setForm({ ...form, passwort: e.target.value })} />
+              <button type="submit" className="btn-primary w-full" disabled={busy}>
+                {busy ? 'Prüft…' : 'Anmelden'}
+              </button>
+              <button type="button" className="text-xs text-ink/50 hover:underline" onClick={() => wechsle('login')}>
+                ← zurück zur Anmeldung
+              </button>
+            </form>
+          )}
+
           {modus === 'login' && (
-            <p className="text-xs text-ink/50">
-              Kostenlos, keine versteckten Haken. Mit der Anmeldung startet dein eigener,
-              privater Bereich.
-            </p>
+            <>
+              <p className="text-xs text-ink/50">
+                Kostenlos, keine versteckten Haken. Mit der Anmeldung startet dein eigener,
+                privater Bereich.
+              </p>
+              <button type="button" className="text-xs font-medium text-royal hover:underline" onClick={() => wechsle('berater')}>
+                Zugang für die Steuerberatung
+              </button>
+            </>
           )}
         </div>
 

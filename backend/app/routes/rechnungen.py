@@ -168,7 +168,10 @@ def list_rechnungen(
             (gewerbe_id, jahr),
         )
     ]
-    return [_row(db, i) for i in ids]
+    rows = [_row(db, i) for i in ids]
+    if user.get("rolle") == "steuerberatung":
+        rows = [r for r in rows if r["status"] != "entwurf"]  # Entwürfe sind noch nicht „raus“
+    return rows
 
 
 @router.post("/vorschau")
@@ -474,7 +477,9 @@ def rechnung_pdf(
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    _check_rechnung(db, user, rechnung_id)
+    cur = _check_rechnung(db, user, rechnung_id)
+    if user.get("rolle") == "steuerberatung" and cur["status"] == "entwurf":
+        raise HTTPException(404, "Rechnung nicht gefunden.")
     data, r = _pdf_bytes(db, rechnung_id)
     return Response(
         content=data,

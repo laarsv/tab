@@ -730,6 +730,36 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=27,
+        sql="""
+        -- v27: Zugang für die Steuerberatung (nur lesen). berater_einladung = Einladungslink (nur der SHA-256-Hash
+        --      des Tokens, einmal einlösbar, 72 h); berater_zugang = das Konto der Steuerberatung (eigene E-Mail +
+        --      Passwort-Hash, unabhängig von Google/nutzer), gebunden an die Daten von owner_email. gesperrt = 1
+        --      beendet den Zugang sofort (wird bei jeder Anfrage geprüft).
+        CREATE TABLE berater_einladung (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_email  TEXT NOT NULL,
+            bezeichnung  TEXT NOT NULL,
+            token_hash   TEXT NOT NULL UNIQUE,
+            expires_at   TEXT NOT NULL,
+            eingeloest_am TEXT,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE berater_zugang (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_email      TEXT NOT NULL,
+            bezeichnung      TEXT NOT NULL,
+            name             TEXT NOT NULL,
+            email            TEXT NOT NULL UNIQUE,
+            passwort_hash    TEXT NOT NULL,
+            gesperrt         INTEGER NOT NULL DEFAULT 0,
+            letzte_anmeldung TEXT,
+            created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_berater_zugang_owner ON berater_zugang(owner_email);
+        """,
+    ),
 ]
 
 

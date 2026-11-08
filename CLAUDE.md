@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -283,6 +283,24 @@ der Mapping-Version des Jahres aufgelöst.
   setzt es oben rechts (≤ 50 × 17 mm) auf Rechnung, Mahnung und Angebot und **blockiert nie** (fehlende/kaputte Datei →
   PDF ohne Logo). Liegt im Uploads-Ordner, also im Backup. Nicht gebaut: Einheit/Steuersatz am Artikel, Artikelnummer,
   CSV-Import, Textbausteine je Kunde, Logo-Position/-Größe einstellbar, Bestellnummer im Abo.
+- **Zugang für die Steuerberatung (`/steuerberatung` für den Inhaber, `/berater` für die Steuerberatung; v27,
+  `routes/berater.py`, `auth/berater_guard.py`, `pages/Steuerberatung.jsx` + `Einladung.jsx` + `Berater.jsx` +
+  `components/BeraterLayout.jsx`):** Aufbau nach Haben, **nur lesen**. Inhaber erzeugt einen Einladungslink (Token einmal
+  sichtbar, gespeichert nur der SHA-256, einmal einlösbar, 72 h); die Steuerberatung legt damit ihr Konto an (Name,
+  E-Mail, Passwort ≥ 12 Zeichen) und meldet sich später über „Zugang für die Steuerberatung“ auf der Anmeldeseite an
+  (`POST /api/berater/login`, scrypt, Fehlversuch-Bremse wie `auth/local.py`, funktioniert ohne System-Mail). Eigene
+  Konten in `berater_zugang`, **nicht** in `nutzer`; eine E-Mail = ein Zugang (für mehrere Mandanten braucht die Kanzlei
+  je eine Adresse). **Sitzung:** JWT mit `email` = die des Inhabers + Claim `berater` = Zugangs-ID (7 Tage); so greifen
+  alle Mandanten-Guards (`check_gewerbe`) unverändert, `get_current_user` liefert `rolle: "steuerberatung"` und prüft den
+  Zugang bei JEDEM Request (gesperrt/entfernt/anderer Inhaber → 401, wirkt sofort). **Rechte als Allowlist** in
+  `auth/berater_guard.py` (Middleware in `main.py`, läuft vor jeder Route): nur GET auf Gewerbe, Kategorien, Kennzahlen,
+  Buchungen (+ Belege, Download), Rechnungen (Liste ohne Entwürfe, PDF), Anlagen, Fahrten, Export (Summenblatt, Journal,
+  Jahres-ZIP), Abschluss-Stand/Protokoll; alles andere 403 — **neue Routen sind für die Steuerberatung automatisch zu**,
+  bis sie dort eingetragen werden (der Test `berater_test.py` ruft jede registrierte Route auf). `ist_admin()` ist für sie
+  immer False (kein Backup), `nur_inhaber` schützt die Verwaltungsrouten, `db._akteur` meldet sie als `berater:<id>`.
+  Nicht für die Steuerberatung: Bank, Dauerbelege, Angebote, Kontakte, Artikel, Einstellungen, Fristen, Übersicht,
+  Backup. Nicht gebaut: Passkeys, Anmelde-Protokoll im Änderungsprotokoll (nur `letzte_anmeldung`), „Neu seit dem
+  letzten Besuch“, Vorschau der Beraterseite für den Inhaber, mehrere Mandanten je Konto, Rückfragen am Beleg.
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via

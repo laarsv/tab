@@ -22,6 +22,7 @@ import {
   IconSparkles,
   IconTrendDown,
   IconUpload,
+  IconUsers,
 } from './Icons.jsx';
 
 // Royal-Seitenleiste (Recap-Stil). Desktop: fest links; mobil: dieselbe Leiste als Schublade.
@@ -41,6 +42,7 @@ const NAV = [
 const WEITERE = [
   { to: '/export', label: 'Export', icon: IconDownload },
   { to: '/abschluss', label: 'Jahresabschluss', icon: IconLock },
+  { to: '/steuerberatung', label: 'Steuerberatung', icon: IconUsers },
   { to: '/gewerbe', label: 'Gewerbe', icon: IconBriefcase },
   { to: '/einrichtung', label: 'Einrichtung & Hilfe', icon: IconInfo },
 ];
