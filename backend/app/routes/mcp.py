@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from ..auth.deps import nur_inhaber
 from ..config import settings
 from ..db import _connect, get_db
+from . import oauth
 from . import afa, belege, buchungen, export, fristen, gewerbe, kategorien, meta, rechnungen, uebersicht
 
 router = APIRouter(prefix="/api", tags=["ki"])
@@ -260,11 +261,12 @@ def _bremse(token_id: int) -> bool:
     return len(spuren) <= ANFRAGEN_PRO_MINUTE
 
 
-def _nicht_angemeldet() -> JSONResponse:
-    return JSONResponse(
-        status_code=401, content={"detail": "Zugangs-Token fehlt oder ist ungültig."},
-        headers={"WWW-Authenticate": 'Bearer realm="vrwb_tab"'},
-    )
+def _nicht_angemeldet(mit_token: bool = False) -> JSONResponse:
+    # Der Verweis auf die Ressourcen-Metadaten (RFC 9728) ist der Einstieg für OAuth-Clients (Claude.ai & Co.).
+    kopf = f'Bearer realm="vrwb_tab", resource_metadata="{oauth.metadaten_url()}"'
+    if mit_token:
+        kopf += ', error="invalid_token"'
+    return JSONResponse(status_code=401, content={"detail": "Zugangs-Token fehlt oder ist ungültig."}, headers={"WWW-Authenticate": kopf})
 
 
 def _antwort(id_, ergebnis=None, fehler=None) -> dict:
@@ -312,25 +314,33 @@ async def _mcp_sync(request: Request):
 
 
 def _verarbeiten(kopf: str, body_bytes: bytes):
-    if not kopf.lower().startswith("bearer ") or not kopf[7:].strip().startswith(TOKEN_PREFIX):
+    if not kopf.lower().startswith("bearer "):
         return _nicht_angemeldet()
     token = kopf[7:].strip()
+    if not token.startswith((TOKEN_PREFIX, oauth.ACCESS_PREFIX)):
+        return _nicht_angemeldet(bool(token))
     db = _connect()
     try:
-        row = db.execute("SELECT * FROM ki_token WHERE token_hash = ?", (_hash(token),)).fetchone()
+        if token.startswith(TOKEN_PREFIX):
+            row = db.execute("SELECT * FROM ki_token WHERE token_hash = ?", (_hash(token),)).fetchone()
+            quelle, tabelle, bremse_id = "mcp", "ki_token", None
+        else:  # OAuth-Zugriffs-Token (läuft nach einer Stunde ab, Refresh holt ein neues)
+            row = db.execute("SELECT * FROM oauth_grant WHERE access_hash = ? AND access_expires > ?", (_hash(token), oauth._jetzt())).fetchone()
+            quelle, tabelle, bremse_id = "oauth", "oauth_grant", None
         if row is None:
-            return _nicht_angemeldet()
+            return _nicht_angemeldet(True)
+        bremse_id = row["id"] if quelle == "mcp" else -row["id"]
         owner = row["owner_email"].lower()
         # der Inhaber muss (noch) freigeschaltet sein, sonst gilt auch sein Token nicht mehr
         if not settings.OPEN_SIGNUP and not settings.is_email_allowed(owner):
             return _nicht_angemeldet()
-        if not _bremse(row["id"]):
+        if not _bremse(bremse_id):
             return JSONResponse(status_code=429, content={"detail": "Zu viele Anfragen — bitte kurz warten."}, headers={"Retry-After": "30"})
-        db.actor = f"mcp:{row['id']}"
-        db.execute("UPDATE ki_token SET letzte_nutzung = datetime('now') WHERE id = ?", (row["id"],))
+        db.actor = f"{quelle}:{row['id']}"
+        db.execute(f"UPDATE {tabelle} SET letzte_nutzung = datetime('now') WHERE id = ?", (row["id"],))
         db.commit()
         db.execute("PRAGMA query_only = ON")  # ab hier kann nichts mehr geschrieben werden
-        user = {"email": owner, "name": row["name"], "picture": None, "rolle": "assistent"}
+        user = {"email": owner, "name": row["name"] if quelle == "mcp" else "OAuth-App", "picture": None, "rolle": "assistent"}
         try:
             body = json.loads(body_bytes or b"")
         except (ValueError, UnicodeDecodeError):

@@ -796,6 +796,43 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_ki_token_owner ON ki_token(owner_email);
         """,
     ),
+    Migration(
+        version=30,
+        sql="""
+        -- v30: OAuth 2.1 für den MCP-Server (Claude.ai-Connectoren, Claude Desktop). oauth_client = dynamisch
+        --      registrierte öffentliche Clients (RFC 7591), oauth_code = Autorisierungscodes (einmal, 5 min, PKCE),
+        --      oauth_grant = erteilte Zugriffe (Access- und Refresh-Token nur als SHA-256). Alles nur lesend wirksam:
+        --      die Tokens gelten ausschließlich am MCP-Endpunkt.
+        CREATE TABLE oauth_client (
+            client_id     TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            redirect_uris TEXT NOT NULL,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE oauth_code (
+            code_hash      TEXT PRIMARY KEY,
+            client_id      TEXT NOT NULL REFERENCES oauth_client(client_id) ON DELETE CASCADE,
+            owner_email    TEXT NOT NULL,
+            redirect_uri   TEXT NOT NULL,
+            code_challenge TEXT NOT NULL,
+            expires_at     TEXT NOT NULL,
+            used           INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE oauth_grant (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id       TEXT NOT NULL REFERENCES oauth_client(client_id) ON DELETE CASCADE,
+            owner_email     TEXT NOT NULL,
+            access_hash     TEXT NOT NULL UNIQUE,
+            access_expires  TEXT NOT NULL,
+            refresh_hash    TEXT NOT NULL UNIQUE,
+            refresh_expires TEXT NOT NULL,
+            code_hash       TEXT,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            letzte_nutzung  TEXT
+        );
+        CREATE INDEX idx_oauth_grant_owner ON oauth_grant(owner_email);
+        """,
+    ),
 ]
 
 

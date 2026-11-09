@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 35,
+    datum: '2026-11-09',
+    titel: 'Claude.ai und Claude Desktop verbinden',
+    text: 'Du kannst Tab jetzt auch in Claude.ai oder Claude Desktop als eigenen Connector hinzufügen, ohne ein Token zu kopieren: Trage unter „Connectoren“ die Adresse https://tab.vrwb.de/api/mcp ein und gib den Zugriff auf einer Seite von Tab frei. Danach kann Claude deine Buchhaltung lesen, zum Beispiel Kennzahlen, Rechnungen und Buchungen. Schreiben kann es nicht. Unter Profil-Menü > KI-Assistenten siehst du alle verbundenen Apps und kannst jede sofort wieder trennen. Der Zugang mit Token für Claude Code bleibt daneben bestehen.',
+  },
+  {
     id: 34,
     datum: '2026-11-09',
     titel: 'KI-Assistenten dürfen mitlesen',

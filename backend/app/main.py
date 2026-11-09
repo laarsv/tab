@@ -39,6 +39,7 @@ from .routes import (
     mcp,
     meta,
     news,
+    oauth,
     passkeys,
     rechnungen,
     uebersicht,
@@ -161,6 +162,7 @@ app.include_router(uebersicht.router)
 app.include_router(berater.router)
 app.include_router(passkeys.router)
 app.include_router(mcp.router)
+app.include_router(oauth.router)
 app.include_router(vorlagen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)

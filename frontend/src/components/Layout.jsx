@@ -7,6 +7,7 @@ import { PageSpinner } from './Spinner.jsx';
 import MailSetupModal from './MailSetupModal.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
 import KiModal from './KiModal.jsx';
+import { OAUTH_ZURUECK } from '../pages/OAuthFreigabe.jsx';
 import PasskeyModal from './PasskeyModal.jsx';
 import Sidebar from './Sidebar.jsx';
 import Wordmark from './Wordmark.jsx';
@@ -36,6 +37,19 @@ export default function Layout() {
   const [newsModal, setNewsModal] = useState(false);
   const [passkeyModal, setPasskeyModal] = useState(false);
   const [kiModal, setKiModal] = useState(false);
+
+  // Kam jemand für eine OAuth-Freigabe (KI-App) und musste sich erst anmelden → zurück zur Freigabe (max. 15 Minuten alt).
+  useEffect(() => {
+    try {
+      const roh = sessionStorage.getItem(OAUTH_ZURUECK);
+      if (!roh) return;
+      sessionStorage.removeItem(OAUTH_ZURUECK);
+      const { q, t } = JSON.parse(roh);
+      if (q && Date.now() - t < 15 * 60 * 1000) navigate(`/oauth/freigabe${q}`, { replace: true });
+    } catch {
+      /* kein Speicher: dann eben nicht */
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Neuigkeiten automatisch zeigen, wenn es für DIESEN Account Ungelesenes gibt
   // (Gelesen-Stand kommt vom Server, s. lib/neuigkeiten.js).

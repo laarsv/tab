@@ -14,6 +14,7 @@ function wann(iso) {
 // KI-Assistenten (MCP, nur lesen): Zugangs-Tokens erzeugen und widerrufen. Das Token steht nur einmal da.
 export default function KiModal({ onClose }) {
   const [items, setItems] = useState(null);
+  const [apps, setApps] = useState([]);
   const [name, setName] = useState('');
   const [neu, setNeu] = useState(null); // { name, token }
   const [busy, setBusy] = useState(false);
@@ -21,7 +22,9 @@ export default function KiModal({ onClose }) {
 
   async function load() {
     try {
-      setItems((await api.get('/api/ki/tokens')).data);
+      const [t, g] = await Promise.all([api.get('/api/ki/tokens'), api.get('/api/oauth/grants')]);
+      setItems(t.data);
+      setApps(g.data);
     } catch (e) {
       toast.error(apiError(e));
       setItems([]);
@@ -58,6 +61,16 @@ export default function KiModal({ onClose }) {
     }
   }
 
+  async function appTrennen(a) {
+    if (!window.confirm(`Zugriff von „${a.client_name}“ widerrufen? Die App verliert sofort den Zugriff.`)) return;
+    try {
+      await api.delete(`/api/oauth/grants/${a.id}`);
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
   async function kopieren(text, was) {
     try {
       await navigator.clipboard.writeText(text);
@@ -78,6 +91,11 @@ export default function KiModal({ onClose }) {
     >
       <div className="space-y-4">
         <Hinweis>
+          <p className="mb-1">
+            <strong>Claude.ai oder Claude Desktop:</strong> füge unter „Connectoren“ einen eigenen Connector mit der Adresse{' '}
+            <code>{url}</code> hinzu und melde dich bei der Freigabe an — kein Token nötig. <strong>Claude Code oder andere Clients:</strong> Zugang
+            mit Token unten.
+          </p>
           Der Assistent sieht auf Anfrage Kennzahlen, Summenblatt, Buchungen, Rechnungen, Anlagen, Fristen und die Übersicht
           deiner Firmen — <strong>diese Daten gehen an den Anbieter des Assistenten</strong>. Nicht enthalten: Belegdateien, Mail-Zugang,
           Einstellungen, Bank. Schreiben kann er nicht; das erzwingt der Server.
@@ -115,6 +133,23 @@ export default function KiModal({ onClose }) {
             ))
           )}
         </div>
+
+        {apps.length > 0 && (
+          <div>
+            <div className="field-label">Verbundene Apps (über Anmeldung freigegeben)</div>
+            <div className="border-t border-ink/[0.08]">
+              {apps.map((a) => (
+                <Row
+                  key={a.id}
+                  icon={IconSparkles}
+                  title={a.client_name}
+                  sub={<span>verbunden {wann(a.created_at)} · {a.letzte_nutzung ? `zuletzt genutzt ${wann(a.letzte_nutzung)}` : 'noch nicht genutzt'}</span>}
+                  actions={<IconButton icon={IconTrash} variant="danger" label="Zugriff widerrufen" onClick={() => appTrennen(a)} />}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         <form onSubmit={erzeugen} className="flex flex-wrap items-end gap-3 rounded-xl bg-surface p-4">
           <label className="block min-w-[12rem] flex-1">

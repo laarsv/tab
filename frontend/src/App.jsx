@@ -21,6 +21,7 @@ import MahnungNeu from './pages/MahnungNeu.jsx';
 import Einrichtung from './pages/Einrichtung.jsx';
 import Steuerberatung from './pages/Steuerberatung.jsx';
 import Einladung from './pages/Einladung.jsx';
+import OAuthFreigabe from './pages/OAuthFreigabe.jsx';
 import Berater from './pages/Berater.jsx';
 import BeraterLayout from './components/BeraterLayout.jsx';
 
@@ -48,6 +49,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/einladung/:token" element={<Einladung />} />
+      <Route path="/oauth/freigabe" element={<OAuthFreigabe />} />
       <Route
         element={
           <Protected>

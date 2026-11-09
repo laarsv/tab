@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     PASSKEY_ORIGIN: str = ""
 
     @property
+    def public_origin(self) -> str:
+        """Öffentliche Adresse dieser Installation (Aussteller und Ressource für OAuth/MCP)."""
+        return self.FRONTEND_URL.rstrip("/")
+
+    @property
     def passkey_origin(self) -> str:
         return (self.PASSKEY_ORIGIN or self.FRONTEND_URL).rstrip("/")
 

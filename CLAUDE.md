@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -331,8 +331,28 @@ der Mapping-Version des Jahres aufgelöst.
   Zeichen gekürzt (mit Hinweis), Buchungen mit `limit` (max. 200). **Neues Werkzeug** = Eintrag in `WERKZEUGE` + Handler,
   der nur liest. Nicht enthalten: Belegdateien, Mail-Zugang, Einstellungen, Bank-Umsätze, Kontakte. Datenschutz-Hinweis
   steht im Fenster: die Daten gehen an den Anbieter des Assistenten. Mit dem offiziellen MCP-Python-SDK (v2.3) als echtem
-  Client gegen einen lokalen Server geprüft; mit Claude Code selbst nicht. Nicht gebaut: OAuth (Claude.ai-Connectoren
-  brauchen es — Claude Code mit Bearer-Header geht), schreibende Werkzeuge, SSE/Server-Push, Token-Ablauf, Scopes je Gewerbe.
+  Client gegen einen lokalen Server geprüft; mit Claude Code selbst nicht. OAuth für Claude.ai/Desktop: siehe nächsten
+  Punkt. Nicht gebaut: schreibende Werkzeuge, SSE/Server-Push, Token-Ablauf, Scopes je Gewerbe.
+- **OAuth 2.1 für MCP — Claude.ai-Connectoren, Claude Desktop (v30, `routes/oauth.py`, `pages/OAuthFreigabe.jsx`,
+  `frontend/nginx.conf`):** Tab ist Ressourcen- **und** Autorisierungsserver, nach der MCP-Spezifikation 2025-06-18.
+  Ablauf: MCP-Aufruf ohne Token → 401 mit `WWW-Authenticate: Bearer resource_metadata=…` → Metadaten
+  (`/.well-known/oauth-protected-resource[/…]` RFC 9728, `/.well-known/oauth-authorization-server[/…]` RFC 8414) →
+  **dynamische Registrierung** `POST /api/oauth/register` (RFC 7591; nur öffentliche Clients, Weiterleitungsadressen https oder
+  http auf localhost, max. 200 Clients, nie freigegebene Clients verfallen nach 2 Tagen) → `GET /api/oauth/authorize`
+  (PKCE **S256 Pflicht**, `resource` muss die MCP-URL sein, ungültiger Client/Redirect → 400 ohne Weiterleitung, sonst Fehler
+  per Redirect mit `iss`) → Weiterleitung zur **Freigabeseite `/oauth/freigabe`** (Inhaber muss angemeldet sein; wer es nicht
+  ist, wird via `sessionStorage` `tab_oauth_zurueck` nach dem Login zurückgeführt, `Layout`) → `POST /api/oauth/freigabe`
+  prüft alles noch einmal und gibt den Code aus (einmal, 5 min, nur SHA-256 gespeichert) → `POST /api/oauth/token`
+  (`authorization_code` + `code_verifier`; `refresh_token` mit **Rotation**; Code-Wiederverwendung widerruft den daraus
+  entstandenen Zugriff). Access-Token `tabo_…` 1 Stunde, Refresh `tabr_…` 30 Tage. Ein OAuth-Zugriff ist **dasselbe wie ein
+  Zugangs-Token**: Rolle `assistent`, nur lesend, nur am MCP-Endpunkt, `query_only`, Inhaber muss freigeschaltet bleiben.
+  Verwalten/Widerrufen: Profil-Menü → KI-Assistenten → „Verbundene Apps“ (`GET/DELETE /api/oauth/grants`). **nginx:** die
+  `.well-known`-Adressen liegen am Wurzelpfad, der Frontend-Container reicht `/.well-known/oauth-*` ans Backend durch
+  (Variable + `resolver 127.0.0.11`), alles andere unter `/.well-known/` ist 404 (kein index.html mit 200); Caddy bleibt
+  unverändert. Aussteller/Ressource = `FRONTEND_URL` (`settings.public_origin`). Mit dem offiziellen MCP-Python-SDK (v2.3,
+  `OAuthClientProvider`) als echtem Client den ganzen Fluss durchgespielt; mit Claude.ai selbst nicht. Nicht gebaut:
+  Client-ID-Metadata-Dokumente, Client-Secrets/vertrauliche Clients, Scopes über „tab:lesen“, Token-Introspection/-Revocation-
+  Endpunkt (Widerruf nur über die Oberfläche), CORS für den MCP-Endpunkt selbst (nur Metadaten/Register/Token).
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via
