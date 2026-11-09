@@ -78,7 +78,7 @@ function NavItem({ item, badge, onNavigate }) {
   );
 }
 
-function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onPasskeys, onNews, onLogout, onNavigate }) {
+function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onPasskeys, onKi, onNews, onLogout, onNavigate }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -122,6 +122,9 @@ function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onPasskeys, onNews, o
           </button>
           <button role="menuitem" className={eintrag} onClick={() => run(onPasskeys)}>
             <IconKey className="h-[18px] w-[18px] text-ink/60" /> Passkeys
+          </button>
+          <button role="menuitem" className={eintrag} onClick={() => run(onKi)}>
+            <IconSparkles className="h-[18px] w-[18px] text-ink/60" /> KI-Assistenten
           </button>
           <button role="menuitem" className={eintrag} onClick={() => run(onNews)}>
             <IconSparkles className="h-[18px] w-[18px] text-ink/60" /> Neuigkeiten
@@ -176,6 +179,7 @@ export default function Sidebar({
   onAbarbeiten,
   onMail,
   onPasskeys,
+  onKi,
   onNews,
   onLogout,
 }) {
@@ -287,6 +291,7 @@ export default function Sidebar({
         jahrVorlaeufig={jahrVorlaeufig}
         onMail={onMail}
         onPasskeys={onPasskeys}
+        onKi={onKi}
         onNews={onNews}
         onLogout={onLogout}
         onNavigate={onNavigate}

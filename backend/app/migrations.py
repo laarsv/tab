@@ -780,6 +780,22 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_passkey_email ON passkey(email);
         """,
     ),
+    Migration(
+        version=29,
+        sql="""
+        -- v29: Zugangs-Tokens für KI-Assistenten (MCP, nur lesen). Gespeichert wird nur der SHA-256 des Tokens;
+        --      das Token selbst sieht der Inhaber einmal beim Erzeugen.
+        CREATE TABLE ki_token (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_email TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            token_hash  TEXT NOT NULL UNIQUE,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            letzte_nutzung TEXT
+        );
+        CREATE INDEX idx_ki_token_owner ON ki_token(owner_email);
+        """,
+    ),
 ]
 
 

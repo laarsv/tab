@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 34,
+    datum: '2026-11-09',
+    titel: 'KI-Assistenten dürfen mitlesen',
+    text: 'Im Profil-Menü gibt es „KI-Assistenten“. Dort erzeugst du einen Zugang, mit dem ein Assistent wie Claude Code deine Buchhaltung abfragen kann, zum Beispiel „Wie hoch sind meine Einnahmen dieses Jahr?“ oder „Welche Rechnungen sind überfällig?“. Der Assistent liest Kennzahlen, Summenblatt, Buchungen, Rechnungen, Anlagen, Fristen und die Übersicht. Er kann nichts buchen oder ändern, das erzwingt der Server. Das Token siehst du nur beim Erzeugen, du kannst jeden Zugang sofort widerrufen. Bedenke: Was der Assistent abfragt, geht an dessen Anbieter.',
+  },
+  {
     id: 33,
     datum: '2026-11-08',
     titel: 'Anmelden mit Passkey',

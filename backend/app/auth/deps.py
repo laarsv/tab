@@ -82,6 +82,6 @@ def check_gewerbe(db: sqlite3.Connection, user: dict, gewerbe_id: int) -> sqlite
 def ist_admin(user: dict) -> bool:
     """Admins = die explizit in ALLOWED_EMAILS gelisteten Adressen (nicht die
     Domain-Nutzer). Nur Admins dürfen z. B. das Komplett-Backup ziehen."""
-    if user.get("rolle") == ROLLE_BERATER:
+    if user.get("rolle") in (ROLLE_BERATER, "assistent"):
         return False  # die Steuerberatung ist nie Admin, auch wenn die Daten einem Admin gehören
     return user["email"] in settings.allowed_emails_list

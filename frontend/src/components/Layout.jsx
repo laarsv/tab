@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
 import MailSetupModal from './MailSetupModal.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
+import KiModal from './KiModal.jsx';
 import PasskeyModal from './PasskeyModal.jsx';
 import Sidebar from './Sidebar.jsx';
 import Wordmark from './Wordmark.jsx';
@@ -34,6 +35,7 @@ export default function Layout() {
   const [mailModal, setMailModal] = useState(false);
   const [newsModal, setNewsModal] = useState(false);
   const [passkeyModal, setPasskeyModal] = useState(false);
+  const [kiModal, setKiModal] = useState(false);
 
   // Neuigkeiten automatisch zeigen, wenn es für DIESEN Account Ungelesenes gibt
   // (Gelesen-Stand kommt vom Server, s. lib/neuigkeiten.js).
@@ -232,6 +234,7 @@ export default function Layout() {
     },
     onMail: () => setMailModal(true),
     onPasskeys: () => setPasskeyModal(true),
+    onKi: () => setKiModal(true),
     onNews: () => setNewsModal(true),
     onLogout: doLogout,
     onNavigate: () => setDrawer(false),
@@ -312,6 +315,7 @@ export default function Layout() {
       {mailModal && <MailSetupModal onClose={() => setMailModal(false)} />}
       {newsModal && <NeuigkeitenModal onClose={closeNews} />}
       {passkeyModal && <PasskeyModal onClose={() => setPasskeyModal(false)} />}
+      {kiModal && <KiModal onClose={() => setKiModal(false)} />}
 
       <main className="px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:px-10 lg:pb-12 lg:pt-9">
         <div className="mx-auto max-w-5xl">

@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -316,6 +316,23 @@ der Mapping-Version des Jahres aufgelöst.
   Passkeys (`nur_inhaber` + Allowlist). `passkey_test.py` nutzt einen virtuellen Authenticator (EC P-256, Format
   „none“); mit einem echten Gerät ist es nicht getestet. Nicht gebaut: Passkey für die Steuerberatung, Anmelde-Protokoll,
   Passkey als einziger Weg (Konten entstehen weiter über Google/Passwort), Attestation-Prüfung.
+- **KI-Assistenten / MCP, nur lesen (v29, `routes/mcp.py`, `components/KiModal.jsx`):** Aufbau nach Haben. MCP-Server
+  (Streamable HTTP, JSON-RPC 2.0, JSON-Antworten, kein SSE) unter **`POST /api/mcp`** (bewusst unter `/api`, damit
+  Caddy ohne Änderung routet). Anmeldung nur per **Zugangs-Token** (`Authorization: Bearer tabmcp_…`): im Profil-Menü →
+  „KI-Assistenten“ erzeugt der Inhaber ein Token (einmal sichtbar, gespeichert nur der SHA-256, max. 10, widerrufbar,
+  `letzte_nutzung`), `/api/ki/tokens` ist `nur_inhaber`. Tokens gelten **nur** an `/api/mcp` (kein Cookie, keine andere
+  Route akzeptiert sie) und Cookies gelten dort nicht; der Inhaber muss freigeschaltet bleiben (`ALLOWED_EMAILS`/
+  `OPEN_SIGNUP`), Bremse 120 Anfragen/Minute je Token. **Nur lesen, dreifach:** nur lesende Werkzeuge
+  (`gewerbe_liste`, `kennzahlen`, `euer_summenblatt`, `buchungen`, `rechnungen`, `uebersicht`, `anlagen`, `fristen`,
+  `belege_eingang`, `kategorien`, alle mit `readOnlyHint`), die DB-Verbindung steht nach dem Token-Check auf
+  `PRAGMA query_only = ON` (der Test versucht DELETE/UPDATE in einem eingeschleusten Werkzeug — scheitert, nichts ändert
+  sich), und `ist_admin()` ist für Rolle `assistent` False. Die Werkzeuge rufen die vorhandenen Route-Funktionen direkt
+  auf, also gilt `check_gewerbe` (fremdes Gewerbe → Werkzeugfehler „nicht gefunden“); Antworten werden bei 60.000
+  Zeichen gekürzt (mit Hinweis), Buchungen mit `limit` (max. 200). **Neues Werkzeug** = Eintrag in `WERKZEUGE` + Handler,
+  der nur liest. Nicht enthalten: Belegdateien, Mail-Zugang, Einstellungen, Bank-Umsätze, Kontakte. Datenschutz-Hinweis
+  steht im Fenster: die Daten gehen an den Anbieter des Assistenten. Mit dem offiziellen MCP-Python-SDK (v2.3) als echtem
+  Client gegen einen lokalen Server geprüft; mit Claude Code selbst nicht. Nicht gebaut: OAuth (Claude.ai-Connectoren
+  brauchen es — Claude Code mit Bearer-Header geht), schreibende Werkzeuge, SSE/Server-Push, Token-Ablauf, Scopes je Gewerbe.
 - **Rechnungs-Abos (`routes/abos.py`, `services/abo.py`, Tabelle `rechnung_abo`):**
   wiederkehrende Rechnungen (monatlich/vierteljährlich/jährlich). Scheduler = asyncio-Task
   im `lifespan` (Start + alle 6 h): fällige Abos → echte Rechnung via
