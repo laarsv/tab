@@ -323,8 +323,10 @@ der Mapping-Version des Jahres aufgelöst.
   `letzte_nutzung`), `/api/ki/tokens` ist `nur_inhaber`. Tokens gelten **nur** an `/api/mcp` (kein Cookie, keine andere
   Route akzeptiert sie) und Cookies gelten dort nicht; der Inhaber muss freigeschaltet bleiben (`ALLOWED_EMAILS`/
   `OPEN_SIGNUP`), Bremse 120 Anfragen/Minute je Token. **Nur lesen, dreifach:** nur lesende Werkzeuge
-  (`gewerbe_liste`, `kennzahlen`, `euer_summenblatt`, `buchungen`, `rechnungen`, `uebersicht`, `anlagen`, `fristen`,
-  `belege_eingang`, `kategorien`, alle mit `readOnlyHint`), die DB-Verbindung steht nach dem Token-Check auf
+  (`gewerbe_liste`, `kennzahlen`, `euer_summenblatt`, `buchungen`, `rechnungen`, `wiederkehrende_rechnungen`,
+  `uebersicht`, `anlagen`, `fristen`, `belege_eingang`, `kategorien`, alle mit `readOnlyHint`; `rechnungen` liefert neben dem
+  rohen `faellig_am` auch `faellig_effektiv` (Altbestand ohne Ziel: Datum + 30 Tage) und `ueberfaellig` — ein leeres `faellig_am`
+  hatte ein Assistent sonst als „keine Fälligkeit, also nie überfällig“ gelesen), die DB-Verbindung steht nach dem Token-Check auf
   `PRAGMA query_only = ON` (der Test versucht DELETE/UPDATE in einem eingeschleusten Werkzeug — scheitert, nichts ändert
   sich), und `ist_admin()` ist für Rolle `assistent` False. Die Werkzeuge rufen die vorhandenen Route-Funktionen direkt
   auf, also gilt `check_gewerbe` (fremdes Gewerbe → Werkzeugfehler „nicht gefunden“); Antworten werden bei 60.000

@@ -10,6 +10,7 @@ andere Route akzeptiert sie), und Cookies gelten hier nicht. Die Mandantenprüfu
 """
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import logging
@@ -26,7 +27,8 @@ from ..auth.deps import nur_inhaber
 from ..config import settings
 from ..db import _connect, get_db
 from . import oauth
-from . import afa, belege, buchungen, export, fristen, gewerbe, kategorien, meta, rechnungen, uebersicht
+from ..services.mahnwesen import effektive_faelligkeit
+from . import abos, afa, belege, buchungen, export, fristen, gewerbe, kategorien, meta, rechnungen, uebersicht
 
 router = APIRouter(prefix="/api", tags=["ki"])
 log = logging.getLogger("tab.mcp")
@@ -146,10 +148,27 @@ def _w_rechnungen(db, user, a):
     rows = rechnungen.list_rechnungen(_int(a, "gewerbe_id"), _int(a, "jahr"), user, db)
     if status:
         rows = [r for r in rows if r["status"] == status]
+    heute = dt.date.today().isoformat()
+    out = []
+    for r in rows:
+        d = {k: r.get(k) for k in ("id", "nummer", "datum", "empfaenger_name", "status", "summe_cent", "offen_cent",
+                                    "bezahlt_cent", "faellig_am", "ueberfaellig_tage", "bestellnummer")}
+        # Ältere Rechnungen haben kein Zahlungsziel (faellig_am leer): dann gilt Datum + 30 Tage. Maßgeblich ist `ueberfaellig`.
+        d["faellig_effektiv"] = effektive_faelligkeit(r["datum"], r["faellig_am"])
+        d["faelligkeit_ohne_ziel"] = r["faellig_am"] is None
+        d["ueberfaellig"] = r["status"] == "versendet" and r["offen_cent"] > 0 and d["faellig_effektiv"] < heute
+        out.append(d)
+    return out
+
+
+def _w_abos(db, user, a):
     return [
-        {k: r.get(k) for k in ("id", "nummer", "datum", "empfaenger_name", "status", "summe_cent", "offen_cent",
-                                "bezahlt_cent", "faellig_am", "ueberfaellig_tage", "bestellnummer")}
-        for r in rows
+        {
+            "id": x["id"], "empfaenger_name": x["empfaenger_name"], "intervall": x["intervall"], "naechste_am": x["naechste_am"],
+            "aktiv": bool(x["aktiv"]), "auto_senden": bool(x["auto_senden"]), "summe_cent": x["summe_cent"], "notiz": x["notiz"],
+            "positionen": [{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")} for p in x["positionen"]],
+        }
+        for x in abos.list_abos(_int(a, "gewerbe_id"), user, db)
     ]
 
 
@@ -204,8 +223,11 @@ WERKZEUGE = [
      _schema({"gewerbe_id": _GID, "jahr": _JAHR, "suche": {"type": "string", "description": "Suchtext (optional)"},
               "limit": {"type": "integer", "description": "höchstens so viele Buchungen, Standard 50, max. 200"}},
              ["gewerbe_id", "jahr"]), _w_buchungen),
-    ("rechnungen", "Ausgangsrechnungen eines Jahres mit Status, Summe, offenem Rest und Fälligkeit; optional nach Status filtern (entwurf, versendet, bezahlt, storniert).",
+    ("rechnungen", "Ausgangsrechnungen eines Jahres mit Status, Summe, offenem Rest und Fälligkeit; optional nach Status filtern (entwurf, versendet, bezahlt, storniert). "
+     "faellig_am kann leer sein (ältere Rechnungen ohne Zahlungsziel) — dann gilt Rechnungsdatum + 30 Tage (faellig_effektiv). Ob eine Rechnung überfällig ist, steht im Feld ueberfaellig.",
      _schema({"gewerbe_id": _GID, "jahr": _JAHR, "status": {"type": "string"}}, ["gewerbe_id", "jahr"]), _w_rechnungen),
+    ("wiederkehrende_rechnungen", "Wiederkehrende Rechnungen (Abos): Empfänger, Intervall (monatlich, vierteljaehrlich, jaehrlich), nächster Termin, Positionen, aktiv/pausiert. Nur lesen — Änderungen macht der Inhaber in Tab.",
+     _schema({"gewerbe_id": _GID}, ["gewerbe_id"]), _w_abos),
     ("uebersicht", "Was gerade wartet: Kennzahlen mit Vorjahr, offene Forderungen, überfällige Rechnungen, fällige Dauerbelege, offene Bankumsätze, Fristen, letzte Buchungen.",
      _schema({"gewerbe_id": _GID, "jahr": _JAHR}, ["gewerbe_id", "jahr"]), _w_uebersicht),
     ("anlagen", "Abschreibungen (Wirtschaftsgüter) mit Methode, Jahres-AfA und Restbuchwert.",
