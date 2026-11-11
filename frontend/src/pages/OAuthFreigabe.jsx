@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api, apiError } from '../api/client.js';
+import { Schalter } from '../components/DialogParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import Wordmark from '../components/Wordmark.jsx';
 
@@ -15,6 +16,7 @@ export default function OAuthFreigabe() {
   const [info, setInfo] = useState(null);
   const [fehler, setFehler] = useState('');
   const [busy, setBusy] = useState(false);
+  const [vorschlaege, setVorschlaege] = useState(false);
   const anfrage = Object.fromEntries(
     ['client_id', 'redirect_uri', 'code_challenge', 'state', 'scope', 'resource'].map((k) => [k, params.get(k)]).filter(([, v]) => v),
   );
@@ -41,7 +43,7 @@ export default function OAuthFreigabe() {
   async function antworten(erlauben) {
     setBusy(true);
     try {
-      const res = await api.post('/api/oauth/freigabe', { ...anfrage, erlauben });
+      const res = await api.post('/api/oauth/freigabe', { ...anfrage, erlauben, vorschlaege });
       window.location.href = res.data.redirect;
     } catch (e) {
       setFehler(apiError(e, 'Die Freigabe ist fehlgeschlagen.'));
@@ -68,6 +70,16 @@ export default function OAuthFreigabe() {
                 EÜR-Summenblatt, Buchungen, Rechnungen, Anlagen, Fristen und die Übersicht. Buchen, ändern oder löschen kann sie nicht,
                 und Belegdateien, Bank, Einstellungen und Mail-Zugang bleiben tabu.
               </p>
+              <div className="flex items-start gap-3 rounded-xl bg-surface p-3">
+                <Schalter checked={vorschlaege} onChange={setVorschlaege} label="Darf Änderungen vorschlagen" />
+                <div className="text-[13px] leading-snug">
+                  <div className="font-bold">Darf auch Änderungen vorschlagen</div>
+                  <div className="text-ink/70">
+                    Z. B. ein Abo umstellen oder einen Rechnungsentwurf anlegen — als Vorschlag, den du in Tab bestätigst. Ohne diesen Schalter
+                    bleibt es beim Lesen.
+                  </div>
+                </div>
+              </div>
               <p className="rounded-xl bg-royal/[0.08] px-3 py-2 text-sm">
                 Die Antwort geht an <strong>{info.ziel}</strong>. Gib nur frei, wenn du diese App gerade selbst verbunden hast. Was die App
                 abfragt, geht an deren Anbieter.

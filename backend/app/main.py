@@ -44,6 +44,7 @@ from .routes import (
     rechnungen,
     uebersicht,
     vorlagen,
+    vorschlaege,
 )
 from .seed import seed
 from .services.abo import run_faellige_abos
@@ -163,6 +164,7 @@ app.include_router(berater.router)
 app.include_router(passkeys.router)
 app.include_router(mcp.router)
 app.include_router(oauth.router)
+app.include_router(vorschlaege.router)
 app.include_router(vorlagen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)

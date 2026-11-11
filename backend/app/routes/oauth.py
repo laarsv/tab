@@ -243,6 +243,7 @@ def freigabe_info(client_id: str, redirect_uri: str, user: dict = Depends(nur_in
 
 class FreigabeIn(Anfrage):
     erlauben: bool
+    vorschlaege: bool = False  # Stufe „Vorschläge machen“ — standardmäßig aus
 
 
 @router.post("/api/oauth/freigabe")
@@ -258,8 +259,8 @@ def freigeben(body: FreigabeIn, user: dict = Depends(nur_inhaber), db: sqlite3.C
     code = secrets.token_urlsafe(32)
     db.execute("DELETE FROM oauth_code WHERE expires_at < ?", (_jetzt(),))
     db.execute(
-        "INSERT INTO oauth_code (code_hash, client_id, owner_email, redirect_uri, code_challenge, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (_hash(code), c["client_id"], user["email"], body.redirect_uri, body.code_challenge, _in(CODE_SEKUNDEN)),
+        "INSERT INTO oauth_code (code_hash, client_id, owner_email, redirect_uri, code_challenge, expires_at, vorschlaege) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (_hash(code), c["client_id"], user["email"], body.redirect_uri, body.code_challenge, _in(CODE_SEKUNDEN), 1 if body.vorschlaege else 0),
     )
     db.commit()
     return {"redirect": _zurueck(body.redirect_uri, body.state, code=code)}
@@ -267,13 +268,13 @@ def freigeben(body: FreigabeIn, user: dict = Depends(nur_inhaber), db: sqlite3.C
 
 # ── Token ───────────────────────────────────────────────────────────────────
 
-def _neue_tokens(db: sqlite3.Connection, client_id: str, owner: str, code_hash: str | None, grant_id: int | None = None) -> dict:
+def _neue_tokens(db: sqlite3.Connection, client_id: str, owner: str, code_hash: str | None, grant_id: int | None = None, vorschlaege: int = 0) -> dict:
     access, refresh = ACCESS_PREFIX + secrets.token_urlsafe(32), REFRESH_PREFIX + secrets.token_urlsafe(32)
     if grant_id is None:
         db.execute(
-            "INSERT INTO oauth_grant (client_id, owner_email, access_hash, access_expires, refresh_hash, refresh_expires, code_hash) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (client_id, owner, _hash(access), _in(ACCESS_SEKUNDEN), _hash(refresh), _in(REFRESH_TAGE * 86400), code_hash),
+            "INSERT INTO oauth_grant (client_id, owner_email, access_hash, access_expires, refresh_hash, refresh_expires, code_hash, vorschlaege) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (client_id, owner, _hash(access), _in(ACCESS_SEKUNDEN), _hash(refresh), _in(REFRESH_TAGE * 86400), code_hash, vorschlaege),
         )
     else:  # Rotation: derselbe Zugriff, neue Tokens — das alte Refresh-Token ist damit tot
         db.execute(
@@ -317,7 +318,7 @@ async def token(request: Request, db: sqlite3.Connection = Depends(get_db)):
         if not _VERIFIER.match(verifier) or not hmac.compare_digest(erwartet, row["code_challenge"]):
             return _fehler("invalid_grant", "code_verifier passt nicht (PKCE).")
         db.execute("UPDATE oauth_code SET used = 1 WHERE code_hash = ?", (row["code_hash"],))
-        return _json(_neue_tokens(db, c["client_id"], row["owner_email"], row["code_hash"]), 200, kopf)
+        return _json(_neue_tokens(db, c["client_id"], row["owner_email"], row["code_hash"], None, row["vorschlaege"]), 200, kopf)
 
     if typ == "refresh_token":
         rt = f.get("refresh_token") or ""
@@ -334,11 +335,24 @@ async def token(request: Request, db: sqlite3.Connection = Depends(get_db)):
 @router.get("/api/oauth/grants")
 def grants(user: dict = Depends(nur_inhaber), db: sqlite3.Connection = Depends(get_db)):
     return [
-        {"id": r["id"], "client_name": r["name"], "created_at": r["created_at"], "letzte_nutzung": r["letzte_nutzung"]}
+        {"id": r["id"], "client_name": r["name"], "created_at": r["created_at"], "letzte_nutzung": r["letzte_nutzung"], "vorschlaege": bool(r["vorschlaege"])}
         for r in db.execute(
             "SELECT g.*, c.name FROM oauth_grant g JOIN oauth_client c ON c.client_id = g.client_id "
             "WHERE g.owner_email = ? ORDER BY g.created_at, g.id", (user["email"],))
     ]
+
+
+class StufeIn(BaseModel):
+    vorschlaege: bool
+
+
+@router.patch("/api/oauth/grants/{grant_id}")
+def grant_stufe(grant_id: int, body: StufeIn, user: dict = Depends(nur_inhaber), db: sqlite3.Connection = Depends(get_db)):
+    cur = db.execute("UPDATE oauth_grant SET vorschlaege = ? WHERE id = ? AND owner_email = ?", (1 if body.vorschlaege else 0, grant_id, user["email"]))
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Zugriff nicht gefunden.")
+    db.commit()
+    return {"id": grant_id, "vorschlaege": body.vorschlaege}
 
 
 @router.delete("/api/oauth/grants/{grant_id}", status_code=204)

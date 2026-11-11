@@ -16,6 +16,7 @@ import {
   IconPlus,
   IconReceipt,
   IconRepeat,
+  IconSparkles,
 } from '../components/Icons.jsx';
 import {
   Hinweis,
@@ -54,10 +55,35 @@ function tageText(t) {
 }
 
 export default function Uebersicht() {
-  const { gewerbeId, jahr, checkOffen, eingangTick } = useOutletContext();
+  const { gewerbeId, jahr, checkOffen, eingangTick, reloadBadges } = useOutletContext();
   const navigate = useNavigate();
   const [daten, setDaten] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [vorschlaege, setVorschlaege] = useState([]); // Änderungsvorschläge von KI-Assistenten (warten auf deine Entscheidung)
+  const [vBusy, setVBusy] = useState(0);
+
+  function ladeVorschlaege() {
+    return api.get('/api/ki/vorschlaege').then((r) => setVorschlaege(r.data)).catch(() => {});
+  }
+  useEffect(() => {
+    ladeVorschlaege();
+  }, [eingangTick]);
+
+  async function entscheide(v, uebernehmen) {
+    setVBusy(v.id);
+    try {
+      await api.post(`/api/ki/vorschlaege/${v.id}/${uebernehmen ? 'uebernehmen' : 'verwerfen'}`);
+      toast.success(
+        !uebernehmen ? 'Verworfen.' : v.art === 'entwurf_neu' ? 'Entwurf angelegt — du findest ihn unter Rechnungen.' : 'Übernommen.',
+      );
+    } catch (e) {
+      toast.error(apiError(e, 'Das hat nicht geklappt.'));
+    } finally {
+      setVBusy(0);
+      ladeVorschlaege();
+      reloadBadges?.();
+    }
+  }
 
   useEffect(() => {
     if (!gewerbeId) {
@@ -126,6 +152,45 @@ export default function Uebersicht() {
             <div className="mt-4 empty:hidden">
               <KuGuard k={k} />
             </div>
+          )}
+
+          {vorschlaege.length > 0 && (
+            <>
+              <SectionHead label="Vorschläge von Claude" count={vorschlaege.length} />
+              {vorschlaege.map((v) => (
+                <Row
+                  key={v.id}
+                  kind="warn"
+                  icon={IconSparkles}
+                  title={v.titel}
+                  wrapTitle
+                  sub={<span>{v.quelle.replace(/ \((mcp|oauth):\d+\)$/, '')} schlägt vor · noch nichts geändert</span>}
+                  actions={
+                    <>
+                      <button type="button" className="btn-outline btn-sm w-full sm:w-auto" disabled={vBusy === v.id} onClick={() => entscheide(v, false)}>
+                        Verwerfen
+                      </button>
+                      <button type="button" className="btn-primary btn-sm w-full sm:w-auto" disabled={vBusy === v.id} onClick={() => entscheide(v, true)}>
+                        Übernehmen
+                      </button>
+                    </>
+                  }
+                >
+                  <div className="mt-1.5 space-y-2 text-[13px] leading-snug">
+                    {v.begruendung && <p className="text-ink/70">„{v.begruendung}“</p>}
+                    {v.anzeige.map((a) => (
+                      <div key={a.feld}>
+                        <div className="font-bold">{a.feld}</div>
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
+                          <div className="whitespace-pre-line text-ink/50 line-through decoration-ink/30">{a.vorher}</div>
+                          <div className="whitespace-pre-line font-medium">{a.nachher}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Row>
+              ))}
+            </>
           )}
 
           {leer && (

@@ -28,6 +28,7 @@ from ..config import settings
 from ..db import _connect, get_db
 from . import oauth
 from ..services.mahnwesen import effektive_faelligkeit
+from . import vorschlaege
 from . import abos, afa, belege, buchungen, export, fristen, gewerbe, kategorien, meta, rechnungen, uebersicht
 
 router = APIRouter(prefix="/api", tags=["ki"])
@@ -54,12 +55,13 @@ def _hash(token: str) -> str:
 
 class TokenIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
+    vorschlaege: bool = False  # Stufe „Vorschläge machen“ (Änderungen nur als Vorschlag, der Inhaber bestätigt)
 
 
 @router.get("/ki/tokens")
 def tokens(user: dict = Depends(nur_inhaber), db: sqlite3.Connection = Depends(get_db)):
     return [
-        {"id": r["id"], "name": r["name"], "created_at": r["created_at"], "letzte_nutzung": r["letzte_nutzung"]}
+        {"id": r["id"], "name": r["name"], "created_at": r["created_at"], "letzte_nutzung": r["letzte_nutzung"], "vorschlaege": bool(r["vorschlaege"])}
         for r in db.execute("SELECT * FROM ki_token WHERE owner_email = ? ORDER BY created_at, id", (user["email"],))
     ]
 
@@ -71,11 +73,24 @@ def token_erzeugen(body: TokenIn, user: dict = Depends(nur_inhaber), db: sqlite3
         raise HTTPException(400, f"Mehr als {MAX_TOKENS} Zugänge sind nicht möglich — entferne zuerst einen.")
     token = TOKEN_PREFIX + secrets.token_urlsafe(32)
     cur = db.execute(
-        "INSERT INTO ki_token (owner_email, name, token_hash) VALUES (?, ?, ?)",
-        (user["email"], body.name.strip(), _hash(token)),
+        "INSERT INTO ki_token (owner_email, name, token_hash, vorschlaege) VALUES (?, ?, ?, ?)",
+        (user["email"], body.name.strip(), _hash(token), 1 if body.vorschlaege else 0),
     )
     db.commit()
     return {"id": cur.lastrowid, "name": body.name.strip(), "token": token}
+
+
+class StufeIn(BaseModel):
+    vorschlaege: bool
+
+
+@router.patch("/ki/tokens/{token_id}")
+def token_stufe(token_id: int, body: StufeIn, user: dict = Depends(nur_inhaber), db: sqlite3.Connection = Depends(get_db)):
+    cur = db.execute("UPDATE ki_token SET vorschlaege = ? WHERE id = ? AND owner_email = ?", (1 if body.vorschlaege else 0, token_id, user["email"]))
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Zugang nicht gefunden.")
+    db.commit()
+    return {"id": token_id, "vorschlaege": body.vorschlaege}
 
 
 @router.delete("/ki/tokens/{token_id}", status_code=204)
@@ -238,13 +253,66 @@ WERKZEUGE = [
     ("kategorien", "Buchungskategorien mit Typ (einnahme/ausgabe) und EÜR-Zeile für ein Jahr.",
      _schema({"jahr": _JAHR}, []), _w_kategorien),
 ]
+
+
+# ── Vorschläge (nur mit der Stufe „Vorschläge machen“) ──────────────────────
+# Diese Werkzeuge ändern NICHTS an der Buchhaltung: Sie legen einen Vorschlag ab (routes/vorschlaege.py), den der Inhaber in
+# Tab übernimmt oder verwirft. Ohne die Stufe tauchen sie nicht einmal in der Werkzeugliste auf.
+
+def _als_vorschlag(fn):
+    def handler(db, user, a):
+        try:
+            v = fn(db, user, a)
+            vid = vorschlaege.anlegen(user["email"], user["quelle"], v)
+        except vorschlaege.VorschlagFehler as e:
+            raise WerkzeugFehler(str(e))
+        return {
+            "vorschlag_id": vid, "status": "offen", "titel": v["titel"], "aenderungen": v["anzeige"],
+            "hinweis": "Es wurde NICHTS geändert. Der Vorschlag wartet in Tab (Übersicht) auf die Entscheidung des Inhabers — "
+                       "sag ihm, dass er dort übernehmen oder verwerfen kann.",
+        }
+    return handler
+
+
+_POS = {"type": "array", "description": "Positionen: Liste aus {beschreibung, menge, einzelpreis_cent}. Ersetzt ALLE bisherigen Positionen.",
+        "items": {"type": "object", "properties": {"beschreibung": {"type": "string"}, "menge": {"type": "number"}, "einzelpreis_cent": {"type": "integer"}},
+                  "required": ["beschreibung", "menge", "einzelpreis_cent"]}}
+_BEGR = {"type": "string", "description": "Kurze Begründung für den Inhaber (max. 500 Zeichen)"}
+
+SCHREIBEND = {"abo_aenderung_vorschlagen", "rechnungsentwurf_vorschlagen", "rechnungsentwurf_aenderung_vorschlagen"}
+WERKZEUGE += [
+    ("abo_aenderung_vorschlagen",
+     "SCHLÄGT eine Änderung an einer wiederkehrenden Rechnung (Abo) VOR — ändert selbst nichts, der Inhaber bestätigt in Tab. "
+     "Möglich: intervall (monatlich, vierteljaehrlich, jaehrlich), naechste_am (JJJJ-MM-TT, nächster Rechnungstermin), aktiv (false = pausieren), positionen. "
+     "Achtung: Ein Wechsel des Intervalls gilt sofort; naechste_am überspringt dazwischenliegende Termine. Das im Vorschlag zeigen und begründen.",
+     _schema({"abo_id": {"type": "integer"}, "intervall": {"type": "string"}, "naechste_am": {"type": "string"}, "aktiv": {"type": "boolean"},
+              "positionen": _POS, "begruendung": _BEGR}, ["abo_id"]),
+     _als_vorschlag(vorschlaege.vorschlag_abo)),
+    ("rechnungsentwurf_vorschlagen",
+     "SCHLÄGT einen neuen Rechnungsentwurf VOR — legt selbst keine Rechnung an, versendet nie etwas. Der Inhaber prüft und übernimmt in Tab, "
+     "danach ist es ein Entwurf, den er selbst durchsieht und versendet. Beträge in Cent, Kleinunternehmer (brutto = netto).",
+     _schema({"gewerbe_id": _GID, "empfaenger_name": {"type": "string"}, "positionen": _POS, "datum": {"type": "string", "description": "Rechnungsdatum JJJJ-MM-TT, Standard heute"},
+              "zahlungsziel_tage": {"type": "integer"}, "leistungsdatum": {"type": "string"}, "notiz": {"type": "string"}, "bestellnummer": {"type": "string"},
+              "empfaenger_anschrift": {"type": "string"}, "empfaenger_email": {"type": "string"}, "begruendung": _BEGR},
+             ["gewerbe_id", "empfaenger_name", "positionen"]),
+     _als_vorschlag(vorschlaege.vorschlag_entwurf_neu)),
+    ("rechnungsentwurf_aenderung_vorschlagen",
+     "SCHLÄGT eine Änderung an einem Rechnungs-ENTWURF vor (nur Status entwurf; versendete Rechnungen bleiben unverändert). Ändert selbst nichts, der Inhaber bestätigt in Tab. "
+     "Möglich: zahlungsziel_tage, notiz, bestellnummer, leistungsdatum, positionen.",
+     _schema({"rechnung_id": {"type": "integer"}, "zahlungsziel_tage": {"type": "integer"}, "notiz": {"type": "string"}, "bestellnummer": {"type": "string"},
+              "leistungsdatum": {"type": "string"}, "positionen": _POS, "begruendung": _BEGR}, ["rechnung_id"]),
+     _als_vorschlag(vorschlaege.vorschlag_entwurf_aendern)),
+]
 _NACH_NAME = {n: (b, h) for n, b, _s, h in WERKZEUGE}
 
 
-def _tools_liste() -> list[dict]:
+def _tools_liste(user: dict) -> list[dict]:
+    lesen = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
+    vorschlag = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
     return [
-        {"name": n, "description": beschr, "inputSchema": s, "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}}
+        {"name": n, "description": beschr, "inputSchema": s, "annotations": vorschlag if n in SCHREIBEND else lesen}
         for n, beschr, s, _h in WERKZEUGE
+        if n not in SCHREIBEND or user.get("vorschlaege")
     ]
 
 
@@ -253,6 +321,8 @@ def _aufrufen(db: sqlite3.Connection, user: dict, name: str, args) -> dict:
         raise WerkzeugFehler(f"Unbekanntes Werkzeug „{name}“.")
     if not isinstance(args, dict):
         raise WerkzeugFehler("„arguments“ muss ein Objekt sein.")
+    if name in SCHREIBEND and not user.get("vorschlaege"):
+        raise WerkzeugFehler("Dieser Zugang darf nur lesen. Der Inhaber kann in Tab unter Profil-Menü > KI-Assistenten die Stufe „Vorschläge machen“ einschalten.")
     try:
         daten = _NACH_NAME[name][1](db, user, args)
     except HTTPException as e:
@@ -312,7 +382,7 @@ def _nachricht(db: sqlite3.Connection, user: dict, m) -> dict | None:
     if methode == "ping":
         return _antwort(id_, {})
     if methode == "tools/list":
-        return _antwort(id_, {"tools": _tools_liste()})
+        return _antwort(id_, {"tools": _tools_liste(user)})
     if methode == "tools/call":
         try:
             return _antwort(id_, _aufrufen(db, user, str(params.get("name")), params.get("arguments") or {}))
@@ -362,7 +432,13 @@ def _verarbeiten(kopf: str, body_bytes: bytes):
         db.execute(f"UPDATE {tabelle} SET letzte_nutzung = datetime('now') WHERE id = ?", (row["id"],))
         db.commit()
         db.execute("PRAGMA query_only = ON")  # ab hier kann nichts mehr geschrieben werden
-        user = {"email": owner, "name": row["name"] if quelle == "mcp" else "OAuth-App", "picture": None, "rolle": "assistent"}
+        if quelle == "mcp":
+            label = row["name"]
+        else:
+            c = db.execute("SELECT name FROM oauth_client WHERE client_id = ?", (row["client_id"],)).fetchone()
+            label = c["name"] if c else "OAuth-App"
+        user = {"email": owner, "name": label, "picture": None, "rolle": "assistent", "vorschlaege": bool(row["vorschlaege"]),
+                "quelle": f"{label} ({quelle}:{row['id']})"}
         try:
             body = json.loads(body_bytes or b"")
         except (ValueError, UnicodeDecodeError):

@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -334,7 +334,24 @@ der Mapping-Version des Jahres aufgelöst.
   der nur liest. Nicht enthalten: Belegdateien, Mail-Zugang, Einstellungen, Bank-Umsätze, Kontakte. Datenschutz-Hinweis
   steht im Fenster: die Daten gehen an den Anbieter des Assistenten. Mit dem offiziellen MCP-Python-SDK (v2.3) als echtem
   Client gegen einen lokalen Server geprüft; mit Claude Code selbst nicht. OAuth für Claude.ai/Desktop: siehe nächsten
-  Punkt. Nicht gebaut: schreibende Werkzeuge, SSE/Server-Push, Token-Ablauf, Scopes je Gewerbe.
+  Punkt. Schreiben nur als Vorschlag: siehe übernächsten Punkt. Nicht gebaut: direkt schreibende Werkzeuge, SSE/Server-Push, Token-Ablauf, Scopes je Gewerbe.
+- **KI-Änderungsvorschläge (v31, `routes/vorschlaege.py`, Abschnitt „Vorschläge“ in `routes/mcp.py`, `pages/Uebersicht.jsx`):**
+  Ein Assistent **ändert nichts selbst** — er legt einen Vorschlag ab, der Inhaber übernimmt oder verwirft ihn auf der Übersicht
+  („Vorschläge von Claude“, Vorher/Nachher). **Stufe „Vorschläge machen“** je Zugangs-Token (`ki_token.vorschlaege`) bzw. OAuth-
+  Zugriff (`oauth_grant.vorschlaege`, bei der Freigabe per Schalter, Standard **aus**), nachträglich umschaltbar
+  (`PATCH /api/ki/tokens/{id}`, `/api/oauth/grants/{id}`, nur Inhaber); ohne Stufe stehen die drei Werkzeuge nicht einmal in
+  `tools/list` und ein Aufruf liefert einen Werkzeugfehler. **Werkzeuge:** `abo_aenderung_vorschlagen` (Intervall, nächster Termin,
+  pausieren, Positionen), `rechnungsentwurf_vorschlagen`, `rechnungsentwurf_aenderung_vorschlagen` (nur Status `entwurf`). Bewusst
+  **nicht**: Buchen, Löschen, Versenden/Mahnen, Status, Zahlungen, Jahresabschluss, Änderung versendeter Rechnungen. **Prüfung wie in
+  der Oberfläche:** dieselben Pydantic-Modelle (`AboPatch`, `RechnungIn`, `RechnungPatch`) und `check_gewerbe`; kein Effekt
+  → Fehler; Datum höchstens 400 Tage zurück/60 voraus; max. 30 Positionen; Begründung auf 500 Zeichen gekürzt; höchstens 20 offene
+  Vorschläge je Inhaber. **Einzige Schreibstelle des Assistenten:** `vorschlaege.anlegen()` über eine EIGENE Verbindung, die nur
+  `ki_vorschlag` beschreibt — die Hauptverbindung bleibt `query_only`. **Übernehmen** (`POST /api/ki/vorschlaege/{id}/uebernehmen`, nur
+  mit Anmeldung als Inhaber; ein Token darf nicht selbst bestätigen) ruft die vorhandenen Routen auf (`abos.update_abo`,
+  `rechnungen.create_rechnung/update_rechnung`), also mit allen Prüfungen; `basis` (Stand des Ziels beim Anlegen) wird verglichen —
+  hat sich das Ziel geändert → 409, der Vorschlag bleibt zum Verwerfen offen; sonstige Fehler → Status `fehlgeschlagen`. Im
+  Änderungsprotokoll steht der Akteur als „<E-Mail> (KI-Vorschlag <id>, <Zugang>)“. Nicht gebaut: weitere Arten (Kontakt,
+  Dauerbeleg, Buchung), Benachrichtigung bei neuem Vorschlag, automatisches Verfallen alter Vorschläge.
 - **OAuth 2.1 für MCP — Claude.ai-Connectoren, Claude Desktop (v30, `routes/oauth.py`, `pages/OAuthFreigabe.jsx`,
   `frontend/nginx.conf`):** Tab ist Ressourcen- **und** Autorisierungsserver, nach der MCP-Spezifikation 2025-06-18.
   Ablauf: MCP-Aufruf ohne Token → 401 mit `WWW-Authenticate: Bearer resource_metadata=…` → Metadaten

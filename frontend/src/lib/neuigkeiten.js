@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 36,
+    datum: '2026-11-11',
+    titel: 'Claude kann Änderungen vorschlagen',
+    text: 'Ein KI-Assistent darf jetzt auf Wunsch Änderungen vorschlagen, zum Beispiel ein Abo auf jährliche Zahlung umstellen, es pausieren oder einen Rechnungsentwurf anlegen. Er ändert aber nichts selbst: Der Vorschlag erscheint auf der Übersicht unter „Vorschläge von Claude“, mit dem alten und dem neuen Stand. Erst wenn du „Übernehmen“ klickst, passiert etwas, mit allen üblichen Prüfungen. Du kannst jeden Vorschlag auch verwerfen. Die Stufe ist standardmäßig aus: Im Profil-Menü unter „KI-Assistenten“ schaltest du sie je Zugang ein oder aus, bei einer neuen Verbindung zu Claude.ai gleich bei der Freigabe. Buchen, Löschen, Versenden und das Ändern versendeter Rechnungen bleiben bei dir.',
+  },
+  {
     id: 35,
     datum: '2026-11-09',
     titel: 'Claude.ai und Claude Desktop verbinden',

@@ -833,6 +833,37 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_oauth_grant_owner ON oauth_grant(owner_email);
         """,
     ),
+    Migration(
+        version=31,
+        sql="""
+        -- v31: KI-Änderungsvorschläge. Ein Assistent mit der Stufe "Vorschläge machen" (je Zugangs-Token bzw. OAuth-
+        --      Zugriff, standardmäßig aus) ändert NICHTS selbst: er legt hier einen Vorschlag ab, der Inhaber übernimmt
+        --      oder verwirft ihn in Tab. anzeige = Vorher/Nachher für die Oberfläche (beim Anlegen berechnet), basis =
+        --      Stand des Ziels beim Anlegen (ändert es sich, wird der Vorschlag nicht mehr übernommen).
+        ALTER TABLE ki_token ADD COLUMN vorschlaege INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE oauth_code ADD COLUMN vorschlaege INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE oauth_grant ADD COLUMN vorschlaege INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE ki_vorschlag (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_email   TEXT NOT NULL,
+            gewerbe_id    INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            art           TEXT NOT NULL CHECK (art IN ('abo_aendern', 'entwurf_neu', 'entwurf_aendern')),
+            ziel_id       INTEGER,
+            titel         TEXT NOT NULL,
+            begruendung   TEXT,
+            payload       TEXT NOT NULL,
+            anzeige       TEXT NOT NULL,
+            basis         TEXT,
+            quelle        TEXT NOT NULL,
+            status        TEXT NOT NULL DEFAULT 'offen' CHECK (status IN ('offen', 'uebernommen', 'verworfen', 'fehlgeschlagen')),
+            fehler        TEXT,
+            ergebnis_id   INTEGER,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            entschieden_am TEXT
+        );
+        CREATE INDEX idx_ki_vorschlag_owner ON ki_vorschlag(owner_email, status);
+        """,
+    ),
 ]
 
 

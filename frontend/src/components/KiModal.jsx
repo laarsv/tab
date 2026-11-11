@@ -4,6 +4,7 @@ import { api, apiError } from '../api/client.js';
 import { DialogFuss } from './DialogParts.jsx';
 import { IconButton, IconPlus, IconSparkles, IconTrash } from './Icons.jsx';
 import Modal from './Modal.jsx';
+import { Schalter } from './DialogParts.jsx';
 import { Hinweis, Row } from './PageParts.jsx';
 
 function wann(iso) {
@@ -16,6 +17,7 @@ export default function KiModal({ onClose }) {
   const [items, setItems] = useState(null);
   const [apps, setApps] = useState([]);
   const [name, setName] = useState('');
+  const [vorschlaege, setVorschlaege] = useState(false);
   const [neu, setNeu] = useState(null); // { name, token }
   const [busy, setBusy] = useState(false);
   const url = `${window.location.origin}/api/mcp`;
@@ -39,9 +41,10 @@ export default function KiModal({ onClose }) {
     if (!name.trim()) return toast.error('Bitte einen Namen eintragen, z. B. „Claude Code auf dem Mac“.');
     setBusy(true);
     try {
-      const res = await api.post('/api/ki/tokens', { name: name.trim() });
+      const res = await api.post('/api/ki/tokens', { name: name.trim(), vorschlaege });
       setNeu(res.data);
       setName('');
+      setVorschlaege(false);
       await load();
     } catch (err) {
       toast.error(apiError(err));
@@ -55,6 +58,15 @@ export default function KiModal({ onClose }) {
     try {
       await api.delete(`/api/ki/tokens/${t.id}`);
       if (neu?.id === t.id) setNeu(null);
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+
+  async function stufe(pfad, an) {
+    try {
+      await api.patch(pfad, { vorschlaege: an });
       await load();
     } catch (e) {
       toast.error(apiError(e));
@@ -98,7 +110,7 @@ export default function KiModal({ onClose }) {
           </p>
           Der Assistent sieht auf Anfrage Kennzahlen, Summenblatt, Buchungen, Rechnungen, Anlagen, Fristen und die Übersicht
           deiner Firmen — <strong>diese Daten gehen an den Anbieter des Assistenten</strong>. Nicht enthalten: Belegdateien, Mail-Zugang,
-          Einstellungen, Bank. Schreiben kann er nicht; das erzwingt der Server.
+          Einstellungen, Bank. Direkt ändern kann er nichts, das erzwingt der Server — höchstens vorschlagen, wenn du es erlaubst.
         </Hinweis>
 
         {neu && (
@@ -127,8 +139,15 @@ export default function KiModal({ onClose }) {
                 key={t.id}
                 icon={IconSparkles}
                 title={t.name}
-                sub={<span>angelegt {wann(t.created_at)} · {t.letzte_nutzung ? `zuletzt genutzt ${wann(t.letzte_nutzung)}` : 'noch nicht genutzt'}</span>}
-                actions={<IconButton icon={IconTrash} variant="danger" label="Zugang widerrufen" onClick={() => entfernen(t)} />}
+                sub={<span>angelegt {wann(t.created_at)} · {t.letzte_nutzung ? `zuletzt genutzt ${wann(t.letzte_nutzung)}` : 'noch nicht genutzt'} · {t.vorschlaege ? 'darf Änderungen vorschlagen' : 'nur lesen'}</span>}
+                actions={
+                  <>
+                    <button type="button" className="btn-ghost btn-sm" onClick={() => stufe(`/api/ki/tokens/${t.id}`, !t.vorschlaege)}>
+                      {t.vorschlaege ? 'Auf „nur lesen“ stellen' : 'Vorschläge erlauben'}
+                    </button>
+                    <IconButton icon={IconTrash} variant="danger" label="Zugang widerrufen" onClick={() => entfernen(t)} />
+                  </>
+                }
               />
             ))
           )}
@@ -143,8 +162,15 @@ export default function KiModal({ onClose }) {
                   key={a.id}
                   icon={IconSparkles}
                   title={a.client_name}
-                  sub={<span>verbunden {wann(a.created_at)} · {a.letzte_nutzung ? `zuletzt genutzt ${wann(a.letzte_nutzung)}` : 'noch nicht genutzt'}</span>}
-                  actions={<IconButton icon={IconTrash} variant="danger" label="Zugriff widerrufen" onClick={() => appTrennen(a)} />}
+                  sub={<span>verbunden {wann(a.created_at)} · {a.letzte_nutzung ? `zuletzt genutzt ${wann(a.letzte_nutzung)}` : 'noch nicht genutzt'} · {a.vorschlaege ? 'darf Änderungen vorschlagen' : 'nur lesen'}</span>}
+                  actions={
+                    <>
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => stufe(`/api/oauth/grants/${a.id}`, !a.vorschlaege)}>
+                        {a.vorschlaege ? 'Auf „nur lesen“ stellen' : 'Vorschläge erlauben'}
+                      </button>
+                      <IconButton icon={IconTrash} variant="danger" label="Zugriff widerrufen" onClick={() => appTrennen(a)} />
+                    </>
+                  }
                 />
               ))}
             </div>
@@ -157,6 +183,12 @@ export default function KiModal({ onClose }) {
             <input className="input" value={name} maxLength={80} placeholder="z. B. Claude Code auf dem Mac"
               onChange={(e) => setName(e.target.value)} />
           </label>
+          <div className="flex w-full items-center gap-3">
+            <Schalter checked={vorschlaege} onChange={setVorschlaege} label="Darf Änderungen vorschlagen" />
+            <span className="text-[13px] leading-snug text-ink/70">
+              Darf Änderungen <strong>vorschlagen</strong> (Abo ändern, Rechnungsentwurf). Nichts wird geändert, bis du auf der Übersicht bestätigst.
+            </span>
+          </div>
           <button type="submit" className="btn-primary" disabled={busy}>
             <IconPlus className="mr-1 h-4 w-4" /> Zugang erzeugen
           </button>
