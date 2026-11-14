@@ -186,7 +186,8 @@ der Mapping-Version des Jahres aufgelöst.
   `/api/news/gelesen`) — localStorage (`tab_news_gelesen:{email}`) ist nur Cache/Offline-Fallback
   und wird beim Start per `syncGelesen` mit dem Server vereinigt (altes Format
   `tab_news_gelesen`/`tab_news_gesehen` wird übernommen). Nur die Einzel-Bestätigung zählt,
-  Schließen nicht. Vorher (nur localStorage) kam das Fenster auf jedem Gerät/Browser/in der PWA wieder.
+  Schließen nicht. **Kein Archiv** (Lars, 2026-11-14): Gelesenes wird nicht mehr gezeigt; ist alles gelesen, schließt
+  das Fenster, über das Profil-Menü geöffnet steht nur „Nichts Neues“. Vorher (nur localStorage) kam das Fenster auf jedem Gerät/Browser/in der PWA wieder.
 - **Einrichtung & Hilfe (`/einrichtung`, `pages/Einrichtung.jsx`):** geführter 5-Schritte-
   Wizard (Gewerbe/Absender, App-Passwort, Mail-Import, PWA aufs Handy, erste Buchungen) —
   Status wo möglich automatisch aus echten Daten, PWA per Haken (localStorage
