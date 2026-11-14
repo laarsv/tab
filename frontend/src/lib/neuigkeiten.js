@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 37,
+    datum: '2026-11-14',
+    titel: 'Ruhigere Fristen und Hinweis auf neue Versionen',
+    text: 'Überfälliges ist jetzt bernsteinfarben statt rot. Rot bleibt für echte Fehler, damit es wieder auffällt. Fristen stehen in Worten da, zum Beispiel „fällig in 3 Wochen“ oder „34 Tage überfällig“; das genaue Datum siehst du, wenn du mit der Maus darüber gehst. Und wenn es eine neue Version von Tab gibt, erscheint unten eine kleine Leiste mit „Neu laden“. Tab lädt nie von selbst neu, ein offenes Fenster bleibt also, bis du klickst.',
+  },
+  {
     id: 36,
     datum: '2026-11-11',
     titel: 'Claude kann Änderungen vorschlagen',

@@ -29,6 +29,7 @@ import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, belegTyp, ACCEPT } from '../lib/belege.js';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
 import { bpZuText } from '../lib/privat.js';
+import { fristInWorten } from '../lib/fristWorte.js';
 
 const MONATE = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -70,15 +71,11 @@ function FaelligZeile({ beleg, ueberfaellig, onChange }) {
     <button
       type="button"
       onClick={() => setEdit(true)}
-      title="Fällig am (optional) — wann muss die Rechnung bezahlt sein?"
-      className={`inline-flex items-center gap-1 rounded hover:underline ${ueberfaellig ? 'font-bold text-red-700' : ''}`}
+      title={beleg.faellig_am ? `Fällig am ${formatDateDE(beleg.faellig_am)} — klicken zum Ändern` : 'Fällig am (optional) — wann muss die Rechnung bezahlt sein?'}
+      className={`inline-flex items-center gap-1 rounded hover:underline ${ueberfaellig ? 'font-bold text-[#9a5900]' : ''}`}
     >
       <IconClock className="h-3.5 w-3.5" />
-      {beleg.faellig_am
-        ? ueberfaellig
-          ? `Überfällig seit ${kurz(beleg.faellig_am)}`
-          : `fällig ${formatDateDE(beleg.faellig_am)}`
-        : 'Fälligkeit setzen'}
+      {beleg.faellig_am ? fristInWorten(beleg.faellig_am).text : 'Fälligkeit setzen'}
     </button>
   );
 }
@@ -396,7 +393,7 @@ export default function Buchungen() {
           return (
             <Row
               key={b.id}
-              kind={ueberfaellig ? 'neg' : 'file'}
+              kind={ueberfaellig ? 'late' : 'file'}
               icon={belegIcon(b)}
               title={b.original_name}
               onTitleClick={() => openBeleg(b.id)}

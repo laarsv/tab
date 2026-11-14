@@ -30,7 +30,7 @@ function zustand(a) {
   if (a.status === 'entwurf') return { label: 'Entwurf', kind: 'out', ton: 'leise' };
   if (a.status === 'angenommen') return { label: 'Angenommen', kind: 'pos', ton: 'pos' };
   if (a.status === 'abgelehnt') return { label: 'Abgelehnt', kind: 'neg', ton: 'neg' };
-  if (a.abgelaufen) return { label: 'Abgelaufen', kind: 'neg', ton: 'neg' };
+  if (a.abgelaufen) return { label: 'Abgelaufen', kind: 'late', ton: 'late' };
   return { label: 'Offen', kind: 'warn', ton: 'warn' };
 }
 

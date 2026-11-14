@@ -19,6 +19,7 @@ import {
   IconSparkles,
 } from '../components/Icons.jsx';
 import {
+  Frist,
   Hinweis,
   Kennzahl,
   Kennzahlen,
@@ -48,7 +49,7 @@ const ICON = {
   abschluss: IconLock,
   check: IconChecklist,
 };
-const KIND = { neg: 'neg', warn: 'warn', leise: 'file' };
+const KIND = { neg: 'late', warn: 'warn', leise: 'file' }; // „neg“ vom Server heißt hier: überfällig → Bernstein
 
 function tageText(t) {
   return `${t} ${t === 1 ? 'Tag' : 'Tage'}`;
@@ -250,7 +251,7 @@ export default function Uebersicht() {
                 title={a.titel}
                 wrapTitle
                 onTitleClick={() => gehe(a)}
-                sub={a.ton === 'neg' ? <Zustand ton="neg">{a.sub}</Zustand> : a.sub}
+                sub={a.ton === 'neg' ? <Zustand ton="late">{a.sub}</Zustand> : a.sub}
                 actions={
                   <button type="button" className="btn-outline btn-sm w-full sm:w-auto" onClick={() => gehe(a)}>
                     {a.aktion}
@@ -270,7 +271,7 @@ export default function Uebersicht() {
               {f.items.map((r) => (
                 <Row
                   key={r.id}
-                  kind={r.ueberfaellig ? 'neg' : 'file'}
+                  kind={r.ueberfaellig ? 'late' : 'file'}
                   icon={IconReceipt}
                   title={
                     <>
@@ -280,15 +281,7 @@ export default function Uebersicht() {
                   onTitleClick={() => navigate('/rechnungen')}
                   titleHint="Zu den Rechnungen"
                   sub={
-                    r.ueberfaellig ? (
-                      <>
-                        <Zustand ton="neg">{tageText(r.tage_ueberfaellig)} überfällig</Zustand>
-                        {PUNKT}
-                        <span className="tabular-nums">fällig {formatDateDE(r.faellig_am)}</span>
-                      </>
-                    ) : (
-                      <span className="tabular-nums">fällig {formatDateDE(r.faellig_am)}</span>
-                    )
+                    <Frist datum={r.faellig_am} />
                   }
                   amount={formatEuro(r.offen_cent)}
                 />

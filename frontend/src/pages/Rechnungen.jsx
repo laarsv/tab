@@ -15,7 +15,8 @@ import {
   IconPlay, IconPlus, IconRepeat, IconSend, IconTrash, IconUsers, IconZap,
 } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
-import { Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
+import { Frist, Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
+import { dauer } from '../lib/fristWorte.js';
 import RechnungenTabs from '../components/RechnungenTabs.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { addDays, faelligkeit } from '../lib/fristen.js';
@@ -308,7 +309,7 @@ export default function Rechnungen({ tab = 'alle' }) {
           return (
             <Row
               key={r.id}
-              kind={istUeberfaellig ? 'neg' : st.kind}
+              kind={istUeberfaellig ? 'late' : st.kind}
               icon={IconFileText}
               muted={r.status === 'storniert'}
               title={
@@ -319,16 +320,16 @@ export default function Rechnungen({ tab = 'alle' }) {
               sub={
                 <>
                   {istUeberfaellig ? (
-                    <Zustand ton="neg">Überfällig · {r.ueberfaellig_tage} Tage</Zustand>
+                    <Zustand ton="late">{dauer(r.ueberfaellig_tage)} überfällig</Zustand>
                   ) : (
                     <Zustand ton={st.ton}>{r.status === 'versendet' && r.bezahlt_cent > 0 ? 'Teilbezahlt' : st.label}</Zustand>
                   )}
                   {PUNKT}
                   <span className="tabular-nums">{formatDateDE(r.datum)}</span>
-                  {r.faellig_am && (r.status === 'entwurf' || r.status === 'versendet') && (
+                  {r.faellig_am && !istUeberfaellig && (r.status === 'entwurf' || r.status === 'versendet') && (
                     <>
                       {PUNKT}
-                      <span>fällig {formatDateDE(r.faellig_am)}</span>
+                      <Frist datum={r.faellig_am} />
                     </>
                   )}
                   {r.versendet_am && (

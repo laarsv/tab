@@ -1,3 +1,6 @@
+import { fristInWorten } from '../lib/fristWorte.js';
+import { formatDateDE } from '../lib/format.js';
+
 // Bausteine für die Seiten im Recap-Stil (siehe DESIGN.md §6): weiße Fläche, Zeilen statt
 // Karten — Icon im Kreis, Titel, Zustandszeile, Beträge rechts, Icon-Knöpfe als Aktionen.
 
@@ -32,12 +35,14 @@ export function SectionHead({ label, count, children, className = '' }) {
 }
 
 // kind: 'file' (Royal-Tint) | 'in' (Einnahme, Royal) | 'out' (Ausgabe, Ink-Tint) |
-//       'warn' (offen/wartet) | 'pos' (bezahlt/erledigt) | 'neg' (überfällig/storniert)
+//       'warn' (offen/wartet) | 'late' (überfällig — Bernstein, nie Rot) | 'pos' (bezahlt/erledigt) |
+//       'neg' (Fehler, storniert, gesperrt). Rot bleibt für Fehler: Überfälliges ist Alltag, kein Fehler.
 export const KREIS = {
   file: 'bg-royal/[0.08] text-royal',
   in: 'bg-royal/[0.08] text-royal',
   out: 'bg-ink/[0.06] text-ink/80',
   warn: 'bg-[#b26a00]/[0.12] text-[#9a5900]',
+  late: 'bg-[#b26a00]/[0.12] text-[#9a5900]',
   pos: 'bg-[#177245]/10 text-[#177245]',
   neg: 'bg-red-700/10 text-red-700',
 };
@@ -112,6 +117,7 @@ const ZUSTAND = {
   leise: '',
   royal: 'font-bold text-royal',
   warn: 'font-bold text-[#9a5900]',
+  late: 'font-bold text-[#9a5900]',
   neg: 'font-bold text-[#c0392b]',
   pos: 'font-bold text-[#177245]',
 };
@@ -122,6 +128,18 @@ export function Zustand({ ton = 'leise', icon: Icon, children, className = '' })
     <span className={`inline-flex items-center gap-1 ${ZUSTAND[ton]} ${className}`}>
       {Icon && <Icon className="h-3.5 w-3.5" />}
       {children}
+    </span>
+  );
+}
+
+// Frist in Worten („fällig in 3 Wochen“, „34 Tage überfällig“), das Datum ist der Tooltip. Überfällig in Bernstein
+// und immer auch als Wort — ein Zustand ist nie nur eine Farbe.
+export function Frist({ datum, className = '' }) {
+  if (!datum) return null;
+  const f = fristInWorten(datum);
+  return (
+    <span title={formatDateDE(datum)} className={`${f.ueberfaellig ? ZUSTAND.late : ''} ${className}`}>
+      {f.text}
     </span>
   );
 }

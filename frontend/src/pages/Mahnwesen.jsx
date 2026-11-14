@@ -50,7 +50,7 @@ export default function Mahnwesen() {
             return (
               <Row
                 key={r.id}
-                kind="neg"
+                kind="late"
                 icon={IconFileText}
                 title={
                   <>
@@ -59,7 +59,7 @@ export default function Mahnwesen() {
                 }
                 sub={
                   <>
-                    <Zustand ton="neg">{r.tage_ueberfaellig} Tage überfällig</Zustand>
+                    <Zustand ton="late">{r.tage_ueberfaellig} {r.tage_ueberfaellig === 1 ? 'Tag' : 'Tage'} überfällig</Zustand>
                     {PUNKT}
                     <span>
                       fällig {formatDateDE(r.faellig_am)}

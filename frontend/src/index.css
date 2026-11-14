@@ -70,3 +70,10 @@
   56%, 100% { opacity: 0; }
 }
 .wordmark-cursor-blink { animation: vrwb-blink 1.2s steps(1) infinite; }
+
+/* Leiste „Neue Version verfügbar“ gleitet kurz herein (nur ohne „weniger Bewegung“, siehe motion-safe). */
+@keyframes neue-version {
+  /* nur die Lage, nie die Deckkraft: in einem pausierten Fenster bliebe die Leiste sonst unsichtbar */
+  from { transform: translate(-50%, 8px); }
+  to { transform: translate(-50%, 0); }
+}

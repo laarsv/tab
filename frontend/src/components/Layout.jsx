@@ -366,7 +366,7 @@ export default function Layout() {
                   </span>
                 )}
                 {t.badge === 'rechnungen' && mahnOffen > 0 && (
-                  <span className="absolute left-1/2 top-1.5 ml-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-700 px-1 text-[10px] font-bold tabular-nums text-paper">
+                  <span className="absolute left-1/2 top-1.5 ml-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#9a5900] px-1 text-[10px] font-bold tabular-nums text-paper">
                     {mahnOffen}
                   </span>
                 )}

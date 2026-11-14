@@ -89,6 +89,14 @@ So: blue buttons/fills use white text, and blue may be used as a text color.
 - Modals: `role="dialog"`, `aria-modal`, ESC closes (`components/Modal.jsx`).
 - Headings: Roboto **900**, `tracking-tight`; an `.eyebrow` kicker above the H1.
 - Responsive: card layout on mobile; nothing scrolls horizontally.
+- **Überfällig ist Bernstein, nie Rot** (übernommen aus vrwb_flow, 2026-11-14): Rot (`neg`) bleibt für Fehler und harte
+  Endzustände (storniert, gesperrt, abgelehnt). Überfällige Rechnungen, Belege, Fristen und abgelaufene Angebote nutzen
+  `kind="late"` / `ton="late"` (`PageParts.jsx`) und stehen **immer auch als Wort** da — ein Zustand ist nie nur eine Farbe.
+- **Fristen in Worten:** `<Frist datum=… />` bzw. `lib/fristWorte.js` („fällig in 3 Wochen“, „34 Tage überfällig“), das Datum
+  ist der Tooltip. Ausnahme Mahnwesen: dort die genaue Zahl der Verzugstage, weil sie rechtlich zählt.
+- **„Neue Version verfügbar“** (`components/NeueVersion.jsx`, Pflicht für jede PWA, Hub `design/vorlagen/app-shell.md` §4):
+  Leiste unten mittig, am Handy über der Tab-Leiste; lädt nie von selbst neu. Voraussetzung: `index.html` mit `no-cache`
+  (`frontend/nginx.conf`).
 
 ## 6. Layout im Recap-Stil (Royal-Seitenleiste, seit 2026-10-27)
 

@@ -14,6 +14,7 @@ import '@fontsource/roboto-mono/500.css';
 
 import './index.css';
 import App from './App.jsx';
+import NeueVersion from './components/NeueVersion.jsx';
 import { AuthProvider } from './auth/AuthContext.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <App />
+        <NeueVersion />
         <Toaster
           position="top-right"
           toastOptions={{

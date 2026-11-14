@@ -7,6 +7,7 @@ import { IconButton, IconCalendar, IconCircleCheck, IconDownload, IconRepeat } f
 import { Hinweis, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatDateDE } from '../lib/format.js';
+import { fristInWorten } from '../lib/fristWorte.js';
 
 // Fristen (Aufbau wie Haben): Überfällig · Nächste 30 Tage · Später · Kalender-Abo · Erledigt.
 // Steuertermine für die EÜR — die Frist der Steuererklärung und optional die ESt-Vorauszahlungen.
@@ -14,19 +15,15 @@ import { formatDateDE } from '../lib/format.js';
 const KURZ = 6; // „Später“ zeigt erst die nächsten Fristen
 
 function wann(f) {
-  const t = f.tage_bis;
-  if (t === 0) return 'heute';
-  if (t === 1) return 'morgen';
-  if (t < 0) return `seit ${-t} ${t === -1 ? 'Tag' : 'Tagen'} überfällig`;
-  return `in ${t} Tagen`;
+  return fristInWorten(f.faellig_am).text;
 }
 
 function FristRow({ frist, onErledigt }) {
   const navigate = useNavigate();
   const f = frist;
   const dringend = f.status === 'offen' && f.tage_bis <= 7;
-  const kind = f.status === 'erledigt' ? 'pos' : f.status === 'ueberfaellig' ? 'neg' : f.status === 'hinweis' ? 'out' : dringend ? 'warn' : 'file';
-  const ton = f.status === 'ueberfaellig' ? 'neg' : dringend ? 'warn' : 'leise';
+  const kind = f.status === 'erledigt' ? 'pos' : f.status === 'ueberfaellig' ? 'late' : f.status === 'hinweis' ? 'out' : dringend ? 'warn' : 'file';
+  const ton = f.status === 'ueberfaellig' ? 'late' : dringend ? 'warn' : 'leise';
   return (
     <Row
       kind={kind}

@@ -24,7 +24,7 @@ export default function RechnungenTabs({ ueberfaellig = 0 }) {
         >
           {t.label}
           {t.badge && ueberfaellig > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-700/10 px-1.5 text-xs font-bold tabular-nums text-red-700">
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#b26a00]/[0.12] px-1.5 text-xs font-bold tabular-nums text-[#9a5900]">
               {ueberfaellig}
             </span>
           )}
