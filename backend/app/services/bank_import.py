@@ -1,4 +1,4 @@
-"""Kontoauszug-Import: CAMT.053 (XML) und CSV. Kein Bankabruf — die Datei kommt vom Nutzer.
+"""Kontoauszug-Import: CAMT.053 (XML), CSV und PDF der C24 Bank. Kein Bankabruf — die Datei kommt vom Nutzer.
 
 Aufbau nach Haben (Konto aus der IBAN der Datei, Dubletten-Erkennung, Saldenprüfung, CSV mit
 Spaltenzuordnung), eigenständig umgesetzt. Hier nur Parsen + Speichern; Zuordnen steht in
@@ -362,10 +362,223 @@ def parse_csv(data: bytes, mapping: dict | None = None) -> tuple[Ergebnis, dict]
     return erg, {"header": header, "mapping": m, "trenner": csv_daten["trenner"], "uebersprungen": uebersprungen}
 
 
+# ── PDF (C24 Bank) ──────────────────────────────────────────────────────────
+# Manche Banken geben Umsätze nur als PDF heraus. Gelesen wird die Textebene (kein OCR) über die Lage der
+# Wörter: Kopfzeile „Buchung · Valuta · Transaktionsinformation · Betrag“ legt die Spalten fest, eine Zeile mit
+# Datum (TT.MM.) in der Buchungsspalte beginnt einen Umsatz, Zeilen darunter gehören zu dessen Information
+# (1. Zeile Vorgangsart, 2. Zeile Gegenpartei, dann Zweck; „IBAN: … / BIC: …“ ist die Gegenseite). Das Jahr
+# kommt aus dem Zeitraum im Kopf („01.11.2026 - 14.11.2026“), die Salden aus der Zusammenfassung.
+# Andere Banken: CSV oder CAMT. Gebaut nach einem echten C24-Auszug (Pocket, 11/2026).
+
+PDF_MAX_SEITEN = 60
+_PDF_BETRAG = re.compile(r"^[+-]?\d{1,3}(?:\.\d{3})*,\d{2}$")
+_PDF_TAG = re.compile(r"^(\d{2})\.(\d{2})\.$")
+_PDF_ZEITRAUM = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*[-–]\s*(\d{2}\.\d{2}\.\d{4})")
+_PDF_MONAT = re.compile(r"Kontoauszug\s+(\d{1,2})/(\d{4})")
+
+
+def _pdf_zeilen(seite) -> list[list[tuple]]:
+    """Wörter einer Seite als sichtbare Zeilen (gleiche Höhe ± 2,5 pt), links nach rechts."""
+    woerter = sorted(((w[0], w[1], w[2], w[3], w[4]) for w in seite.get_text("words")), key=lambda w: (w[1], w[0]))
+    zeilen: list[list[tuple]] = []
+    for w in woerter:
+        if zeilen and abs(zeilen[-1][0][1] - w[1]) < 2.5:
+            zeilen[-1].append(w)
+        else:
+            zeilen.append([w])
+    return [sorted(z, key=lambda w: w[0]) for z in zeilen]
+
+
+def _pdf_text(zeile: list[tuple]) -> str:
+    return " ".join(w[4] for w in zeile)
+
+
+def _pdf_betrag(zeile: list[tuple], ab_x: float) -> int | None:
+    """Betrag rechts in der Zeile („+15,00 €“, „-0,00 €“, „6,72 €“)."""
+    for w in zeile:
+        if w[0] >= ab_x and _PDF_BETRAG.match(w[4]):
+            return _betrag_zu_cent(w[4])
+    return None
+
+
+def _pdf_jahr(tag: int, monat: int, von: dt.date, bis: dt.date) -> str | None:
+    """TT.MM. ohne Jahr: das Jahr, mit dem das Datum in den Zeitraum (± 10 Tage für Valuta) fällt —
+    so wird der 31.12. auf einem Januar-Auszug zum Vorjahr."""
+    for jahr in (bis.year, von.year, von.year - 1, bis.year + 1):
+        try:
+            d = dt.date(jahr, monat, tag)
+        except ValueError:
+            continue
+        if von - dt.timedelta(days=10) <= d <= bis + dt.timedelta(days=10):
+            return d.isoformat()
+    return None
+
+
+def _pdf_umsatz(teile: dict, von: dt.date, bis: dt.date) -> Umsatz | None:
+    datum = _pdf_jahr(*teile["datum"], von, bis)
+    if datum is None or teile["betrag"] is None:
+        return None
+    wert = _pdf_jahr(*teile["valuta"], von, bis) if teile.get("valuta") else None
+    zeilen = [z for z in teile["info"] if z]
+    iban, ref, rest = "", "", []
+    for z in zeilen:
+        if re.match(r"^IBAN\s*:", z, re.I):
+            iban = _iban_in_text(z.replace(" ", "")) or _iban_in_text(z) or ""
+            continue
+        m = re.match(r"^(?:End-to-End(?:-Ref(?:erenz)?)?\.?|EREF)\s*:\s*(\S+)", z, re.I)
+        if m:
+            ref = m.group(1)
+            continue
+        rest.append(z)
+    vorgang = rest[0] if rest else ""
+    gegen = rest[1] if len(rest) > 1 and ":" not in rest[1] else ""
+    zweck_teile = rest[2:] if gegen else rest[1:]
+    zweck = _spaces(" ".join(zweck_teile)) or vorgang
+    return Umsatz(
+        datum=datum, wert_datum=wert, betrag_cent=teile["betrag"], gegenpartei=_spaces(gegen),
+        gegenpartei_iban=iban, verwendungszweck=zweck, referenz=ref,
+    )
+
+
+def parse_pdf_c24(data: bytes) -> Ergebnis:
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:  # pragma: no cover - im Container installiert
+        raise BankImportError("PDF-Kontoauszüge können auf diesem Server nicht gelesen werden.")
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+    except Exception:
+        raise BankImportError("Die PDF-Datei ist nicht lesbar.")
+    with doc:
+        if doc.needs_pass:
+            raise BankImportError("Die PDF-Datei ist mit einem Passwort geschützt.")
+        if doc.page_count > PDF_MAX_SEITEN:
+            raise BankImportError(f"Der Kontoauszug hat mehr als {PDF_MAX_SEITEN} Seiten.")
+        seiten = [_pdf_zeilen(p) for p in doc]
+        hoehen = [p.rect.height for p in doc]
+    volltext = "\n".join(_pdf_text(z) for s in seiten for z in s)
+    if not volltext.strip():
+        raise BankImportError("Die PDF-Datei hat keine Textebene (eingescannt?). Bitte den Auszug als PDF aus dem Online-Banking laden.")
+    if "C24 Bank" not in volltext and "DEFFDEFF" not in volltext:
+        raise BankImportError(
+            "Als PDF liest Tab bisher nur Kontoauszüge der C24 Bank. Für andere Banken bitte CSV oder CAMT.053 (XML) exportieren."
+        )
+
+    erg = Ergebnis(format="pdf_c24")
+    m = _PDF_ZEITRAUM.search(volltext)
+    if m:
+        von, bis = (dt.date.fromisoformat(_datum_iso(x)) for x in m.groups())
+    else:
+        mm = _PDF_MONAT.search(volltext)
+        if not mm:
+            raise BankImportError("Im Kontoauszug steht kein Zeitraum — das Jahr der Buchungen ist unklar.")
+        mon, jahr = int(mm.group(1)), int(mm.group(2))
+        von = dt.date(jahr, mon, 1)
+        bis = dt.date(jahr + (mon == 12), mon % 12 + 1, 1) - dt.timedelta(days=1)
+    if "vorläufig" in volltext.lower():
+        erg.warnungen.append(
+            "Vorläufiger Kontoauszug: Importierst du später den endgültigen, erkennt Tab gleiche Umsätze wieder — "
+            "ändert die Bank dabei Text oder Datum, kann ein Umsatz doppelt erscheinen."
+        )
+
+    # Eigene IBAN und Kontoname aus dem Kopf der ersten Seite (vor der Umsatztabelle)
+    kopf = seiten[0] if seiten else []
+    for i, z in enumerate(kopf):
+        t = _pdf_text(z)
+        if t.startswith("IBAN"):
+            erg.iban = _iban_in_text(t.replace(" ", "")) or _iban_in_text(t)
+            namen = []
+            for vorher in reversed(kopf[max(0, i - 3):i]):
+                vt = _pdf_text(vorher)
+                if re.match(r"^\d{5}\s", vt) or not vt:
+                    break
+                namen.insert(0, vt)
+            erg.kontoname = ("C24 " + " ".join(namen)).strip()[:80] if namen else "C24"
+            break
+
+    spalten = None  # (valuta_x, info_x, betrag_x)
+    aktuell: dict | None = None
+    fertig = False
+    umsatz_teile: list[dict] = []
+    for zeilen, hoehe in zip(seiten, hoehen):
+        if fertig:
+            break
+        fuss = hoehe * 0.95
+        for z in zeilen:
+            t = _pdf_text(z)
+            if t.startswith(("C24 Bank GmbH", "Seite ")) and z[0][1] > hoehe * 0.85:
+                fuss = min(fuss, z[0][1] - 1)
+        start_y = None
+        for z in zeilen:
+            woerter = [w[4] for w in z]
+            if "Buchung" in woerter and "Betrag" in woerter and any(w.startswith("Transaktion") for w in woerter):
+                x = {w[4]: w for w in z}
+                spalten = (x.get("Valuta", z[1])[0], next(w[0] for w in z if w[4].startswith("Transaktion")), x["Betrag"][0])
+                start_y = z[0][1] + 1
+                break
+        if spalten is None:
+            continue
+        valuta_x, info_x, betrag_x = spalten
+        if start_y is None:  # Folgeseite ohne Kopfzeile: ab dem ersten Datum
+            start_y = next((z[0][1] for z in zeilen if _PDF_TAG.match(z[0][4]) and z[0][0] < valuta_x - 2), fuss)
+        for z in zeilen:
+            y = z[0][1]
+            if y < start_y or y >= fuss:
+                continue
+            if z[0][0] < info_x - 2 and _pdf_text(z).startswith("Zusammenfassung"):
+                fertig = True
+                break
+            erstes = z[0]
+            tag = _PDF_TAG.match(erstes[4])
+            if tag and erstes[0] < valuta_x - 2:
+                valuta = next((w for w in z if valuta_x - 2 <= w[0] < info_x - 2 and _PDF_TAG.match(w[4])), None)
+                aktuell = {
+                    "datum": (int(tag.group(1)), int(tag.group(2))),
+                    "valuta": (int(_PDF_TAG.match(valuta[4]).group(1)), int(_PDF_TAG.match(valuta[4]).group(2))) if valuta else None,
+                    "betrag": _pdf_betrag(z, info_x + (betrag_x - info_x) * 0.6),
+                    "info": [],
+                }
+                umsatz_teile.append(aktuell)
+            if aktuell is None:
+                continue
+            betrag_ab = info_x + (betrag_x - info_x) * 0.6
+            # Betrag und Währungszeichen rechts gehören nicht zur Information
+            info = [w[4] for w in z if w[0] >= info_x - 2
+                    and not (w[0] >= betrag_ab and (_PDF_BETRAG.match(w[4]) or not re.search(r"\w", w[4])))]
+            if info:
+                aktuell["info"].append(" ".join(info))
+            if aktuell["betrag"] is None:
+                aktuell["betrag"] = _pdf_betrag(z, info_x + (betrag_x - info_x) * 0.6)
+
+    if spalten is None:
+        raise BankImportError("Im PDF wurde keine Umsatztabelle gefunden (Spalten „Buchung · Valuta · Transaktionsinformation · Betrag“).")
+    nicht_lesbar = 0
+    for teile in umsatz_teile:
+        u = _pdf_umsatz(teile, von, bis)
+        if u is None:
+            nicht_lesbar += 1
+        else:
+            erg.umsaetze.append(u)
+    if nicht_lesbar:
+        erg.warnungen.append(f"{nicht_lesbar} Zeilen ohne lesbares Datum oder ohne Betrag übersprungen — bitte mit dem Auszug vergleichen.")
+
+    # Salden aus der Zusammenfassung
+    for zeilen in seiten:
+        for z in zeilen:
+            t = _pdf_text(z)
+            if t.startswith("Startsaldo"):
+                erg.saldo_anfang = _pdf_betrag(z, z[0][2])
+            elif t.startswith("Endsaldo"):
+                erg.saldo_ende = _pdf_betrag(z, z[0][2])
+    return erg
+
+
 # ── Format, Fingerprint, Speichern ──────────────────────────────────────────
 
 def format_erkennen(data: bytes, dateiname: str = "") -> str:
     kopf = data[:2000].lstrip(b"\xef\xbb\xbf \t\r\n")
+    if kopf.startswith(b"%PDF") or dateiname.lower().endswith(".pdf"):
+        return "pdf"
     if kopf.startswith(b"<") or dateiname.lower().endswith((".xml", ".camt")):
         return "camt053"
     return "csv"
@@ -376,7 +589,10 @@ def lesen(data: bytes, dateiname: str = "", mapping: dict | None = None) -> tupl
         raise BankImportError("Die Datei ist größer als 20 MB.")
     if not data.strip():
         raise BankImportError("Die Datei ist leer.")
-    if format_erkennen(data, dateiname) == "camt053":
+    fmt = format_erkennen(data, dateiname)
+    if fmt == "pdf":
+        return parse_pdf_c24(data), {}
+    if fmt == "camt053":
         return parse_camt053(data), {}
     return parse_csv(data, mapping)
 

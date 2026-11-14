@@ -11,7 +11,7 @@ import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Ro
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatDateDE, formatEuro } from '../lib/format.js';
 
-// Bank (Aufbau nach Haben): Kontoauszug als CAMT.053 oder CSV importieren, jeden Umsatz einer
+// Bank (Aufbau nach Haben): Kontoauszug als CAMT.053, CSV oder PDF (nur C24 Bank) importieren, jeden Umsatz einer
 // Buchung zuordnen, ignorieren oder offen lassen. Kein Bankabruf — die Datei kommt von dir.
 // Zugeordnet wird im normalen Buchungs-Fenster, vorbelegt aus dem Umsatz.
 
@@ -101,7 +101,7 @@ export default function Bank() {
         <input
           ref={dateiRef}
           type="file"
-          accept=".csv,.xml,.txt,.camt,text/csv,text/xml,application/xml"
+          accept=".csv,.xml,.txt,.camt,.pdf,text/csv,text/xml,application/xml,application/pdf"
           className="hidden"
           onChange={(e) => {
             if (e.target.files?.[0]) setImportDatei(e.target.files[0]);
@@ -116,7 +116,7 @@ export default function Bank() {
       {konten.length === 0 ? (
         <Leer>
           Noch kein Konto. Exportiere bei deiner Bank die Umsätze als <strong>CAMT.053</strong> (XML) oder CSV und
-          importiere die Datei mit „Kontoauszug“. Nennt die Datei die IBAN, legt Tab das Konto selbst an.
+          importiere die Datei mit „Kontoauszug“. Von der <strong>C24 Bank</strong> geht auch der Kontoauszug als PDF. Nennt die Datei die IBAN, legt Tab das Konto selbst an.
         </Leer>
       ) : (
         <>
@@ -709,7 +709,7 @@ function ImportModal({ datei, gewerbeId, konten, onClose, onDone }) {
             ) : (
               <Hinweis>
                 <strong>{v.anzahl} Umsätze</strong> vom {formatDateDE(v.von)} bis {formatDateDE(v.bis)} ·{' '}
-                {v.format === 'camt053' ? 'CAMT.053' : 'CSV'}
+                {{ camt053: 'CAMT.053', pdf_c24: 'PDF (C24)' }[v.format] || 'CSV'}
                 {v.schon_vorhanden ? ` · ${v.schon_vorhanden} davon schon vorhanden` : ''}
                 {v.saldo_pruefung === 'ok' ? ' · Saldo stimmt' : v.saldo_pruefung !== 'unbekannt' ? ` · Saldo ${v.saldo_pruefung}` : ''}
                 {v.warnungen?.length ? <span className="mt-1 block text-xs">{v.warnungen.join(' ')}</span> : null}

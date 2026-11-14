@@ -511,7 +511,12 @@ der Mapping-Version des Jahres aufgelöst.
   ist bezahlt oder nicht), Skonto, Mahnbescheid.
 - **Bank-Import (`/bank`, `pages/Bank.jsx`, `routes/bank.py`, `services/bank_import.py` +
   `bank_match.py`, v21):** **Kein Bankabruf** — der Nutzer importiert die Datei seiner Bank:
-  **CAMT.053** (XML) oder **CSV** (Trennzeichen/Kodierung/Kopfzeile werden erkannt, Vorspann wird
+  **CAMT.053** (XML), **CSV** oder **PDF der C24 Bank** (`parse_pdf_c24`, Format `pdf_c24`, 2026-11-14: C24 gibt nur
+  PDF heraus; Textebene über PyMuPDF-Wortpositionen, Spalten aus der Kopfzeile „Buchung · Valuta ·
+  Transaktionsinformation · Betrag“, Info-Zeilen = Vorgangsart, Gegenpartei, Zweck, „IBAN: … / BIC: …“; Jahr aus dem
+  Zeitraum im Kopf, auch über den Jahreswechsel; Salden aus der Zusammenfassung; mehrseitig; andere PDFs → 400 mit
+  Hinweis auf CSV/CAMT, gescannte → 400; nach einem echten Auszug mit einem Umsatz plus nachgebauten Auszügen getestet —
+  mit echten Abbuchungen/Lastschriften von C24 noch nicht) (Trennzeichen/Kodierung/Kopfzeile werden erkannt, Vorspann wird
   übersprungen, IBAN aus dem Vorspann; Spalten werden aus den Überschriften geraten — DKB,
   Sparkasse-CSV, Soll/Haben getestet — und sind im Import-Dialog mit Vorschau änderbar, auch
   getrennte Spalten für Gegenpartei bei Eingang/Ausgang). XML mit DOCTYPE/ENTITY wird abgelehnt

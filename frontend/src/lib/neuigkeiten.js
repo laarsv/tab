@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 41,
+    datum: '2026-11-14',
+    titel: 'Kontoauszüge der C24 Bank als PDF',
+    text: 'Unter Bank kannst du jetzt auch den Kontoauszug der C24 Bank als PDF importieren, so wie er aus der App kommt. Tab liest Datum, Gegenseite, Verwendungszweck, IBAN und Betrag und prüft den Endsaldo. Danach ordnest du die Umsätze wie gewohnt zu; eine Zahlung mit Rechnungsnummer im Zweck schlägt Tab der passenden Rechnung vor. Andere Banken gehen weiter über CSV oder CAMT. Lädst du erst den vorläufigen und später den endgültigen Auszug, erkennt Tab die schon importierten Umsätze wieder.',
+    link: { to: '/bank', label: 'Zur Bank' },
+  },
+  {
     id: 40,
     datum: '2026-11-14',
     titel: 'Wiederkehrende Rechnungen mit Enddatum',
