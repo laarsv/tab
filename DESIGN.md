@@ -95,7 +95,7 @@ So: blue buttons/fills use white text, and blue may be used as a text color.
 - **Fristen in Worten:** `<Frist datum=… />` bzw. `lib/fristWorte.js` („fällig in 3 Wochen“, „34 Tage überfällig“), das Datum
   ist der Tooltip. Ausnahme Mahnwesen: dort die genaue Zahl der Verzugstage, weil sie rechtlich zählt.
 - **Liste links, offene Sache rechts** (Rechnungen, `RechnungsListe` in `pages/Rechnungen.jsx`, Muster aus vrwb_flow, 2026-11-14):
-  ab 1280 px steht links die Liste (18rem, bleibt beim Scrollen stehen; Punkt + Name + Nummer/Zustandswort + Betrag) und rechts
+  ab 1280 px steht links die Liste (18rem, scrollt mit der Seite — ein Scrollbalken je Seite; die offene Rechnung bleibt stehen, solange sie kurz ist; Punkt + Name + Nummer/Zustandswort + Betrag) und rechts
   die gewählte Rechnung: Eyebrow mit Nummer, Name, Betrag, Zustandszeile, **eine** Hauptaktion als Textknopf (`hauptaktion()`:
   senden → Zahlung erfassen → mahnen, sonst PDF), alle anderen Aktionen als Icons, darunter Positionen, Notiz, Verlauf.
   Darunter (Handy, schmale Fenster) bleiben die Zeilen mit Icons. Zeile und offene Rechnung nutzen dieselben Bausteine

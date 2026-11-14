@@ -147,12 +147,13 @@ function RechnungsListe({ items, zustandZeile, aktionen, verlauf, hauptaktion })
   const offen = items.find((r) => r.id === offenId) ?? items[0];
   const haupt = hauptaktion(offen);
   const HauptIcon = haupt.icon;
+  // Ein Scrollbalken je Seite (Hub, Arbeitsflächen): die Liste scrollt mit der Seite, die offene Rechnung bleibt
+  // stehen — aber nur, solange sie sicher auf den Schirm passt.
+  const kurz =
+    offen.positionen.length + offen.zahlungen.length + offen.mahnungen.length <= 8 && (offen.notiz || '').length < 400;
   return (
     <div className="grid grid-cols-[18rem_minmax(0,1fr)] items-start gap-x-8">
-      <ul
-        className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto border-t border-ink/[0.08]"
-        aria-label="Rechnungen"
-      >
+      <ul className="border-t border-ink/[0.08]" aria-label="Rechnungen">
         {items.map((r) => {
           const aktiv = r.id === offen.id;
           const ueber = r.ueberfaellig_tage > 0;
@@ -192,7 +193,10 @@ function RechnungsListe({ items, zustandZeile, aktionen, verlauf, hauptaktion })
         })}
       </ul>
 
-      <section aria-label={`Rechnung ${offen.nummer}`} className={offen.status === 'storniert' ? 'opacity-70' : ''}>
+      <section
+        aria-label={`Rechnung ${offen.nummer}`}
+        className={`${kurz ? 'sticky top-4' : ''} ${offen.status === 'storniert' ? 'opacity-70' : ''}`}
+      >
         <div className="flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <div className="eyebrow tabular-nums">Rechnung {offen.nummer}</div>
