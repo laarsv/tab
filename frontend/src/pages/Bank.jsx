@@ -31,6 +31,7 @@ export default function Bank() {
   const [q, setQ] = useState('');
   const [daten, setDaten] = useState(null);
   const [importDatei, setImportDatei] = useState(null);
+  const [importDateien, setImportDateien] = useState(null);
   const [umsatz, setUmsatz] = useState(null);
   const [buchen, setBuchen] = useState(null);
   const dateiRef = useRef(null);
@@ -102,9 +103,12 @@ export default function Bank() {
           ref={dateiRef}
           type="file"
           accept=".csv,.xml,.txt,.camt,.pdf,text/csv,text/xml,application/xml,application/pdf"
+          multiple
           className="hidden"
           onChange={(e) => {
-            if (e.target.files?.[0]) setImportDatei(e.target.files[0]);
+            const liste = Array.from(e.target.files || []);
+            if (liste.length === 1) setImportDatei(liste[0]);
+            else if (liste.length > 1) setImportDateien(liste);
             e.target.value = '';
           }}
         />
@@ -182,6 +186,18 @@ export default function Bank() {
           onClose={() => setImportDatei(null)}
           onDone={async (res) => {
             if (res?.konto_id) setKonto('');
+            setFilter('offen');
+            await nachAenderung();
+          }}
+        />
+      )}
+      {importDateien && (
+        <MehrfachImportModal
+          dateien={importDateien}
+          gewerbeId={gewerbeId}
+          onClose={() => setImportDateien(null)}
+          onDone={async () => {
+            setKonto('');
             setFilter('offen');
             await nachAenderung();
           }}
@@ -684,7 +700,8 @@ function ImportModal({ datei, gewerbeId, konten, onClose, onDone }) {
 
   const csv = v?.csv;
   const spalten = csv ? [{ value: '', label: '— keine —' }, ...csv.header.map((h, i) => ({ value: String(i), label: h || `Spalte ${i + 1}` }))] : [];
-  const bereit = v && !v.fehler && v.anzahl > 0;
+  // Ein PDF-Auszug ohne Umsätze (z. B. erster Monat) ist gültig: er wird mit Zeitraum und Saldo festgehalten.
+  const bereit = v && !v.fehler && (v.anzahl > 0 || v.format === 'pdf_c24');
   const kontoOptionen = [
     {
       value: 'datei',
@@ -708,7 +725,7 @@ function ImportModal({ datei, gewerbeId, konten, onClose, onDone }) {
               </Hinweis>
             ) : (
               <Hinweis>
-                <strong>{v.anzahl} Umsätze</strong> vom {formatDateDE(v.von)} bis {formatDateDE(v.bis)} ·{' '}
+                <strong>{v.anzahl ? `${v.anzahl} Umsätze` : 'Keine Umsätze'}</strong> vom {formatDateDE(v.von)} bis {formatDateDE(v.bis)} ·{' '}
                 {{ camt053: 'CAMT.053', pdf_c24: 'PDF (C24)' }[v.format] || 'CSV'}
                 {v.schon_vorhanden ? ` · ${v.schon_vorhanden} davon schon vorhanden` : ''}
                 {v.saldo_pruefung === 'ok' ? ' · Saldo stimmt' : v.saldo_pruefung !== 'unbekannt' ? ` · Saldo ${v.saldo_pruefung}` : ''}
@@ -775,8 +792,158 @@ function ImportModal({ datei, gewerbeId, konten, onClose, onDone }) {
           Abbrechen
         </button>
         <button type="button" className="btn-primary" disabled={!kannImportieren} onClick={importieren}>
-          {busy ? 'Importiert…' : v?.anzahl ? `${v.anzahl - (v.schon_vorhanden || 0)} neue Umsätze importieren` : 'Importieren'}
+          {busy
+            ? 'Importiert…'
+            : v?.anzahl
+              ? `${v.anzahl - (v.schon_vorhanden || 0)} neue Umsätze importieren`
+              : v && !v.fehler && v.format === 'pdf_c24'
+                ? 'Auszug ohne Umsätze übernehmen'
+                : 'Importieren'}
         </button>
+      </DialogFuss>
+    </Modal>
+  );
+}
+
+// Mehrere Kontoauszüge auf einmal: je Datei eine Vorschau, dann alle nacheinander importieren. Das Konto kommt
+// jeweils aus der IBAN der Datei; eine Datei ohne IBAN oder eine CSV mit unklaren Spalten geht nur einzeln.
+const FORMAT_NAME = { camt053: 'CAMT.053', pdf_c24: 'PDF (C24)', csv: 'CSV' };
+
+function MehrfachImportModal({ dateien, gewerbeId, onClose, onDone }) {
+  const [stand, setStand] = useState(() => dateien.map(() => ({ zustand: 'liest' })));
+  const [busy, setBusy] = useState(false);
+  const [fertig, setFertig] = useState(false);
+
+  function setze(i, wert) {
+    setStand((alt) => alt.map((x, j) => (j === i ? { ...x, ...wert } : x)));
+  }
+
+  useEffect(() => {
+    let ab = false;
+    (async () => {
+      for (let i = 0; i < dateien.length; i += 1) {
+        const fd = new FormData();
+        fd.append('file', dateien[i]);
+        fd.append('gewerbe_id', gewerbeId);
+        try {
+          const v = (await api.post('/api/bank/import/vorschau', fd)).data;
+          if (ab) return;
+          if (v.fehler) setze(i, { zustand: 'einzeln', text: 'Spalten der CSV bitte einzeln prüfen' });
+          else if (!v.iban) setze(i, { zustand: 'einzeln', text: 'nennt keine IBAN — bitte einzeln importieren' });
+          else if (!v.anzahl && v.format !== 'pdf_c24') setze(i, { zustand: 'einzeln', text: 'keine Umsätze' });
+          else setze(i, { zustand: 'bereit', v });
+        } catch (e) {
+          if (ab) return;
+          setze(i, { zustand: 'fehler', text: apiError(e, 'nicht lesbar') });
+        }
+      }
+    })();
+    return () => {
+      ab = true;
+    };
+  }, [dateien, gewerbeId]);
+
+  const bereit = stand.filter((x) => x.zustand === 'bereit').length;
+  const liest = stand.some((x) => x.zustand === 'liest');
+
+  async function alleImportieren() {
+    setBusy(true);
+    let neu = 0;
+    let ok = 0;
+    for (let i = 0; i < dateien.length; i += 1) {
+      if (stand[i].zustand !== 'bereit') continue;
+      const fd = new FormData();
+      fd.append('file', dateien[i]);
+      fd.append('gewerbe_id', gewerbeId);
+      try {
+        const d = (await api.post('/api/bank/import', fd)).data;
+        neu += d.neu;
+        ok += 1;
+        setze(i, { zustand: 'importiert', ergebnis: d });
+      } catch (e) {
+        setze(i, { zustand: 'fehler', text: apiError(e) });
+      }
+    }
+    setBusy(false);
+    setFertig(true);
+    toast.success(`${ok} ${ok === 1 ? 'Auszug' : 'Auszüge'} importiert, ${neu} neue Umsätze.`, { duration: 7000 });
+    await onDone();
+  }
+
+  function zeile(x) {
+    if (x.zustand === 'liest') return <span className="text-ink/60">wird gelesen…</span>;
+    if (x.zustand === 'fehler') return <Zustand ton="neg">{x.text}</Zustand>;
+    if (x.zustand === 'einzeln') return <Zustand ton="warn">{x.text}</Zustand>;
+    if (x.zustand === 'importiert') {
+      const d = x.ergebnis;
+      return (
+        <>
+          <Zustand ton="royal">Importiert</Zustand>
+          {PUNKT}
+          <span>
+            {d.neu} neu{d.dubletten ? `, ${d.dubletten} schon vorhanden` : ''}
+          </span>
+          {d.saldo_pruefung && d.saldo_pruefung !== 'ok' && d.saldo_pruefung !== 'unbekannt' && (
+            <>
+              {PUNKT}
+              <Zustand ton="warn">Saldo {d.saldo_pruefung}</Zustand>
+            </>
+          )}
+        </>
+      );
+    }
+    const v = x.v;
+    const neu = v.anzahl - (v.schon_vorhanden || 0);
+    return (
+      <>
+        <span>
+          {formatDateDE(v.von)} – {formatDateDE(v.bis)}
+        </span>
+        {PUNKT}
+        <span>{FORMAT_NAME[v.format] || v.format}</span>
+        {PUNKT}
+        <span>{v.anzahl ? `${neu} neue von ${v.anzahl}` : 'keine Umsätze'}</span>
+        {v.saldo_pruefung === 'ok' ? (
+          <>
+            {PUNKT}
+            <span>Saldo stimmt</span>
+          </>
+        ) : v.saldo_pruefung !== 'unbekannt' ? (
+          <>
+            {PUNKT}
+            <Zustand ton="warn">Saldo {v.saldo_pruefung}</Zustand>
+          </>
+        ) : null}
+        {PUNKT}
+        <span>{v.konto ? v.konto.name : `neues Konto ${v.kontoname || v.iban}`}</span>
+      </>
+    );
+  }
+
+  return (
+    <Modal title="Kontoauszüge importieren" subtitle={`${dateien.length} Dateien`} onClose={onClose} maxWidth="max-w-2xl">
+      <div className="space-y-3">
+        <div className="divide-y divide-ink/[0.08] border-y border-ink/[0.08]">
+          {dateien.map((f, i) => (
+            <div key={`${f.name}-${i}`} className="py-2.5">
+              <div className="truncate text-sm font-bold">{f.name}</div>
+              <div className="flex flex-wrap items-center gap-x-1 text-[13px] text-ink/70">{zeile(stand[i])}</div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-ink/60">
+          Das Konto kommt aus der IBAN jeder Datei. Schon importierte Umsätze erkennt Tab wieder, die Reihenfolge ist egal.
+        </p>
+      </div>
+      <DialogFuss>
+        <button type="button" className="btn-ghost" onClick={onClose}>
+          {fertig ? 'Schließen' : 'Abbrechen'}
+        </button>
+        {!fertig && (
+          <button type="button" className="btn-primary" disabled={busy || liest || bereit === 0} onClick={alleImportieren}>
+            {busy ? 'Importiert…' : liest ? 'Liest Dateien…' : `${bereit} ${bereit === 1 ? 'Auszug' : 'Auszüge'} importieren`}
+          </button>
+        )}
       </DialogFuss>
     </Modal>
   );

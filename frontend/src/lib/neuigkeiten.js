@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 42,
+    datum: '2026-11-14',
+    titel: 'Mehrere Kontoauszüge auf einmal',
+    text: 'Unter Bank → „Kontoauszug“ kannst du jetzt mehrere Dateien zugleich auswählen, zum Beispiel alle C24-PDFs eines Jahres. Tab liest jede Datei vorab, zeigt Zeitraum, neue Umsätze und Saldo und importiert dann alle mit einem Klick. Auszüge ohne Umsätze, etwa aus dem ersten Monat, nimmt Tab jetzt auch an.',
+    link: { to: '/bank', label: 'Zur Bank' },
+  },
+  {
     id: 41,
     datum: '2026-11-14',
     titel: 'Kontoauszüge der C24 Bank als PDF',

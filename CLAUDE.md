@@ -516,7 +516,7 @@ der Mapping-Version des Jahres aufgelöst.
   Transaktionsinformation · Betrag“, Info-Zeilen = Vorgangsart, Gegenpartei, Zweck, „IBAN: … / BIC: …“; Jahr aus dem
   Zeitraum im Kopf, auch über den Jahreswechsel; Salden aus der Zusammenfassung; mehrseitig; andere PDFs → 400 mit
   Hinweis auf CSV/CAMT, gescannte → 400; nach einem echten Auszug mit einem Umsatz plus nachgebauten Auszügen getestet —
-  mit echten Abbuchungen/Lastschriften von C24 noch nicht) (Trennzeichen/Kodierung/Kopfzeile werden erkannt, Vorspann wird
+  mit echten Abbuchungen/Lastschriften von C24 noch nicht; Auszug ohne Umsätze („Keine Transaktionen im Zeitraum“) gilt als gültig und wird mit dem Zeitraum (`zeitraum_von/bis`) protokolliert; Salden aus der ERSTEN Zusammenfassung, weil der Rechnungsabschluss am Quartalsende eine zweite hat). **Mehrere Dateien auf einmal:** `MehrfachImportModal` in `Bank.jsx` (je Datei Vorschau, dann nacheinander `POST /import`, Konto immer aus der IBAN der Datei; CSV mit unklaren Spalten oder ohne IBAN nur einzeln) (Trennzeichen/Kodierung/Kopfzeile werden erkannt, Vorspann wird
   übersprungen, IBAN aus dem Vorspann; Spalten werden aus den Überschriften geraten — DKB,
   Sparkasse-CSV, Soll/Haben getestet — und sind im Import-Dialog mit Vorschau änderbar, auch
   getrennte Spalten für Gegenpartei bei Eingang/Ausgang). XML mit DOCTYPE/ENTITY wird abgelehnt

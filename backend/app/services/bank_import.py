@@ -49,6 +49,9 @@ class Ergebnis:
     saldo_anfang: int | None = None
     saldo_ende: int | None = None
     warnungen: list[str] = field(default_factory=list)
+    # Zeitraum laut Auszug (nur PDF): erlaubt auch einen Auszug ganz ohne Umsätze
+    zeitraum_von: str | None = None
+    zeitraum_bis: str | None = None
 
 
 # ── gemeinsame Helfer ───────────────────────────────────────────────────────
@@ -475,6 +478,7 @@ def parse_pdf_c24(data: bytes) -> Ergebnis:
         mon, jahr = int(mm.group(1)), int(mm.group(2))
         von = dt.date(jahr, mon, 1)
         bis = dt.date(jahr + (mon == 12), mon % 12 + 1, 1) - dt.timedelta(days=1)
+    erg.zeitraum_von, erg.zeitraum_bis = von.isoformat(), bis.isoformat()
     if "vorläufig" in volltext.lower():
         erg.warnungen.append(
             "Vorläufiger Kontoauszug: Importierst du später den endgültigen, erkennt Tab gleiche Umsätze wieder — "
@@ -562,14 +566,17 @@ def parse_pdf_c24(data: bytes) -> Ergebnis:
     if nicht_lesbar:
         erg.warnungen.append(f"{nicht_lesbar} Zeilen ohne lesbares Datum oder ohne Betrag übersprungen — bitte mit dem Auszug vergleichen.")
 
-    # Salden aus der Zusammenfassung
+    # Salden aus der ersten Zusammenfassung (nach der Umsatztabelle; der Rechnungsabschluss am Quartalsende
+    # hat eine eigene)
     for zeilen in seiten:
         for z in zeilen:
             t = _pdf_text(z)
-            if t.startswith("Startsaldo"):
+            if t.startswith("Startsaldo") and erg.saldo_anfang is None:
                 erg.saldo_anfang = _pdf_betrag(z, z[0][2])
-            elif t.startswith("Endsaldo"):
+            elif t.startswith("Endsaldo") and erg.saldo_ende is None:
                 erg.saldo_ende = _pdf_betrag(z, z[0][2])
+    if not erg.umsaetze and not re.search(r"Keine\s+Transaktionen", volltext, re.I) and erg.saldo_anfang != erg.saldo_ende:
+        raise BankImportError("Im PDF wurden keine Umsätze erkannt, obwohl sich der Saldo ändert — bitte den Auszug prüfen.")
     return erg
 
 
@@ -658,7 +665,7 @@ def importiere(
     email: str,
 ) -> dict:
     erg, _info = lesen(data, dateiname, mapping)
-    if not erg.umsaetze:
+    if not erg.umsaetze and not erg.zeitraum_von:
         raise BankImportError("Die Datei enthält keine Umsätze.")
     konto = konto_aufloesen(conn, gewerbe_id, konto_id, erg.iban, erg.kontoname)
     sha = hashlib.sha256(data).hexdigest()
@@ -675,7 +682,7 @@ def importiere(
              u.gegenpartei_iban or None, u.verwendungszweck or None, u.referenz or None, fp),
         )
         neu += 1
-    daten = sorted(u.datum for u in erg.umsaetze)
+    daten = sorted(u.datum for u in erg.umsaetze) or [erg.zeitraum_von, erg.zeitraum_bis]
     saldo = _saldo_pruefung(erg)
     cur = conn.execute(
         "INSERT INTO bank_import (konto_id, gewerbe_id, dateiname, sha256, format, von, bis, anzahl_neu, "

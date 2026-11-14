@@ -148,7 +148,7 @@ def import_vorschau(
     if erg.iban:
         k = db.execute("SELECT id, name FROM bankkonto WHERE gewerbe_id = ? AND iban = ?", (gewerbe_id, erg.iban)).fetchone()
         konto = dict(k) if k else None
-    daten = sorted(u.datum for u in erg.umsaetze)
+    daten = sorted(u.datum for u in erg.umsaetze) or [erg.zeitraum_von, erg.zeitraum_bis]
     fps = imp.fingerprints(erg.umsaetze)
     schon = 0
     if konto:
