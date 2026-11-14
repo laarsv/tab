@@ -234,7 +234,7 @@ der Mapping-Version des Jahres aufgelöst.
   `no-cache` ausgeliefert). Neue Listen: überfällig nie mit `neg`. **Einstellungen als ein Fenster** (`components/EinstellungenFenster.jsx`, Bereiche E-Mail,
   Passkeys, KI-Assistenten, Steuerberatung; geöffnet über Profil-Menü → Einstellungen oder `openEinstellungen(bereich)` /
   `openMailSetup` aus dem Layout-Context; „Steuerberatung“ steht nicht mehr in der Seitenleiste, die Route `/steuerberatung`
-  gibt es weiter). Wo ältere Abschnitte „Profil-Menü → Passkeys/KI-Assistenten/E-Mail-Versand“ sagen, ist dieses Fenster gemeint.
+  gibt es weiter). Wo ältere Abschnitte „Profil-Menü → Passkeys/KI-Assistenten/E-Mail-Versand“ sagen, ist dieses Fenster gemeint. **Rechnungen ab 1280 px: Liste links, offene Rechnung rechts** (`RechnungsListe` in `pages/Rechnungen.jsx`, eine Hauptaktion über `hauptaktion()`, Rest Icons; darunter die gewohnten Zeilen; beide nutzen `zustandZeile`/`aktionen`/`verlauf`).
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.

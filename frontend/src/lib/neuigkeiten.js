@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 39,
+    datum: '2026-11-14',
+    titel: 'Rechnungen: Liste links, Rechnung rechts',
+    text: 'Auf einem breiten Bildschirm steht die Liste der Rechnungen jetzt links und die angeklickte Rechnung rechts daneben: Zustand, Positionen, Zahlungen und Mahnungen auf einen Blick, dazu ein Knopf für den nächsten Schritt (senden, Zahlung erfassen oder mahnen). Am Handy und in schmalen Fenstern bleibt alles wie bisher.',
+  },
+  {
     id: 38,
     datum: '2026-11-14',
     titel: 'Einstellungen an einem Ort',

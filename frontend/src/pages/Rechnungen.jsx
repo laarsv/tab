@@ -11,11 +11,36 @@ import BuchungModal from '../components/BuchungModal.jsx';
 import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
-  IconBan, IconBell, IconBookIn, IconBookmark, IconButton, IconCheck, IconCircleCheck, IconFileText, IconPause, IconPencil,
-  IconPlay, IconPlus, IconRepeat, IconSend, IconTrash, IconUsers, IconZap,
+  IconBan,
+  IconBell,
+  IconBookIn,
+  IconBookmark,
+  IconButton,
+  IconCheck,
+  IconCircleCheck,
+  IconFileText,
+  IconPause,
+  IconPencil,
+  IconPlay,
+  IconPlus,
+  IconRepeat,
+  IconSend,
+  IconTrash,
+  IconUsers,
+  IconZap,
 } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
-import { Frist, Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
+import {
+  Frist,
+  Hinweis,
+  KeinGewerbe,
+  Leer,
+  PageHeader,
+  PUNKT,
+  Row,
+  SectionHead,
+  Zustand,
+} from '../components/PageParts.jsx';
 import { dauer } from '../lib/fristWorte.js';
 import RechnungenTabs from '../components/RechnungenTabs.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -31,13 +56,24 @@ const STATUS = {
   bezahlt: { label: 'Bezahlt', kind: 'pos', ton: 'pos' },
   storniert: { label: 'Storniert', kind: 'neg', ton: 'neg' },
 };
-const ZAHLUNG_ART = { zahlung: 'Zahlung', skonto: 'Skonto', ausfall: 'Forderungsausfall' };
-const INTERVALL = { monatlich: 'monatlich', vierteljaehrlich: 'vierteljährlich', jaehrlich: 'jährlich' };
+const ZAHLUNG_ART = {
+  zahlung: 'Zahlung',
+  skonto: 'Skonto',
+  ausfall: 'Forderungsausfall',
+};
+const INTERVALL = {
+  monatlich: 'monatlich',
+  vierteljaehrlich: 'vierteljährlich',
+  jaehrlich: 'jährlich',
+};
 
 // Warum keine USt auf der Rechnung steht — je Rechnung wählbar.
 const STEUERHINWEIS_OPTIONS = [
   { value: 'ku19', label: 'Kleinunternehmer § 19 UStG (Standard)' },
-  { value: 'vers4nr11', label: 'Steuerfrei § 4 Nr. 11 UStG (Versicherungsprovision)' },
+  {
+    value: 'vers4nr11',
+    label: 'Steuerfrei § 4 Nr. 11 UStG (Versicherungsprovision)',
+  },
 ];
 
 function emptyRPos() {
@@ -46,13 +82,190 @@ function emptyRPos() {
 
 async function openPdf(id) {
   try {
-    const res = await api.get(`/api/rechnungen/${id}/pdf`, { responseType: 'blob' });
+    const res = await api.get(`/api/rechnungen/${id}/pdf`, {
+      responseType: 'blob',
+    });
     const url = URL.createObjectURL(res.data);
     window.open(url, '_blank', 'noopener');
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (e) {
     toast.error(apiError(e, 'PDF konnte nicht erstellt werden.'));
   }
+}
+
+// Ab 1280 px: Liste links, offene Rechnung rechts (Muster aus vrwb_flow). Darunter die gewohnten Zeilen.
+const BREIT = '(min-width: 1280px)';
+function useBreit() {
+  const [breit, setBreit] = useState(() => typeof window !== 'undefined' && window.matchMedia(BREIT).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(BREIT);
+    const on = () => setBreit(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return breit;
+}
+
+// Punkt vor dem Listeneintrag: versendet = offener Ring, überfällig = gefüllt (nie nur über Farbe unterscheiden).
+const PUNKT_FARBE = {
+  out: 'bg-ink/30',
+  warn: 'border-2 border-[#b26a00]',
+  late: 'bg-[#b26a00]',
+  pos: 'bg-[#177245]',
+  neg: 'bg-red-700',
+};
+
+function RechnungsListe({ items, zustandZeile, aktionen, verlauf, hauptaktion }) {
+  const breit = useBreit();
+  const [offenId, setOffenId] = useState(null);
+
+  if (!breit) {
+    return items.map((r) => (
+      <Row
+        key={r.id}
+        kind={r.ueberfaellig_tage > 0 ? 'late' : STATUS[r.status].kind}
+        icon={IconFileText}
+        muted={r.status === 'storniert'}
+        title={
+          <>
+            <span className="tabular-nums">{r.nummer}</span> · {r.empfaenger_name}
+          </>
+        }
+        sub={zustandZeile(r)}
+        amount={formatEuro(r.summe_cent)}
+        amountIn={r.status !== 'storniert'}
+        /* feste Breite ab sm: Beträge bleiben bündig, PDF/Senden sitzen immer am selben Platz */
+        actionsClass="sm:w-[12.75rem]"
+        actions={aktionen(r)}
+      >
+        {verlauf(r)}
+      </Row>
+    ));
+  }
+
+  const offen = items.find((r) => r.id === offenId) ?? items[0];
+  const haupt = hauptaktion(offen);
+  const HauptIcon = haupt.icon;
+  return (
+    <div className="grid grid-cols-[18rem_minmax(0,1fr)] items-start gap-x-8">
+      <ul
+        className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto border-t border-ink/[0.08]"
+        aria-label="Rechnungen"
+      >
+        {items.map((r) => {
+          const aktiv = r.id === offen.id;
+          const ueber = r.ueberfaellig_tage > 0;
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => setOffenId(r.id)}
+                aria-current={aktiv ? 'true' : undefined}
+                className={`flex w-full items-center gap-2.5 border-b border-ink/[0.08] px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-royal/60 ${
+                  aktiv ? 'bg-royal/[0.08]' : 'hover:bg-ink/[0.03]'
+                } ${r.status === 'storniert' ? 'opacity-60' : ''}`}
+              >
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${PUNKT_FARBE[ueber ? 'late' : STATUS[r.status].kind]}`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={`block truncate text-sm leading-snug ${aktiv ? 'font-bold text-royal' : 'font-bold'}`}
+                  >
+                    {r.empfaenger_name}
+                  </span>
+                  <span className="block truncate text-xs leading-snug text-ink/60">
+                    <span className="tabular-nums">{r.nummer}</span> ·{' '}
+                    {ueber
+                      ? 'überfällig'
+                      : r.status === 'versendet' && r.bezahlt_cent > 0
+                        ? 'Teilbezahlt'
+                        : STATUS[r.status].label}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-bold tabular-nums">{formatEuro(r.summe_cent)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <section aria-label={`Rechnung ${offen.nummer}`} className={offen.status === 'storniert' ? 'opacity-70' : ''}>
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="eyebrow tabular-nums">Rechnung {offen.nummer}</div>
+            <h2 className="mt-0.5 text-[22px] font-black leading-tight tracking-tight">{offen.empfaenger_name}</h2>
+          </div>
+          <div className="shrink-0 text-right text-[22px] font-black tabular-nums tracking-tight text-royal">
+            {formatEuro(offen.summe_cent)}
+          </div>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[13px] leading-snug text-ink/60">
+          {zustandZeile(offen)}
+        </div>
+
+        <div className="mt-4 flex items-center gap-1 border-b border-ink/[0.08] pb-4">
+          <button type="button" className="btn-primary" onClick={haupt.onClick}>
+            <HauptIcon className="mr-1.5 h-4 w-4" /> {haupt.label}
+          </button>
+          <div className="ml-auto flex items-center gap-0.5 text-ink/60">{aktionen(offen, haupt.key)}</div>
+        </div>
+
+        <div className="eyebrow mt-4">Positionen</div>
+        <div className="mt-1">
+          {offen.positionen.map((p, i) => (
+            <div key={i} className="flex items-baseline gap-3 border-b border-ink/[0.08] py-2 text-sm">
+              <span className="min-w-0 flex-1 whitespace-pre-line">{p.beschreibung}</span>
+              <span className="shrink-0 tabular-nums text-ink/60">
+                {String(p.menge).replace('.', ',')} × {formatEuro(p.einzelpreis_cent)}
+              </span>
+              <span className="w-24 shrink-0 text-right font-bold tabular-nums">
+                {formatEuro(Math.round(p.menge * p.einzelpreis_cent))}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {(offen.leistungsdatum || offen.bestellnummer || offen.empfaenger_email) && (
+          <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+            {offen.leistungsdatum && (
+              <>
+                <dt className="text-ink/60">Leistung</dt>
+                <dd>{offen.leistungsdatum}</dd>
+              </>
+            )}
+            {offen.bestellnummer && (
+              <>
+                <dt className="text-ink/60">Bestellnummer</dt>
+                <dd>{offen.bestellnummer}</dd>
+              </>
+            )}
+            {offen.empfaenger_email && (
+              <>
+                <dt className="text-ink/60">E-Mail</dt>
+                <dd className="truncate">{offen.empfaenger_email}</dd>
+              </>
+            )}
+          </dl>
+        )}
+        {offen.notiz && (
+          <>
+            <div className="eyebrow mt-4">Notiz</div>
+            <p className="mt-1 whitespace-pre-line text-sm text-ink/80">{offen.notiz}</p>
+          </>
+        )}
+
+        {(offen.zahlungen.length > 0 || offen.mahnungen.length > 0) && (
+          <>
+            <div className="eyebrow mt-4">Verlauf</div>
+            {verlauf(offen)}
+          </>
+        )}
+      </section>
+    </div>
+  );
 }
 
 // tab: 'alle' (Rechnungsliste) | 'wiederkehrend' (Abos); der Mahnwesen-Reiter ist eine eigene Seite.
@@ -91,7 +304,9 @@ export default function Rechnungen({ tab = 'alle' }) {
         api.get('/api/einstellungen/mail'),
         api.get('/api/rechnungsabos', { params: { gewerbe_id: gewerbeId } }),
         api.get('/api/kontakte', { params: { gewerbe_id: gewerbeId } }),
-        api.get('/api/mahnwesen/ueberfaellig', { params: { gewerbe_id: gewerbeId } }),
+        api.get('/api/mahnwesen/ueberfaellig', {
+          params: { gewerbe_id: gewerbeId },
+        }),
       ]);
       setItems(r.data);
       setUeberfaellig(ue.data.items.length);
@@ -133,7 +348,10 @@ export default function Rechnungen({ tab = 'alle' }) {
   }
 
   async function removeZahlung(r, z) {
-    if (!window.confirm(`${ZAHLUNG_ART[z.art]} vom ${formatDateDE(z.datum)} über ${formatEuro(z.betrag_cent)} löschen?`)) return;
+    if (
+      !window.confirm(`${ZAHLUNG_ART[z.art]} vom ${formatDateDE(z.datum)} über ${formatEuro(z.betrag_cent)} löschen?`)
+    )
+      return;
     try {
       await api.delete(`/api/rechnungen/${r.id}/zahlungen/${z.id}`);
       toast.success('Gelöscht.');
@@ -182,8 +400,7 @@ export default function Rechnungen({ tab = 'alle' }) {
   }
 
   async function removeAbo(a) {
-    if (!window.confirm(`Abo für „${a.empfaenger_name}" löschen? Bestehende Rechnungen bleiben.`))
-      return;
+    if (!window.confirm(`Abo für „${a.empfaenger_name}" löschen? Bestehende Rechnungen bleiben.`)) return;
     try {
       await api.delete(`/api/rechnungsabos/${a.id}`);
       await load();
@@ -196,6 +413,252 @@ export default function Rechnungen({ tab = 'alle' }) {
   const courtageKat = kategorien.find((k) => k.key === 'einnahme_steuerfrei');
   // §4-Nr.11-Rechnungen (Courtage) landen als Einnahme in Zeile 16, sonst Zeile 12.
   const einnahmeKatFuer = (r) => (r.steuerhinweis === 'vers4nr11' && courtageKat) || einnahmeKat;
+
+  function bearbeiten(r) {
+    setEditing({
+      id: r.id,
+      datum: r.datum,
+      leistungsdatum: r.leistungsdatum || '',
+      empfaenger_name: r.empfaenger_name,
+      empfaenger_anschrift: r.empfaenger_anschrift || '',
+      empfaenger_email: r.empfaenger_email || '',
+      notiz: r.notiz || '',
+      bestellnummer: r.bestellnummer || '',
+      steuerhinweis: r.steuerhinweis || 'ku19',
+      zahlungsziel_tage: r.zahlungsziel_tage,
+      skonto_prozent: r.skonto_prozent,
+      skonto_tage: r.skonto_tage,
+      positionen: r.positionen.map((p) => ({
+        beschreibung: p.beschreibung,
+        menge: String(p.menge).replace('.', ','),
+        preisInput: centToInput(p.einzelpreis_cent),
+      })),
+    });
+  }
+
+  // Die eine Hauptaktion der offenen Rechnung (breite Ansicht); der Rest bleibt Icon.
+  function hauptaktion(r) {
+    if (r.status === 'storniert' || r.status === 'bezahlt')
+      return {
+        key: 'pdf',
+        label: 'PDF ansehen',
+        icon: IconFileText,
+        onClick: () => openPdf(r.id),
+      };
+    if (r.ueberfaellig_tage > 0)
+      return {
+        key: 'mahnen',
+        label: `${STUFEN[naechsteStufe(r.mahnungen[0])]} erstellen`,
+        icon: IconBell,
+        onClick: () => navigate(`/rechnungen/mahnwesen/${r.id}`),
+      };
+    if (r.status === 'versendet')
+      return {
+        key: 'zahlung',
+        label: 'Zahlung erfassen',
+        icon: IconCircleCheck,
+        onClick: () => setZahlungFuer(r),
+      };
+    if (mail?.konfiguriert)
+      return {
+        key: 'senden',
+        label: 'Per E-Mail senden',
+        icon: IconSend,
+        onClick: () => setSenden(r),
+      };
+    return {
+      key: 'bearbeiten',
+      label: 'Bearbeiten',
+      icon: IconPencil,
+      onClick: () => bearbeiten(r),
+    };
+  }
+
+  // Bausteine einer Rechnung — in der Zeile (schmal) und in der offenen Rechnung rechts (breit) dieselben.
+  function zustandZeile(r) {
+    const st = STATUS[r.status];
+    const istUeberfaellig = r.ueberfaellig_tage > 0;
+    return (
+      <>
+        {istUeberfaellig ? (
+          <Zustand ton="late">{dauer(r.ueberfaellig_tage)} überfällig</Zustand>
+        ) : (
+          <Zustand ton={st.ton}>{r.status === 'versendet' && r.bezahlt_cent > 0 ? 'Teilbezahlt' : st.label}</Zustand>
+        )}
+        {PUNKT}
+        <span className="tabular-nums">{formatDateDE(r.datum)}</span>
+        {r.faellig_am && !istUeberfaellig && (r.status === 'entwurf' || r.status === 'versendet') && (
+          <>
+            {PUNKT}
+            <Frist datum={r.faellig_am} />
+          </>
+        )}
+        {r.versendet_am && (
+          <>
+            {PUNKT}
+            <span>versendet {formatDateDE(r.versendet_am)}</span>
+          </>
+        )}
+        {r.bezahlt_am && (
+          <>
+            {PUNKT}
+            <span>bezahlt {formatDateDE(r.bezahlt_am)}</span>
+          </>
+        )}
+        {r.steuerhinweis === 'vers4nr11' && (
+          <>
+            {PUNKT}
+            <span>§4 Nr. 11</span>
+          </>
+        )}
+        {r.status === 'versendet' && r.bezahlt_cent > 0 && (
+          <>
+            {PUNKT}
+            <span className="tabular-nums">
+              bezahlt {formatEuro(r.bezahlt_cent)}, offen {formatEuro(r.offen_cent)}
+            </span>
+          </>
+        )}
+        {r.bezahlt_cent > 0 && r.ungebucht_cent === 0 && r.gebucht_cent > 0 && (
+          <>
+            {PUNKT}
+            <Zustand ton="royal" icon={IconCheck}>
+              Gebucht
+            </Zustand>
+          </>
+        )}
+      </>
+    );
+  }
+
+  function aktionen(r, ohne) {
+    const istUeberfaellig = r.ueberfaellig_tage > 0;
+    return (
+      <>
+        {ohne !== 'pdf' && <IconButton icon={IconFileText} label="PDF ansehen" onClick={() => openPdf(r.id)} />}
+        {r.status !== 'storniert' && ohne !== 'senden' && (
+          <IconButton
+            icon={IconSend}
+            label={
+              !mail?.konfiguriert
+                ? 'Erst E-Mail-Versand im Profilmenü einrichten'
+                : r.status === 'versendet' || r.versendet_am
+                  ? 'Erneut senden'
+                  : 'Per E-Mail senden'
+            }
+            onClick={() => setSenden(r)}
+            disabled={!mail?.konfiguriert}
+          />
+        )}
+        {r.status === 'entwurf' && ohne !== 'bearbeiten' && (
+          <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => bearbeiten(r)} />
+        )}
+        {istUeberfaellig && ohne !== 'mahnen' && (
+          <IconButton
+            icon={IconBell}
+            variant="primary"
+            label={`${STUFEN[naechsteStufe(r.mahnungen[0])]} erstellen`}
+            onClick={() => navigate(`/rechnungen/mahnwesen/${r.id}`)}
+          />
+        )}
+        {r.status === 'entwurf' && (
+          <IconButton icon={IconCircleCheck} label="Als bezahlt markieren" onClick={() => setStatus(r, 'bezahlt')} />
+        )}
+        {r.status === 'versendet' && ohne !== 'zahlung' && (
+          <IconButton icon={IconCircleCheck} label="Zahlung erfassen…" onClick={() => setZahlungFuer(r)} />
+        )}
+        {r.status !== 'storniert' && (
+          <IconButton
+            icon={IconRepeat}
+            label="Als wiederkehrendes Abo anlegen…"
+            onClick={() => setAboModal({ prefill: r })}
+          />
+        )}
+        {r.status !== 'entwurf' && r.status !== 'storniert' && (
+          <IconButton icon={IconBan} variant="danger" label="Stornieren" onClick={() => setStatus(r, 'storniert')} />
+        )}
+        {r.status === 'entwurf' && (
+          <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(r)} />
+        )}
+      </>
+    );
+  }
+
+  function verlauf(r) {
+    return (
+      <>
+        {r.zahlungen.length > 0 && (
+          <div className="mt-1.5 space-y-0.5">
+            {r.zahlungen.map((z) => (
+              <div key={z.id} className="flex items-center gap-1 text-[13px] text-ink/70">
+                <span className="min-w-0 flex-1">
+                  {ZAHLUNG_ART[z.art]} {formatDateDE(z.datum)}
+                  <span className="mx-1.5 text-ink/45">·</span>
+                  <span className="tabular-nums">{formatEuro(z.betrag_cent)}</span>
+                  {z.art === 'zahlung' && (
+                    <>
+                      <span className="mx-1.5 text-ink/45">·</span>
+                      {z.buchung_id ? 'als Einnahme gebucht' : 'noch nicht gebucht'}
+                    </>
+                  )}
+                  {z.art !== 'zahlung' && <span className="text-ink/60"> ausgebucht</span>}
+                </span>
+                {z.art === 'zahlung' && !z.buchung_id && einnahmeKat && (
+                  <IconButton
+                    icon={IconBookIn}
+                    variant="primary"
+                    label="Als Einnahme buchen"
+                    onClick={() => setEinnahme({ rechnung: r, zahlung: z })}
+                  />
+                )}
+                {!z.buchung_id && (
+                  <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => removeZahlung(r, z)} />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {r.mahnungen.length > 0 && (
+          <div className="mt-1.5 space-y-0.5">
+            {r.mahnungen.map((m) => (
+              <div key={m.id} className="flex items-center gap-1 text-[13px] text-ink/70">
+                <span className="min-w-0 flex-1">
+                  {STUFEN[m.stufe]} vom {formatDateDE(m.datum)}
+                  <span className="mx-1.5 text-ink/45">·</span>
+                  Frist {formatDateDE(m.frist_am)}
+                  <span className="mx-1.5 text-ink/45">·</span>
+                  <span className="tabular-nums">{formatEuro(m.gesamt_cent)}</span>
+                  {m.gesendet_am && (
+                    <>
+                      <span className="mx-1.5 text-ink/45">·</span>
+                      versendet {formatDateDE(m.gesendet_am)}
+                    </>
+                  )}
+                </span>
+                <IconButton icon={IconFileText} label="Mahnung ansehen" onClick={() => openMahnungPdf(m.id)} />
+                <IconButton
+                  icon={IconSend}
+                  label={
+                    mail?.konfiguriert ? 'Mahnung per E-Mail senden' : 'Erst E-Mail-Versand im Profilmenü einrichten'
+                  }
+                  onClick={() => setSendenMahnung({ rechnung: r, mahnung: m })}
+                  disabled={!mail?.konfiguriert}
+                />
+                {!m.gesendet_am && (
+                  <IconButton
+                    icon={IconTrash}
+                    variant="danger"
+                    label="Mahnung löschen"
+                    onClick={() => removeMahnung(m)}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }
 
   if (!gewerbeId) return <KeinGewerbe />;
   if (loading) return <PageSpinner />;
@@ -232,8 +695,9 @@ export default function Rechnungen({ tab = 'alle' }) {
           )}
           {mail && !mail.konfiguriert && (
             <Hinweis>
-              Zum Versenden aus Tab einmalig den <strong>E-Mail-Versand einrichten</strong> (Profil unten links → Einstellungen)
-              — App-Passwort deines Google-Kontos, Versand dann von {mail.email}. PDF-Download geht auch ohne.
+              Zum Versenden aus Tab einmalig den <strong>E-Mail-Versand einrichten</strong> (Profil unten links →
+              Einstellungen) — App-Passwort deines Google-Kontos, Versand dann von {mail.email}. PDF-Download geht auch
+              ohne.
             </Hinweis>
           )}
         </div>
@@ -285,8 +749,7 @@ export default function Rechnungen({ tab = 'alle' }) {
             >
               {Boolean(a.auto_senden) && !a.absender_konfiguriert && (
                 <Hinweis ton="warn" className="mt-1.5 !py-2 text-xs">
-                  Absender {a.absender_email} hat kein App-Passwort hinterlegt — Rechnungen bleiben als Entwurf
-                  liegen.
+                  Absender {a.absender_email} hat kein App-Passwort hinterlegt — Rechnungen bleiben als Entwurf liegen.
                 </Hinweis>
               )}
             </Row>
@@ -296,222 +759,21 @@ export default function Rechnungen({ tab = 'alle' }) {
 
       {tab === 'alle' && (
         <>
-      <SectionHead label={`Rechnungen ${jahr}`} count={items.length} />
-      {items.length === 0 ? (
-        <Leer>
-          Noch keine Rechnungen für {jahr}. Tipp: Nach der ersten Rechnung kannst du sie mit „Wiederholen…" als
-          monatliches Abo anlegen.
-        </Leer>
-      ) : (
-        items.map((r) => {
-          const st = STATUS[r.status];
-          const istUeberfaellig = r.ueberfaellig_tage > 0;
-          return (
-            <Row
-              key={r.id}
-              kind={istUeberfaellig ? 'late' : st.kind}
-              icon={IconFileText}
-              muted={r.status === 'storniert'}
-              title={
-                <>
-                  <span className="tabular-nums">{r.nummer}</span> · {r.empfaenger_name}
-                </>
-              }
-              sub={
-                <>
-                  {istUeberfaellig ? (
-                    <Zustand ton="late">{dauer(r.ueberfaellig_tage)} überfällig</Zustand>
-                  ) : (
-                    <Zustand ton={st.ton}>{r.status === 'versendet' && r.bezahlt_cent > 0 ? 'Teilbezahlt' : st.label}</Zustand>
-                  )}
-                  {PUNKT}
-                  <span className="tabular-nums">{formatDateDE(r.datum)}</span>
-                  {r.faellig_am && !istUeberfaellig && (r.status === 'entwurf' || r.status === 'versendet') && (
-                    <>
-                      {PUNKT}
-                      <Frist datum={r.faellig_am} />
-                    </>
-                  )}
-                  {r.versendet_am && (
-                    <>
-                      {PUNKT}
-                      <span>versendet {formatDateDE(r.versendet_am)}</span>
-                    </>
-                  )}
-                  {r.bezahlt_am && (
-                    <>
-                      {PUNKT}
-                      <span>bezahlt {formatDateDE(r.bezahlt_am)}</span>
-                    </>
-                  )}
-                  {r.steuerhinweis === 'vers4nr11' && (
-                    <>
-                      {PUNKT}
-                      <span>§4 Nr. 11</span>
-                    </>
-                  )}
-                  {r.status === 'versendet' && r.bezahlt_cent > 0 && (
-                    <>
-                      {PUNKT}
-                      <span className="tabular-nums">
-                        bezahlt {formatEuro(r.bezahlt_cent)}, offen {formatEuro(r.offen_cent)}
-                      </span>
-                    </>
-                  )}
-                  {r.bezahlt_cent > 0 && r.ungebucht_cent === 0 && r.gebucht_cent > 0 && (
-                    <>
-                      {PUNKT}
-                      <Zustand ton="royal" icon={IconCheck}>
-                        Gebucht
-                      </Zustand>
-                    </>
-                  )}
-                </>
-              }
-              amount={formatEuro(r.summe_cent)}
-              amountIn={r.status !== 'storniert'}
-              /* feste Breite ab sm: Beträge bleiben bündig, PDF/Senden sitzen immer am selben Platz */
-              actionsClass="sm:w-[12.75rem]"
-              actions={
-                <>
-                  <IconButton icon={IconFileText} label="PDF ansehen" onClick={() => openPdf(r.id)} />
-                  {r.status !== 'storniert' && (
-                    <IconButton
-                      icon={IconSend}
-                      label={
-                        !mail?.konfiguriert
-                          ? 'Erst E-Mail-Versand im Profilmenü einrichten'
-                          : r.status === 'versendet' || r.versendet_am
-                            ? 'Erneut senden'
-                            : 'Per E-Mail senden'
-                      }
-                      onClick={() => setSenden(r)}
-                      disabled={!mail?.konfiguriert}
-                    />
-                  )}
-                  {r.status === 'entwurf' && (
-                    <IconButton
-                      icon={IconPencil}
-                      label="Bearbeiten"
-                      onClick={() =>
-                        setEditing({
-                          id: r.id,
-                          datum: r.datum,
-                          leistungsdatum: r.leistungsdatum || '',
-                          empfaenger_name: r.empfaenger_name,
-                          empfaenger_anschrift: r.empfaenger_anschrift || '',
-                          empfaenger_email: r.empfaenger_email || '',
-                          notiz: r.notiz || '',
-                          bestellnummer: r.bestellnummer || '',
-                          steuerhinweis: r.steuerhinweis || 'ku19',
-                          zahlungsziel_tage: r.zahlungsziel_tage,
-                          skonto_prozent: r.skonto_prozent,
-                          skonto_tage: r.skonto_tage,
-                          positionen: r.positionen.map((p) => ({
-                            beschreibung: p.beschreibung,
-                            menge: String(p.menge).replace('.', ','),
-                            preisInput: centToInput(p.einzelpreis_cent),
-                          })),
-                        })
-                      }
-                    />
-                  )}
-                  {istUeberfaellig && (
-                    <IconButton
-                      icon={IconBell}
-                      variant="primary"
-                      label={`${STUFEN[naechsteStufe(r.mahnungen[0])]} erstellen`}
-                      onClick={() => navigate(`/rechnungen/mahnwesen/${r.id}`)}
-                    />
-                  )}
-                  {r.status === 'entwurf' && (
-                    <IconButton icon={IconCircleCheck} label="Als bezahlt markieren" onClick={() => setStatus(r, 'bezahlt')} />
-                  )}
-                  {r.status === 'versendet' && (
-                    <IconButton icon={IconCircleCheck} label="Zahlung erfassen…" onClick={() => setZahlungFuer(r)} />
-                  )}
-                  {r.status !== 'storniert' && (
-                    <IconButton
-                      icon={IconRepeat}
-                      label="Als wiederkehrendes Abo anlegen…"
-                      onClick={() => setAboModal({ prefill: r })}
-                    />
-                  )}
-                  {r.status !== 'entwurf' && r.status !== 'storniert' && (
-                    <IconButton icon={IconBan} variant="danger" label="Stornieren" onClick={() => setStatus(r, 'storniert')} />
-                  )}
-                  {r.status === 'entwurf' && (
-                    <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => remove(r)} />
-                  )}
-                </>
-              }
-            >
-              {r.zahlungen.length > 0 && (
-                <div className="mt-1.5 space-y-0.5">
-                  {r.zahlungen.map((z) => (
-                    <div key={z.id} className="flex items-center gap-1 text-[13px] text-ink/70">
-                      <span className="min-w-0 flex-1">
-                        {ZAHLUNG_ART[z.art]} {formatDateDE(z.datum)}
-                        <span className="mx-1.5 text-ink/45">·</span>
-                        <span className="tabular-nums">{formatEuro(z.betrag_cent)}</span>
-                        {z.art === 'zahlung' && (
-                          <>
-                            <span className="mx-1.5 text-ink/45">·</span>
-                            {z.buchung_id ? 'als Einnahme gebucht' : 'noch nicht gebucht'}
-                          </>
-                        )}
-                        {z.art !== 'zahlung' && <span className="text-ink/60"> ausgebucht</span>}
-                      </span>
-                      {z.art === 'zahlung' && !z.buchung_id && einnahmeKat && (
-                        <IconButton
-                          icon={IconBookIn}
-                          variant="primary"
-                          label="Als Einnahme buchen"
-                          onClick={() => setEinnahme({ rechnung: r, zahlung: z })}
-                        />
-                      )}
-                      {!z.buchung_id && (
-                        <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => removeZahlung(r, z)} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {r.mahnungen.length > 0 && (
-                <div className="mt-1.5 space-y-0.5">
-                  {r.mahnungen.map((m) => (
-                    <div key={m.id} className="flex items-center gap-1 text-[13px] text-ink/70">
-                      <span className="min-w-0 flex-1">
-                        {STUFEN[m.stufe]} vom {formatDateDE(m.datum)}
-                        <span className="mx-1.5 text-ink/45">·</span>
-                        Frist {formatDateDE(m.frist_am)}
-                        <span className="mx-1.5 text-ink/45">·</span>
-                        <span className="tabular-nums">{formatEuro(m.gesamt_cent)}</span>
-                        {m.gesendet_am && (
-                          <>
-                            <span className="mx-1.5 text-ink/45">·</span>
-                            versendet {formatDateDE(m.gesendet_am)}
-                          </>
-                        )}
-                      </span>
-                      <IconButton icon={IconFileText} label="Mahnung ansehen" onClick={() => openMahnungPdf(m.id)} />
-                      <IconButton
-                        icon={IconSend}
-                        label={mail?.konfiguriert ? 'Mahnung per E-Mail senden' : 'Erst E-Mail-Versand im Profilmenü einrichten'}
-                        onClick={() => setSendenMahnung({ rechnung: r, mahnung: m })}
-                        disabled={!mail?.konfiguriert}
-                      />
-                      {!m.gesendet_am && (
-                        <IconButton icon={IconTrash} variant="danger" label="Mahnung löschen" onClick={() => removeMahnung(m)} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Row>
-          );
-        })
-      )}
+          <SectionHead label={`Rechnungen ${jahr}`} count={items.length} />
+          {items.length === 0 ? (
+            <Leer>
+              Noch keine Rechnungen für {jahr}. Tipp: Nach der ersten Rechnung kannst du sie mit „Wiederholen…" als
+              monatliches Abo anlegen.
+            </Leer>
+          ) : (
+            <RechnungsListe
+              items={items}
+              zustandZeile={zustandZeile}
+              aktionen={aktionen}
+              verlauf={verlauf}
+              hauptaktion={hauptaktion}
+            />
+          )}
         </>
       )}
 
@@ -533,9 +795,7 @@ export default function Rechnungen({ tab = 'alle' }) {
         <KontakteModal gewerbeId={gewerbeId} onClose={() => setKontakteModal(false)} onChanged={load} />
       )}
 
-      {senden && (
-        <SendenModal rechnung={senden} user={user} onClose={() => setSenden(null)} onSent={load} />
-      )}
+      {senden && <SendenModal rechnung={senden} user={user} onClose={() => setSenden(null)} onSent={load} />}
       {sendenMahnung && (
         <SendenModal
           rechnung={sendenMahnung.rechnung}
@@ -592,7 +852,16 @@ export default function Rechnungen({ tab = 'alle' }) {
   );
 }
 
-function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], standardZiel = 14, mailKonfiguriert, onSaved }) {
+function RechnungModal({
+  editing,
+  setEditing,
+  gewerbeId,
+  jahr,
+  kontakte = [],
+  standardZiel = 14,
+  mailKonfiguriert,
+  onSaved,
+}) {
   const [busy, setBusy] = useState(false);
   const isEdit = Boolean(editing.id);
   const [form, setForm] = useState(() => ({
@@ -679,7 +948,11 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
         toast.error('Bitte gültige Menge angeben.');
         return null;
       }
-      payloadPos.push({ beschreibung: p.beschreibung.trim(), menge, einzelpreis_cent: preis });
+      payloadPos.push({
+        beschreibung: p.beschreibung.trim(),
+        menge,
+        einzelpreis_cent: preis,
+      });
     }
     return {
       datum: form.datum,
@@ -727,10 +1000,16 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
     try {
       if (isEdit) {
         // Beim Ändern bedeutet null „unverändert“ — leere Texte gehen als "" raus, damit sie sich löschen lassen.
-        await api.patch(`/api/rechnungen/${editing.id}`, { ...body, notiz: form.notiz.trim() });
+        await api.patch(`/api/rechnungen/${editing.id}`, {
+          ...body,
+          notiz: form.notiz.trim(),
+        });
         toast.success('Gespeichert.');
       } else {
-        const res = await api.post('/api/rechnungen', { gewerbe_id: Number(gewerbeId), ...body });
+        const res = await api.post('/api/rechnungen', {
+          gewerbe_id: Number(gewerbeId),
+          ...body,
+        });
         if (form.wiederholen) {
           // Diese Rechnung ist die erste — das Abo übernimmt ab der nächsten Periode.
           const start = naechsterTermin(body.datum, form.intervall);
@@ -773,7 +1052,11 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
   const jahrMismatch = form.datum && String(form.datum).slice(0, 4) !== String(jahr);
 
   return (
-    <Modal title={isEdit ? 'Rechnung bearbeiten' : 'Neue Rechnung'} onClose={() => setEditing(null)} maxWidth="max-w-2xl">
+    <Modal
+      title={isEdit ? 'Rechnung bearbeiten' : 'Neue Rechnung'}
+      onClose={() => setEditing(null)}
+      maxWidth="max-w-2xl"
+    >
       <form onSubmit={save} className="space-y-4">
         {kontakte.length > 0 && (
           <div className="block">
@@ -782,7 +1065,10 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
               value=""
               placeholder="Kontakt wählen…"
               searchable
-              options={kontakte.map((k) => ({ value: String(k.id), label: k.name }))}
+              options={kontakte.map((k) => ({
+                value: String(k.id),
+                label: k.name,
+              }))}
               onChange={(v) => {
                 const k = kontakte.find((x) => String(x.id) === String(v));
                 if (k)
@@ -799,38 +1085,61 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Empfänger (Name/Firma)</span>
-            <input className="input" value={form.empfaenger_name} autoFocus
-              onChange={(e) => setForm({ ...form, empfaenger_name: e.target.value })} />
+            <input
+              className="input"
+              value={form.empfaenger_name}
+              autoFocus
+              onChange={(e) => setForm({ ...form, empfaenger_name: e.target.value })}
+            />
           </label>
           <label className="block">
             <span className="field-label">E-Mail (für den Versand)</span>
-            <input className="input" value={form.empfaenger_email}
-              onChange={(e) => setForm({ ...form, empfaenger_email: e.target.value })} placeholder="kunde@firma.de" />
+            <input
+              className="input"
+              value={form.empfaenger_email}
+              onChange={(e) => setForm({ ...form, empfaenger_email: e.target.value })}
+              placeholder="kunde@firma.de"
+            />
           </label>
         </div>
         <label className="block">
           <span className="field-label">Anschrift Empfänger</span>
-          <textarea className="input min-h-[64px]" value={form.empfaenger_anschrift}
+          <textarea
+            className="input min-h-[64px]"
+            value={form.empfaenger_anschrift}
             onChange={(e) => setForm({ ...form, empfaenger_anschrift: e.target.value })}
-            placeholder={'Musterstraße 1\n20095 Hamburg'} />
+            placeholder={'Musterstraße 1\n20095 Hamburg'}
+          />
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-2">
           <label className="block">
             <span className="field-label">Rechnungsdatum</span>
-            <input type="date" className="input" value={form.datum}
-              onChange={(e) => setForm({ ...form, datum: e.target.value })} disabled={isEdit} />
+            <input
+              type="date"
+              className="input"
+              value={form.datum}
+              onChange={(e) => setForm({ ...form, datum: e.target.value })}
+              disabled={isEdit}
+            />
           </label>
           <label className="block">
             <span className="field-label">Leistungsdatum/-zeitraum (optional)</span>
-            <input className="input" value={form.leistungsdatum}
+            <input
+              className="input"
+              value={form.leistungsdatum}
               onChange={(e) => setForm({ ...form, leistungsdatum: e.target.value })}
-              placeholder="leer = Rechnungsdatum" />
+              placeholder="leer = Rechnungsdatum"
+            />
           </label>
           <label className="block">
             <span className="field-label">Zahlungsziel in Tagen</span>
-            <input className="input" inputMode="numeric" value={form.zahlungsziel}
+            <input
+              className="input"
+              inputMode="numeric"
+              value={form.zahlungsziel}
               onChange={(e) => setForm({ ...form, zahlungsziel: e.target.value })}
-              aria-invalid={!zielGueltig} />
+              aria-invalid={!zielGueltig}
+            />
             <span className="mt-1 block text-xs text-ink/60">
               {faelligAm ? `fällig ${formatDateDE(faelligAm)}` : 'ganze Tage von 0 bis 120'}
             </span>
@@ -839,13 +1148,25 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
         <div className="grid grid-cols-2 items-start gap-x-5 gap-y-2 sm:grid-cols-3">
           <label className="block">
             <span className="field-label">Skonto in % (optional)</span>
-            <input className="input" inputMode="decimal" placeholder="z. B. 2" value={form.skontoProzent}
-              onChange={(e) => setForm({ ...form, skontoProzent: e.target.value })} aria-invalid={Boolean(skontoFehler)} />
+            <input
+              className="input"
+              inputMode="decimal"
+              placeholder="z. B. 2"
+              value={form.skontoProzent}
+              onChange={(e) => setForm({ ...form, skontoProzent: e.target.value })}
+              aria-invalid={Boolean(skontoFehler)}
+            />
           </label>
           <label className="block">
             <span className="field-label">… bei Zahlung binnen (Tage)</span>
-            <input className="input" inputMode="numeric" placeholder="z. B. 10" value={form.skontoTage}
-              onChange={(e) => setForm({ ...form, skontoTage: e.target.value })} aria-invalid={Boolean(skontoFehler)} />
+            <input
+              className="input"
+              inputMode="numeric"
+              placeholder="z. B. 10"
+              value={form.skontoTage}
+              onChange={(e) => setForm({ ...form, skontoTage: e.target.value })}
+              aria-invalid={Boolean(skontoFehler)}
+            />
           </label>
           <p className="col-span-2 text-xs text-ink/60 sm:col-span-1 sm:pt-5">
             {skontoFehler
@@ -881,19 +1202,31 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
 
         <label className="block sm:max-w-xs">
           <span className="field-label">Ihre Bestellnummer (optional)</span>
-          <input className="input" value={form.bestellnummer} maxLength={80}
+          <input
+            className="input"
+            value={form.bestellnummer}
+            maxLength={80}
             onChange={(e) => setForm({ ...form, bestellnummer: e.target.value })}
-            placeholder="steht auch in der E-Rechnung" />
+            placeholder="steht auch in der E-Rechnung"
+          />
         </label>
 
         <div className="block">
           <div className="flex items-center justify-between gap-3">
             <span className="field-label">Notiz auf der Rechnung (optional)</span>
-            <TextbausteinWahl gewerbeId={gewerbeId} aktuell={form.notiz} onText={(t) => setForm({ ...form, notiz: t })} />
+            <TextbausteinWahl
+              gewerbeId={gewerbeId}
+              aktuell={form.notiz}
+              onText={(t) => setForm({ ...form, notiz: t })}
+            />
           </div>
-          <textarea className="input min-h-[64px]" value={form.notiz} maxLength={2000}
+          <textarea
+            className="input min-h-[64px]"
+            value={form.notiz}
+            maxLength={2000}
             onChange={(e) => setForm({ ...form, notiz: e.target.value })}
-            placeholder="z. B. Vielen Dank für den Auftrag." />
+            placeholder="z. B. Vielen Dank für den Auftrag."
+          />
         </div>
 
         {!isEdit && (
@@ -910,7 +1243,10 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
                   <Dropdown
                     value={form.intervall}
                     onChange={(v) => setForm({ ...form, intervall: String(v) })}
-                    options={Object.entries(INTERVALL_LABELS).map(([value, label]) => ({ value, label }))}
+                    options={Object.entries(INTERVALL_LABELS).map(([value, label]) => ({
+                      value,
+                      label,
+                    }))}
                     variant="ghost"
                   />
                   <span className="text-[13px] tabular-nums text-ink/60">
@@ -929,10 +1265,10 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
         )}
 
         <Hinweis className="text-xs">
-          Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen automatisch aufs PDF —
-          samt <strong>GiroCode</strong> zum Bezahlen per QR-Scan —, das zugleich eine <strong>E-Rechnung</strong>{' '}
-          ist (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden
-          bei „Als Einnahme buchen" der Kategorie „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
+          Der gewählte Steuer-Hinweis und Absender/IBAN aus den Gewerbe-Stammdaten kommen automatisch aufs PDF — samt{' '}
+          <strong>GiroCode</strong> zum Bezahlen per QR-Scan —, das zugleich eine <strong>E-Rechnung</strong> ist
+          (ZUGFeRD-XML eingebettet). §4-Nr.-11-Rechnungen werden bei „Als Einnahme buchen" der Kategorie
+          „Umsatzsteuerfreie Einnahme (Courtage)" zugeordnet (Zeile 16).
         </Hinweis>
 
         <DialogFuss
@@ -977,10 +1313,11 @@ function SendenModal({ rechnung, mahnung, user, onClose, onSent }) {
     if (!an.trim()) return toast.error('Bitte Empfänger-Adresse angeben.');
     setBusy(true);
     try {
-      await api.post(
-        mahnung ? `/api/mahnwesen/${mahnung.id}/senden` : `/api/rechnungen/${rechnung.id}/senden`,
-        { an: an.trim(), betreff, text },
-      );
+      await api.post(mahnung ? `/api/mahnwesen/${mahnung.id}/senden` : `/api/rechnungen/${rechnung.id}/senden`, {
+        an: an.trim(),
+        betreff,
+        text,
+      });
       toast.success(`${name} versendet.`);
       onClose();
       await onSent();
@@ -996,7 +1333,13 @@ function SendenModal({ rechnung, mahnung, user, onClose, onSent }) {
       <form onSubmit={send} className="space-y-4">
         <label className="block">
           <span className="field-label">An</span>
-          <input className="input" value={an} onChange={(e) => setAn(e.target.value)} placeholder="kunde@firma.de" autoFocus />
+          <input
+            className="input"
+            value={an}
+            onChange={(e) => setAn(e.target.value)}
+            placeholder="kunde@firma.de"
+            autoFocus
+          />
         </label>
         <label className="block">
           <span className="field-label">Betreff</span>
@@ -1007,8 +1350,8 @@ function SendenModal({ rechnung, mahnung, user, onClose, onSent }) {
           <textarea className="input min-h-[140px]" value={text} onChange={(e) => setText(e.target.value)} />
         </label>
         <p className="text-[13px] leading-snug text-ink/60">
-          {mahnung ? 'Die Mahnung als PDF' : 'PDF (E-Rechnung, ZUGFeRD)'} hängt automatisch an · Absender:{' '}
-          {user?.email} (landet in deinem „Gesendet"-Ordner)
+          {mahnung ? 'Die Mahnung als PDF' : 'PDF (E-Rechnung, ZUGFeRD)'} hängt automatisch an · Absender: {user?.email}{' '}
+          (landet in deinem „Gesendet"-Ordner)
         </p>
         <DialogFuss>
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -1069,12 +1412,13 @@ function ZahlungModal({ rechnung: r, onClose, onSaved }) {
       <form onSubmit={speichern} className="space-y-4">
         <p className="text-[13px] leading-snug text-ink/70">
           Rechnungsbetrag {formatEuro(r.summe_cent)}
-          {r.bezahlt_cent > 0 && ` · schon bezahlt ${formatEuro(r.bezahlt_cent)}`} · <strong>offen {formatEuro(r.offen_cent)}</strong>
+          {r.bezahlt_cent > 0 && ` · schon bezahlt ${formatEuro(r.bezahlt_cent)}`} ·{' '}
+          <strong>offen {formatEuro(r.offen_cent)}</strong>
         </p>
         {skontoMoeglich && (
           <Hinweis className="!py-2 text-xs">
-            Skonto möglich bis {formatDateDE(r.skonto_bis)}: {r.skonto_prozent} % = {formatEuro(r.skonto_cent)}, der Kunde
-            zahlt dann {formatEuro(r.offen_cent - r.skonto_cent)}.{' '}
+            Skonto möglich bis {formatDateDE(r.skonto_bis)}: {r.skonto_prozent} % = {formatEuro(r.skonto_cent)}, der
+            Kunde zahlt dann {formatEuro(r.offen_cent - r.skonto_cent)}.{' '}
             <button type="button" className="font-bold underline" onClick={mitSkonto}>
               So eintragen
             </button>
@@ -1083,11 +1427,25 @@ function ZahlungModal({ rechnung: r, onClose, onSaved }) {
         <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
           <label className="block">
             <span className="field-label">Zahlungsdatum</span>
-            <input type="date" className="input" value={datum} min={r.datum} max={heute} onChange={(e) => setDatum(e.target.value)} />
+            <input
+              type="date"
+              className="input"
+              value={datum}
+              min={r.datum}
+              max={heute}
+              onChange={(e) => setDatum(e.target.value)}
+            />
           </label>
           <label className="block">
             <span className="field-label">Betrag (€)</span>
-            <input className="input" inputMode="decimal" value={betrag} autoFocus onChange={(e) => setBetrag(e.target.value)} aria-invalid={!gueltig} />
+            <input
+              className="input"
+              inputMode="decimal"
+              value={betrag}
+              autoFocus
+              onChange={(e) => setBetrag(e.target.value)}
+              aria-invalid={!gueltig}
+            />
           </label>
         </div>
         {restCent > 0 && (

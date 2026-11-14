@@ -94,6 +94,13 @@ So: blue buttons/fills use white text, and blue may be used as a text color.
   `kind="late"` / `ton="late"` (`PageParts.jsx`) und stehen **immer auch als Wort** da — ein Zustand ist nie nur eine Farbe.
 - **Fristen in Worten:** `<Frist datum=… />` bzw. `lib/fristWorte.js` („fällig in 3 Wochen“, „34 Tage überfällig“), das Datum
   ist der Tooltip. Ausnahme Mahnwesen: dort die genaue Zahl der Verzugstage, weil sie rechtlich zählt.
+- **Liste links, offene Sache rechts** (Rechnungen, `RechnungsListe` in `pages/Rechnungen.jsx`, Muster aus vrwb_flow, 2026-11-14):
+  ab 1280 px steht links die Liste (18rem, bleibt beim Scrollen stehen; Punkt + Name + Nummer/Zustandswort + Betrag) und rechts
+  die gewählte Rechnung: Eyebrow mit Nummer, Name, Betrag, Zustandszeile, **eine** Hauptaktion als Textknopf (`hauptaktion()`:
+  senden → Zahlung erfassen → mahnen, sonst PDF), alle anderen Aktionen als Icons, darunter Positionen, Notiz, Verlauf.
+  Darunter (Handy, schmale Fenster) bleiben die Zeilen mit Icons. Zeile und offene Rechnung nutzen dieselben Bausteine
+  (`zustandZeile`, `aktionen`, `verlauf`) — nichts doppelt pflegen. Punkt in der Liste: versendet = offener Ring,
+  überfällig = gefüllt (nie nur über Farbe).
 - **Einstellungen sind ein Fenster** (`components/EinstellungenFenster.jsx`, Aufbau wie vrwb_flow, 2026-11-14): links die
   Bereiche auf `surface` (E-Mail, Passkeys, KI-Assistenten, Steuerberatung), rechts Titel und Inhalt, 980 × 680 px; am Handy
   der ganze Schirm mit den Bereichen als Reihe oben. Im Profil-Menü stehen nur noch Einstellungen, Neuigkeiten, Abmelden.
