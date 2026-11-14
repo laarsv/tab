@@ -232,7 +232,7 @@ export default function Rechnungen({ tab = 'alle' }) {
           )}
           {mail && !mail.konfiguriert && (
             <Hinweis>
-              Zum Versenden aus Tab einmalig den <strong>E-Mail-Versand einrichten</strong> (Profilzeile unten links)
+              Zum Versenden aus Tab einmalig den <strong>E-Mail-Versand einrichten</strong> (Profil unten links → Einstellungen)
               — App-Passwort deines Google-Kontos, Versand dann von {mail.email}. PDF-Download geht auch ohne.
             </Hinweis>
           )}
@@ -919,7 +919,7 @@ function RechnungModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], st
                 </div>
                 <SchalterZeile
                   titel="Folge-Rechnungen automatisch senden"
-                  hinweis={`Sonst entstehen sie als Entwurf. Braucht die Empfänger-E-Mail oben${!mailKonfiguriert ? ' und dein Mail-Konto (Profilzeile → E-Mail-Versand)' : ''}. Tipp: {monat} in der Positions-Beschreibung wird zum Abrechnungsmonat.`}
+                  hinweis={`Sonst entstehen sie als Entwurf. Braucht die Empfänger-E-Mail oben${!mailKonfiguriert ? ' und dein Mail-Konto (Einstellungen → E-Mail-Versand)' : ''}. Tipp: {monat} in der Positions-Beschreibung wird zum Abrechnungsmonat.`}
                   checked={form.auto_senden}
                   onChange={(an) => setForm({ ...form, auto_senden: an })}
                 />

@@ -231,7 +231,10 @@ der Mapping-Version des Jahres aufgelöst.
   für Fehler und harte Endzustände; Fristen stehen **in Worten** (`<Frist>` aus `PageParts.jsx`, `lib/fristWorte.js`; Mahnwesen
   behält genaue Verzugstage); Leiste **„Neue Version verfügbar“** (`components/NeueVersion.jsx` in `main.jsx`, vergleicht
   das laufende `assets/index-<hash>.js` mit dem der frischen `index.html`, nie automatisches Neuladen; `index.html` wird mit
-  `no-cache` ausgeliefert). Neue Listen: überfällig nie mit `neg`.
+  `no-cache` ausgeliefert). Neue Listen: überfällig nie mit `neg`. **Einstellungen als ein Fenster** (`components/EinstellungenFenster.jsx`, Bereiche E-Mail,
+  Passkeys, KI-Assistenten, Steuerberatung; geöffnet über Profil-Menü → Einstellungen oder `openEinstellungen(bereich)` /
+  `openMailSetup` aus dem Layout-Context; „Steuerberatung“ steht nicht mehr in der Seitenleiste, die Route `/steuerberatung`
+  gibt es weiter). Wo ältere Abschnitte „Profil-Menü → Passkeys/KI-Assistenten/E-Mail-Versand“ sagen, ist dieses Fenster gemeint.
 - **Eingang-Wizard:** „Jetzt abarbeiten (N)" führt Beleg für Beleg durchs BuchungModal
   (`wizard`-Prop: Titel „Beleg X von Y", Überspringen-Button). Queue = Snapshot beim Start;
   `key={beleg.id}` remountet das Modal je Beleg.

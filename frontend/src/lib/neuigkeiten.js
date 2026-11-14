@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 38,
+    datum: '2026-11-14',
+    titel: 'Einstellungen an einem Ort',
+    text: 'E-Mail-Versand, Passkeys, KI-Assistenten und der Zugang für die Steuerberatung liegen jetzt zusammen in einem Fenster. Du öffnest es über dein Profil unten links und dann „Einstellungen“. Links wählst du den Bereich, rechts steht der Inhalt. „Steuerberatung“ ist dafür aus der Seitenleiste verschwunden. Inhaltlich hat sich nichts geändert.',
+  },
+  {
     id: 37,
     datum: '2026-11-14',
     titel: 'Ruhigere Fristen und Hinweis auf neue Versionen',

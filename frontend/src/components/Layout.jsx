@@ -4,11 +4,9 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSpinner } from './Spinner.jsx';
-import MailSetupModal from './MailSetupModal.jsx';
+import EinstellungenFenster from './EinstellungenFenster.jsx';
 import NeuigkeitenModal from './NeuigkeitenModal.jsx';
-import KiModal from './KiModal.jsx';
 import { OAUTH_ZURUECK } from '../pages/OAuthFreigabe.jsx';
-import PasskeyModal from './PasskeyModal.jsx';
 import Sidebar from './Sidebar.jsx';
 import Wordmark from './Wordmark.jsx';
 import { IconChecklist, IconGrid, IconInbox, IconList, IconMenu, IconReceipt, IconX } from './Icons.jsx';
@@ -33,10 +31,8 @@ export default function Layout() {
   const [eingangTick, setEingangTick] = useState(0); // zählt hoch, wenn der Eingang von außen wächst
   const [uploading, setUploading] = useState(false);
   const uploadRef = useRef(null);
-  const [mailModal, setMailModal] = useState(false);
+  const [einstellungen, setEinstellungen] = useState(null); // offener Bereich des Einstellungsfensters oder null
   const [newsModal, setNewsModal] = useState(false);
-  const [passkeyModal, setPasskeyModal] = useState(false);
-  const [kiModal, setKiModal] = useState(false);
 
   // Kam jemand für eine OAuth-Freigabe (KI-App) und musste sich erst anmelden → zurück zur Freigabe (max. 15 Minuten alt).
   useEffect(() => {
@@ -195,7 +191,8 @@ export default function Layout() {
     jahrAbgeschlossen,
     checkOffen,
     setGewerbeId,
-    openMailSetup: () => setMailModal(true),
+    openMailSetup: () => setEinstellungen('mail'),
+    openEinstellungen: (bereich = 'mail') => setEinstellungen(bereich),
     uploadBelege,
     uploading,
     eingangTick,
@@ -246,9 +243,7 @@ export default function Layout() {
       setDrawer(false);
       navigate(`/buchungen?abarbeiten=${Date.now()}`);
     },
-    onMail: () => setMailModal(true),
-    onPasskeys: () => setPasskeyModal(true),
-    onKi: () => setKiModal(true),
+    onEinstellungen: () => setEinstellungen('mail'),
     onNews: () => setNewsModal(true),
     onLogout: doLogout,
     onNavigate: () => setDrawer(false),
@@ -326,10 +321,10 @@ export default function Layout() {
         </div>
       )}
 
-      {mailModal && <MailSetupModal onClose={() => setMailModal(false)} />}
+      {einstellungen && (
+        <EinstellungenFenster bereich={einstellungen} onBereich={setEinstellungen} onClose={() => setEinstellungen(null)} />
+      )}
       {newsModal && <NeuigkeitenModal onClose={closeNews} />}
-      {passkeyModal && <PasskeyModal onClose={() => setPasskeyModal(false)} />}
-      {kiModal && <KiModal onClose={() => setKiModal(false)} />}
 
       <main className="px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:px-10 lg:pb-12 lg:pt-9">
         <div className="mx-auto max-w-5xl">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { IconX } from './Icons.jsx';
 
 // Dialog im Recap-Stil (DESIGN.md §6): weiße Karte, Radius 16, Schatten nur hier (schwebend);
@@ -6,7 +6,25 @@ import { IconX } from './Icons.jsx';
 // Overlay + Mount-Transition, ESC + Backdrop schließen.
 // flush: Karte ohne Innenabstand und ohne eigenen Titel — der Inhalt gestaltet sich selbst
 // (BuchungModal: Beleg links bündig, Felder rechts). Dann gilt title als Dialog-Beschriftung.
-export default function Modal({
+// Eingebettet (EinstellungenFenster): derselbe Inhalt ohne eigenes Overlay und ohne eigenen Titel — nur die leise
+// Zeile und die Kinder. So lassen sich bestehende Dialoge als Bereich eines größeren Fensters wiederverwenden.
+export const Eingebettet = createContext(false);
+export const useEingebettet = () => useContext(Eingebettet);
+
+export default function Modal(props) {
+  const eingebettet = useEingebettet();
+  if (eingebettet) {
+    return (
+      <div className="space-y-5">
+        {props.subtitle && <p className="text-sm text-ink/60">{props.subtitle}</p>}
+        {props.children}
+      </div>
+    );
+  }
+  return <ModalFenster {...props} />;
+}
+
+function ModalFenster({
   title,
   eyebrow,
   subtitle,

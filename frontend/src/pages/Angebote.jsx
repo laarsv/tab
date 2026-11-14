@@ -160,7 +160,7 @@ export default function Angebote() {
           )}
           {mail && !mail.konfiguriert && (
             <Hinweis>
-              Zum Versenden aus Tab einmalig den <strong>E-Mail-Versand einrichten</strong> (Profilzeile unten links).
+              Zum Versenden aus Tab einmalig den <strong>E-Mail-Versand einrichten</strong> (Profil unten links → Einstellungen).
               PDF-Download geht auch ohne.
             </Hinweis>
           )}

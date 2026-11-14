@@ -94,6 +94,12 @@ So: blue buttons/fills use white text, and blue may be used as a text color.
   `kind="late"` / `ton="late"` (`PageParts.jsx`) und stehen **immer auch als Wort** da — ein Zustand ist nie nur eine Farbe.
 - **Fristen in Worten:** `<Frist datum=… />` bzw. `lib/fristWorte.js` („fällig in 3 Wochen“, „34 Tage überfällig“), das Datum
   ist der Tooltip. Ausnahme Mahnwesen: dort die genaue Zahl der Verzugstage, weil sie rechtlich zählt.
+- **Einstellungen sind ein Fenster** (`components/EinstellungenFenster.jsx`, Aufbau wie vrwb_flow, 2026-11-14): links die
+  Bereiche auf `surface` (E-Mail, Passkeys, KI-Assistenten, Steuerberatung), rechts Titel und Inhalt, 980 × 680 px; am Handy
+  der ganze Schirm mit den Bereichen als Reihe oben. Im Profil-Menü stehen nur noch Einstellungen, Neuigkeiten, Abmelden.
+  Die Inhalte sind die bisherigen Dialoge und laufen „eingebettet“ (`Eingebettet`-Context in `Modal.jsx`: kein eigenes
+  Overlay, kein eigener Titel, kein „Fertig“). **Ein eingebetteter Inhalt darf selbst kein `Modal` öffnen** (es würde
+  ebenfalls eingebettet statt als Fenster erscheinen). Neuer Bereich = Eintrag in `BEREICHE`.
 - **„Neue Version verfügbar“** (`components/NeueVersion.jsx`, Pflicht für jede PWA, Hub `design/vorlagen/app-shell.md` §4):
   Leiste unten mittig, am Handy über der Tab-Leiste; lädt nie von selbst neu. Voraussetzung: `index.html` mit `no-cache`
   (`frontend/nginx.conf`).

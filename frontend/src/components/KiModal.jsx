@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { DialogFuss } from './DialogParts.jsx';
 import { IconButton, IconPlus, IconSparkles, IconTrash } from './Icons.jsx';
-import Modal from './Modal.jsx';
+import Modal, { useEingebettet } from './Modal.jsx';
 import { Schalter } from './DialogParts.jsx';
 import { Hinweis, Row } from './PageParts.jsx';
 
@@ -21,6 +21,7 @@ export default function KiModal({ onClose }) {
   const [neu, setNeu] = useState(null); // { name, token }
   const [busy, setBusy] = useState(false);
   const url = `${window.location.origin}/api/mcp`;
+  const eingebettet = useEingebettet();
 
   async function load() {
     try {
@@ -194,9 +195,11 @@ export default function KiModal({ onClose }) {
           </button>
         </form>
 
-        <DialogFuss>
-          <button className="btn-primary" onClick={onClose}>Fertig</button>
-        </DialogFuss>
+        {!eingebettet && (
+          <DialogFuss>
+            <button className="btn-primary" onClick={onClose}>Fertig</button>
+          </DialogFuss>
+        )}
       </div>
     </Modal>
   );

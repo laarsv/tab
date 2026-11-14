@@ -4,7 +4,7 @@ import { api, apiError } from '../api/client.js';
 import { passkeyFehler, passkeyHinzufuegen, passkeyVerfuegbar } from '../lib/passkey.js';
 import { DialogFuss } from './DialogParts.jsx';
 import { IconButton, IconKey, IconPencil, IconPlus, IconTrash } from './Icons.jsx';
-import Modal from './Modal.jsx';
+import Modal, { useEingebettet } from './Modal.jsx';
 import { Hinweis, Row } from './PageParts.jsx';
 
 function wann(iso) {
@@ -18,6 +18,7 @@ export default function PasskeyModal({ onClose }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const verfuegbar = passkeyVerfuegbar();
+  const eingebettet = useEingebettet();
 
   async function load() {
     try {
@@ -114,9 +115,11 @@ export default function PasskeyModal({ onClose }) {
             </button>
           </div>
         )}
-        <DialogFuss>
-          <button className="btn-primary" onClick={onClose}>Fertig</button>
-        </DialogFuss>
+        {!eingebettet && (
+          <DialogFuss>
+            <button className="btn-primary" onClick={onClose}>Fertig</button>
+          </DialogFuss>
+        )}
       </div>
     </Modal>
   );

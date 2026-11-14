@@ -2,7 +2,7 @@
 
 Ein MCP-Server (Streamable HTTP, JSON-RPC 2.0) unter POST /api/mcp: Claude Code oder ein anderer Client fragt die
 Buchhaltung ab (Kennzahlen, Summenblatt, Buchungen, Rechnungen, Anlagen, Fristen, Übersicht). Anmeldung nur per
-Zugangs-Token (Authorization: Bearer …), das der Inhaber im Profil-Menü erzeugt; gespeichert ist nur der Hash.
+Zugangs-Token (Authorization: Bearer …), das der Inhaber in den Einstellungen erzeugt; gespeichert ist nur der Hash.
 
 Nur lesen, dreifach abgesichert: (1) es gibt nur lesende Werkzeuge, (2) die Datenbankverbindung steht auf
 PRAGMA query_only — selbst ein Fehler im Code könnte nichts schreiben, (3) Tokens gelten nirgends sonst (kein Cookie, keine
@@ -322,7 +322,7 @@ def _aufrufen(db: sqlite3.Connection, user: dict, name: str, args) -> dict:
     if not isinstance(args, dict):
         raise WerkzeugFehler("„arguments“ muss ein Objekt sein.")
     if name in SCHREIBEND and not user.get("vorschlaege"):
-        raise WerkzeugFehler("Dieser Zugang darf nur lesen. Der Inhaber kann in Tab unter Profil-Menü > KI-Assistenten die Stufe „Vorschläge machen“ einschalten.")
+        raise WerkzeugFehler("Dieser Zugang darf nur lesen. Der Inhaber kann in Tab unter Einstellungen > KI-Assistenten die Stufe „Vorschläge machen“ einschalten.")
     try:
         daten = _NACH_NAME[name][1](db, user, args)
     except HTTPException as e:

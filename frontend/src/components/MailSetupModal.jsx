@@ -4,7 +4,7 @@ import { api, apiError } from '../api/client.js';
 import { DialogFuss, Gruppe, SchalterZeile } from './DialogParts.jsx';
 import Dropdown from './Dropdown.jsx';
 import { IconButton, IconCircleCheck, IconSend, IconTrash } from './Icons.jsx';
-import Modal from './Modal.jsx';
+import Modal, { useEingebettet } from './Modal.jsx';
 import { Row } from './PageParts.jsx';
 
 const PROVIDER_OPTIONS = [
@@ -15,6 +15,7 @@ const PROVIDER_OPTIONS = [
 // Mail-Konto einrichten: Versand (SMTP) + Beleg-Import (IMAP) — je Login,
 // Provider Google oder eigener Mail-Server. Passwort verschlüsselt in der DB.
 export default function MailSetupModal({ onClose }) {
+  const eingebettet = useEingebettet();
   const [status, setStatus] = useState(null);
   const [gewerbe, setGewerbe] = useState([]);
   const [busy, setBusy] = useState('');
@@ -241,9 +242,11 @@ export default function MailSetupModal({ onClose }) {
             </span>
           </label>
           <DialogFuss>
-            <button type="button" className="btn-ghost" onClick={onClose}>
-              Schließen
-            </button>
+            {!eingebettet && (
+              <button type="button" className="btn-ghost" onClick={onClose}>
+                Schließen
+              </button>
+            )}
             <button type="submit" className="btn-primary" disabled={busy !== ''}>
               {busy === 'save' ? 'Prüft…' : 'Speichern & prüfen'}
             </button>

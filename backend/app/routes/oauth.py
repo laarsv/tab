@@ -5,7 +5,7 @@ Rollen: Tab ist Ressourcenserver (POST /api/mcp) und eigener Autorisierungsserve
 PKCE (S256 Pflicht) und rotierenden Refresh-Tokens. Es gibt nur öffentliche Clients (kein Client-Secret).
 
 Der Inhaber gibt auf einer Seite von Tab ausdrücklich frei (/oauth/freigabe, nur mit Anmeldung). Was ein Client dann
-bekommt, ist dasselbe wie ein Zugangs-Token aus dem Profil-Menü: nur lesender Zugriff, gültig nur am MCP-Endpunkt.
+bekommt, ist dasselbe wie ein Zugangs-Token aus den Einstellungen: nur lesender Zugriff, gültig nur am MCP-Endpunkt.
 Codes und Tokens liegen nur als SHA-256 in der Datenbank. Die .well-known-Adressen liegen am Wurzelpfad und kommen über
 nginx im Frontend-Container hierher (frontend/nginx.conf).
 """

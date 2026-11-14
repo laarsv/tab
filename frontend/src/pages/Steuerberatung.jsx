@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { IconButton, IconLock, IconTrash, IconUnlock, IconUsers, IconX } from '../components/Icons.jsx';
 import { Hinweis, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
+import { useEingebettet } from '../components/Modal.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 
 // Zugang für die Steuerberatung (Aufbau nach Haben): Einladungslink erzeugen, Zugänge sperren/entfernen.
@@ -19,6 +20,7 @@ export default function Steuerberatung() {
   const [bezeichnung, setBezeichnung] = useState('');
   const [neu, setNeu] = useState(null); // { link, bezeichnung } — nur dieses eine Mal sichtbar
   const [busy, setBusy] = useState(false);
+  const eingebettet = useEingebettet(); // im Einstellungsfenster: ohne eigenen Seitenkopf
 
   async function load() {
     try {
@@ -69,10 +71,14 @@ export default function Steuerberatung() {
 
   return (
     <div>
-      <PageHeader
-        title="Steuerberatung"
-        sub="Ein eigener Zugang, mit dem deine Steuerberatung nachsehen kann — ohne Export, nur lesend"
-      />
+      {eingebettet ? (
+        <p className="text-sm text-ink/60">Ein eigener Zugang, mit dem deine Steuerberatung nachsehen kann — ohne Export, nur lesend.</p>
+      ) : (
+        <PageHeader
+          title="Steuerberatung"
+          sub="Ein eigener Zugang, mit dem deine Steuerberatung nachsehen kann — ohne Export, nur lesend"
+        />
+      )}
 
       <Hinweis className="mt-5 space-y-1" titel="Was die Steuerberatung sieht">
         <p>

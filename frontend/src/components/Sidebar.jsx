@@ -12,18 +12,16 @@ import {
   IconDownload,
   IconGrid,
   IconInfo,
-  IconKey,
   IconList,
   IconLock,
   IconLogOut,
-  IconMail,
   IconPlus,
   IconReceipt,
   IconRepeat,
+  IconSliders,
   IconSparkles,
   IconTrendDown,
   IconUpload,
-  IconUsers,
 } from './Icons.jsx';
 
 // Royal-Seitenleiste (Recap-Stil). Desktop: fest links; mobil: dieselbe Leiste als Schublade.
@@ -43,7 +41,6 @@ const NAV = [
 const WEITERE = [
   { to: '/export', label: 'Export', icon: IconDownload },
   { to: '/abschluss', label: 'Jahresabschluss', icon: IconLock },
-  { to: '/steuerberatung', label: 'Steuerberatung', icon: IconUsers },
   { to: '/gewerbe', label: 'Gewerbe', icon: IconBriefcase },
   { to: '/einrichtung', label: 'Einrichtung & Hilfe', icon: IconInfo },
 ];
@@ -78,7 +75,7 @@ function NavItem({ item, badge, onNavigate }) {
   );
 }
 
-function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onPasskeys, onKi, onNews, onLogout, onNavigate }) {
+function ProfilZeile({ user, jahr, jahrVorlaeufig, onEinstellungen, onNews, onLogout, onNavigate }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -117,14 +114,8 @@ function ProfilZeile({ user, jahr, jahrVorlaeufig, onMail, onPasskeys, onKi, onN
             <div className="truncate text-sm font-bold">{user?.name || 'Angemeldet'}</div>
             <div className="truncate text-xs text-ink/60">{user?.email}</div>
           </div>
-          <button role="menuitem" className={eintrag} onClick={() => run(onMail)}>
-            <IconMail className="h-[18px] w-[18px] text-ink/60" /> E-Mail-Versand
-          </button>
-          <button role="menuitem" className={eintrag} onClick={() => run(onPasskeys)}>
-            <IconKey className="h-[18px] w-[18px] text-ink/60" /> Passkeys
-          </button>
-          <button role="menuitem" className={eintrag} onClick={() => run(onKi)}>
-            <IconSparkles className="h-[18px] w-[18px] text-ink/60" /> KI-Assistenten
+          <button role="menuitem" className={eintrag} onClick={() => run(onEinstellungen)}>
+            <IconSliders className="h-[18px] w-[18px] text-ink/60" /> Einstellungen
           </button>
           <button role="menuitem" className={eintrag} onClick={() => run(onNews)}>
             <IconSparkles className="h-[18px] w-[18px] text-ink/60" /> Neuigkeiten
@@ -177,9 +168,7 @@ export default function Sidebar({
   onNeueBuchung,
   onUpload,
   onAbarbeiten,
-  onMail,
-  onPasskeys,
-  onKi,
+  onEinstellungen,
   onNews,
   onLogout,
 }) {
@@ -289,9 +278,7 @@ export default function Sidebar({
         user={user}
         jahr={jahr}
         jahrVorlaeufig={jahrVorlaeufig}
-        onMail={onMail}
-        onPasskeys={onPasskeys}
-        onKi={onKi}
+        onEinstellungen={onEinstellungen}
         onNews={onNews}
         onLogout={onLogout}
         onNavigate={onNavigate}

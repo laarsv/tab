@@ -91,7 +91,7 @@ export default function OAuthFreigabe() {
                 <button type="button" className="btn-outline flex-1" disabled={busy} onClick={() => antworten(false)}>Ablehnen</button>
                 <button type="button" className="btn-primary flex-1" disabled={busy} onClick={() => antworten(true)}>Zulassen</button>
               </div>
-              <p className="text-xs text-ink/60">Du kannst den Zugriff jederzeit im Profil-Menü unter „KI-Assistenten“ widerrufen.</p>
+              <p className="text-xs text-ink/60">Du kannst den Zugriff jederzeit in den Einstellungen unter „KI-Assistenten“ widerrufen.</p>
             </>
           )}
         </div>
