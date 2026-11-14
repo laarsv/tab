@@ -47,6 +47,7 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
     naechste_am:
       abo?.naechste_am ||
       (prefill?.datum ? naechsterTermin(prefill.datum, 'monatlich') : ersterDesNaechstenMonats()),
+    endet_am: abo?.endet_am || '',
     auto_senden: Boolean(abo?.auto_senden),
     betreff: abo?.betreff || '',
     mail_text: abo?.mail_text || '',
@@ -75,6 +76,8 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
     if (!form.empfaenger_name.trim()) return toast.error('Empfänger ist Pflicht.');
     if (form.auto_senden && !form.empfaenger_email.trim())
       return toast.error('Auto-Versand braucht eine Empfänger-E-Mail.');
+    if (form.endet_am && form.endet_am < form.naechste_am)
+      return toast.error('Die letzte Rechnung liegt vor der nächsten Rechnung.');
     const payloadPos = [];
     for (const p of form.positionen) {
       const preis = parseEuroToCent(p.preisInput);
@@ -92,6 +95,7 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
       steuerhinweis: form.steuerhinweis,
       intervall: form.intervall,
       naechste_am: form.naechste_am,
+      endet_am: form.endet_am || null,
       auto_senden: form.auto_senden,
       betreff: form.betreff.trim() || null,
       mail_text: form.mail_text.trim() || null,
@@ -168,7 +172,7 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
             onChange={(e) => setForm({ ...form, empfaenger_anschrift: e.target.value })} />
         </label>
 
-        <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-2">
           <div className="block">
             <span className="field-label">Intervall</span>
             <Dropdown value={form.intervall} onChange={(v) => setForm({ ...form, intervall: String(v) })}
@@ -179,7 +183,17 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
             <input type="date" className="input" value={form.naechste_am}
               onChange={(e) => setForm({ ...form, naechste_am: e.target.value })} />
           </label>
+          <label className="col-span-2 block sm:col-span-1">
+            <span className="field-label">Letzte Rechnung am (optional)</span>
+            <input type="date" className="input" value={form.endet_am} min={form.naechste_am || undefined}
+              onChange={(e) => setForm({ ...form, endet_am: e.target.value })} />
+          </label>
         </div>
+        <p className="!mt-1.5 text-[13px] text-ink/60">
+          {form.endet_am
+            ? `Bis einschließlich ${formatDateDE(form.endet_am)} entstehen Rechnungen, danach endet das Abo von selbst.`
+            : 'Ohne Enddatum läuft das Abo, bis du es pausierst oder löschst.'}
+        </p>
 
         <PositionenEditor
           positionen={form.positionen}

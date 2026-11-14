@@ -180,7 +180,7 @@ def _w_abos(db, user, a):
     return [
         {
             "id": x["id"], "empfaenger_name": x["empfaenger_name"], "intervall": x["intervall"], "naechste_am": x["naechste_am"],
-            "aktiv": bool(x["aktiv"]), "auto_senden": bool(x["auto_senden"]), "summe_cent": x["summe_cent"], "notiz": x["notiz"],
+            "endet_am": x.get("endet_am"), "beendet": bool(x.get("beendet")), "aktiv": bool(x["aktiv"]), "auto_senden": bool(x["auto_senden"]), "summe_cent": x["summe_cent"], "notiz": x["notiz"],
             "positionen": [{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")} for p in x["positionen"]],
         }
         for x in abos.list_abos(_int(a, "gewerbe_id"), user, db)

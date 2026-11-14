@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 40,
+    datum: '2026-11-14',
+    titel: 'Wiederkehrende Rechnungen mit Enddatum',
+    text: 'Eine wiederkehrende Rechnung kann jetzt ein Enddatum bekommen: „Letzte Rechnung am“. Bis einschließlich diesem Tag entstehen Rechnungen, danach endet das Abo von selbst und steht als „Beendet“ in der Liste. Das Feld findest du beim Anlegen einer Rechnung unter „Rechnung wiederholt sich“ und beim Bearbeiten eines Abos. Ohne Enddatum läuft alles wie bisher. Ein beendetes Abo läuft wieder, wenn du das Enddatum verlängerst oder entfernst.',
+  },
+  {
     id: 39,
     datum: '2026-11-14',
     titel: 'Rechnungen: Liste links, Rechnung rechts',

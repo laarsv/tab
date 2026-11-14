@@ -720,15 +720,24 @@ export default function Rechnungen({ tab = 'alle' }) {
             <Row
               key={a.id}
               icon={IconRepeat}
-              muted={!a.aktiv}
+              muted={!a.aktiv || a.beendet}
               title={a.empfaenger_name}
               sub={
                 <>
                   <span>{INTERVALL[a.intervall]}</span>
                   {PUNKT}
-                  <span>nächste am {formatDateDE(a.naechste_am)}</span>
+                  {a.beendet ? (
+                    <span>letzte am {formatDateDE(a.endet_am)}</span>
+                  ) : (
+                    <span>
+                      nächste am {formatDateDE(a.naechste_am)}
+                      {a.endet_am ? `, letzte am ${formatDateDE(a.endet_am)}` : ''}
+                    </span>
+                  )}
                   {PUNKT}
-                  {!a.aktiv ? (
+                  {a.beendet ? (
+                    <Zustand>Beendet</Zustand>
+                  ) : !a.aktiv ? (
                     <Zustand>Pausiert</Zustand>
                   ) : a.auto_senden ? (
                     <Zustand ton="royal">Auto-Versand</Zustand>
@@ -740,13 +749,15 @@ export default function Rechnungen({ tab = 'alle' }) {
               amount={formatEuro(a.summe_cent)}
               actions={
                 <>
-                  <IconButton icon={IconZap} label="Jetzt ausführen" onClick={() => runAbo(a)} />
+                  {!a.beendet && <IconButton icon={IconZap} label="Jetzt ausführen" onClick={() => runAbo(a)} />}
                   <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setAboModal({ abo: a })} />
-                  <IconButton
-                    icon={a.aktiv ? IconPause : IconPlay}
-                    label={a.aktiv ? 'Pausieren' : 'Fortsetzen'}
-                    onClick={() => toggleAbo(a)}
-                  />
+                  {!a.beendet && (
+                    <IconButton
+                      icon={a.aktiv ? IconPause : IconPlay}
+                      label={a.aktiv ? 'Pausieren' : 'Fortsetzen'}
+                      onClick={() => toggleAbo(a)}
+                    />
+                  )}
                   <IconButton icon={IconTrash} variant="danger" label="Löschen" onClick={() => removeAbo(a)} />
                 </>
               }
@@ -883,6 +894,7 @@ function RechnungModal({
     positionen: editing.positionen?.length ? editing.positionen : [emptyRPos()],
     wiederholen: false,
     intervall: 'monatlich',
+    endet_am: '',
     auto_senden: false,
   }));
 
@@ -1000,6 +1012,8 @@ function RechnungModal({
     if (!body) return;
     if (!isEdit && form.wiederholen && form.auto_senden && !body.empfaenger_email)
       return toast.error('Auto-Versand braucht eine Empfänger-E-Mail.');
+    if (!isEdit && form.wiederholen && form.endet_am && form.endet_am < naechsterTermin(body.datum, form.intervall))
+      return toast.error('Die letzte Rechnung liegt vor der nächsten Rechnung. Enddatum später wählen oder leeren.');
     setBusy(true);
     try {
       if (isEdit) {
@@ -1027,6 +1041,7 @@ function RechnungModal({
               steuerhinweis: body.steuerhinweis,
               intervall: form.intervall,
               naechste_am: start,
+              endet_am: form.endet_am || null,
               auto_senden: form.auto_senden,
               positionen: body.positionen,
             });
@@ -1257,6 +1272,16 @@ function RechnungModal({
                     nächste Rechnung am {formatDateDE(naechsterTermin(form.datum, form.intervall))}
                   </span>
                 </div>
+                <label className="block max-w-[220px] pb-1">
+                  <span className="field-label">Letzte Rechnung am (optional)</span>
+                  <input
+                    type="date"
+                    className="input"
+                    value={form.endet_am}
+                    min={naechsterTermin(form.datum, form.intervall)}
+                    onChange={(e) => setForm({ ...form, endet_am: e.target.value })}
+                  />
+                </label>
                 <SchalterZeile
                   titel="Folge-Rechnungen automatisch senden"
                   hinweis={`Sonst entstehen sie als Entwurf. Braucht die Empfänger-E-Mail oben${!mailKonfiguriert ? ' und dein Mail-Konto (Einstellungen → E-Mail-Versand)' : ''}. Tipp: {monat} in der Positions-Beschreibung wird zum Abrechnungsmonat.`}

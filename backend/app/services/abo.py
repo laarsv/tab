@@ -38,6 +38,24 @@ def naechster_termin(datum: dt.date, intervall: str) -> dt.date:
     return dt.date(jahr, monat, tag)
 
 
+def ist_beendet(abo: sqlite3.Row | dict, stichtag: dt.date | str | None = None) -> bool:
+    """True, wenn der (nächste) Stichtag hinter dem Enddatum liegt — es entsteht keine Rechnung mehr."""
+    ende = dict(abo).get("endet_am")
+    if not ende:
+        return False
+    tag = stichtag if stichtag is not None else abo["naechste_am"]
+    if isinstance(tag, dt.date):
+        tag = tag.isoformat()
+    return tag > ende
+
+
+def beende(conn: sqlite3.Connection, abo_id: int) -> None:
+    """Abo ist durch: nicht löschen, nur stilllegen (bleibt in der Liste als „Beendet“)."""
+    conn.execute(
+        "UPDATE rechnung_abo SET aktiv = 0, updated_at = datetime('now') WHERE id = ?", (abo_id,)
+    )
+
+
 def _ersetze_monat(text: str | None, monat_str: str) -> str | None:
     return text.replace("{monat}", monat_str) if text else text
 
@@ -117,7 +135,9 @@ def erstelle_rechnung_aus_abo(
 
 def run_faellige_abos(conn: sqlite3.Connection, heute: dt.date | None = None) -> list[dict]:
     """Erstellt Rechnungen für alle fälligen Abo-Stichtage (auch verpasste) und
-    schiebt naechste_am weiter. Gibt die Ergebnisse zurück."""
+    schiebt naechste_am weiter. Gibt die Ergebnisse zurück.
+
+    Mit Enddatum (endet_am): Stichtage danach erzeugen nichts mehr, das Abo wird stillgelegt."""
     heute = heute or dt.date.today()
     ergebnisse: list[dict] = []
     abos = conn.execute(
@@ -126,6 +146,10 @@ def run_faellige_abos(conn: sqlite3.Connection, heute: dt.date | None = None) ->
     ).fetchall()
     for abo in abos:
         stichtag = dt.date.fromisoformat(abo["naechste_am"])
+        if ist_beendet(abo, stichtag):
+            beende(conn, abo["id"])
+            conn.commit()
+            continue
         while stichtag <= heute:
             try:
                 ergebnis = erstelle_rechnung_aus_abo(conn, abo, stichtag, heute)
@@ -139,5 +163,9 @@ def run_faellige_abos(conn: sqlite3.Connection, heute: dt.date | None = None) ->
                 "WHERE id = ?",
                 (stichtag.isoformat(), abo["id"]),
             )
+            if ist_beendet(abo, stichtag):
+                beende(conn, abo["id"])
+                conn.commit()
+                break
             conn.commit()
     return ergebnisse

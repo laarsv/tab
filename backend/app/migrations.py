@@ -864,6 +864,15 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_ki_vorschlag_owner ON ki_vorschlag(owner_email, status);
         """,
     ),
+    Migration(
+        version=32,
+        sql="""
+        -- v32: Enddatum für wiederkehrende Rechnungen. endet_am = letzter Tag, an dem noch eine
+        --      Rechnung entsteht (einschließlich). Liegt der nächste Termin danach, endet das Abo
+        --      von selbst (aktiv = 0). NULL = läuft ohne Ende (wie bisher).
+        ALTER TABLE rechnung_abo ADD COLUMN endet_am TEXT;
+        """,
+    ),
 ]
 
 

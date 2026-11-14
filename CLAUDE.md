@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -394,6 +394,14 @@ der Mapping-Version des Jahres aufgelöst.
   später, `lib/intervall.js` spiegelt naechster_termin); „Wiederholen…" an
   bestehenden Rechnungen ist ebenfalls eine Periode nach deren Datum vorbelegt.
   Abo-Liste mit Jetzt ausführen/Pausieren im Reiter „Wiederkehrend" der Rechnungen-Seite.
+  **Enddatum (`endet_am`, v32, „Letzte Rechnung am“, optional):** letzter Tag, an dem noch eine Rechnung
+  entsteht (einschließlich). Liegt der nächste Stichtag danach, legt Scheduler bzw. „Jetzt ausführen“ das
+  Abo still (`aktiv = 0`); **„Beendet“ ist abgeleitet** (`abo.ist_beendet`: `naechste_am > endet_am`, in
+  `_row` als `beendet`), nicht gespeichert. Beendet: ausführen → 409, fortsetzen → 400; Enddatum
+  verlängern oder entfernen (PATCH mit `endet_am: null`, zählt über `model_fields_set`) lässt es wieder
+  laufen. Enddatum vor dem nächsten Termin → 400. Felder: AboModal und „Rechnung wiederholt sich“ im
+  Rechnungsformular. Nicht gebaut: Ende nach Anzahl Rechnungen, Enddatum per KI-Vorschlag, Hinweis-Mail
+  beim Ende.
 - **Zahlungen auf Rechnungen — Teilzahlungen, Skonto, Ausbuchen (`services/zahlungen.py`,
   `routes/rechnungen.py`, Tabelle `rechnung_zahlung`, v22):** Aufbau nach Haben (Zahlungen mindern den
   offenen Betrag, Skonto/Forderungsausfall buchen den Rest aus), auf die EÜR zugeschnitten:

@@ -14,12 +14,14 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
-from ..services.abo import INTERVALL_MONATE, erstelle_rechnung_aus_abo, naechster_termin
+from ..services.abo import INTERVALL_MONATE, beende, erstelle_rechnung_aus_abo, ist_beendet, naechster_termin
 from ..services.mailer import is_configured
 from ..services.rechnung_pdf import STEUERHINWEISE
 from .kontakte import upsert_kontakt
 
 router = APIRouter(prefix="/api/rechnungsabos", tags=["rechnungsabos"])
+
+ENDE_VOR_TERMIN = "Das Enddatum liegt vor der nächsten Rechnung."
 
 
 class AboPositionIn(BaseModel):
@@ -37,18 +39,21 @@ class AboIn(BaseModel):
     steuerhinweis: str = "ku19"
     intervall: str
     naechste_am: str
+    # Letzter Tag, an dem noch eine Rechnung entsteht (einschließlich); None = ohne Ende.
+    endet_am: str | None = None
     auto_senden: bool = False
     betreff: str | None = Field(default=None, max_length=200)
     mail_text: str | None = Field(default=None, max_length=5000)
     positionen: list[AboPositionIn] = Field(min_length=1)
 
-    @field_validator("naechste_am")
+    @field_validator("naechste_am", "endet_am")
     @classmethod
-    def _v_date(cls, v: str) -> str:
-        try:
-            dt.date.fromisoformat(v)
-        except ValueError:
-            raise ValueError("naechste_am muss im Format YYYY-MM-DD sein.")
+    def _v_date(cls, v: str | None) -> str | None:
+        if v is not None:
+            try:
+                dt.date.fromisoformat(v)
+            except ValueError:
+                raise ValueError("Datum muss im Format YYYY-MM-DD sein.")
         return v
 
     @field_validator("intervall")
@@ -77,16 +82,6 @@ class AboPatch(AboIn):
     positionen: list[AboPositionIn] | None = None
     aktiv: bool | None = None
 
-    @field_validator("naechste_am")
-    @classmethod
-    def _v_date(cls, v: str | None) -> str | None:
-        if v is not None:
-            try:
-                dt.date.fromisoformat(v)
-            except ValueError:
-                raise ValueError("naechste_am muss im Format YYYY-MM-DD sein.")
-        return v
-
     @field_validator("intervall")
     @classmethod
     def _v_intervall(cls, v: str | None) -> str | None:
@@ -110,6 +105,7 @@ def _row(db: sqlite3.Connection, abo_id: int) -> dict:
     d["positionen"] = json.loads(d.pop("positionen_json"))
     d["summe_cent"] = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in d["positionen"])
     d["absender_konfiguriert"] = is_configured(db, d["absender_email"])
+    d["beendet"] = ist_beendet(d)
     return d
 
 
@@ -139,12 +135,14 @@ def create_abo(
     check_gewerbe(db, user, body.gewerbe_id)
     if body.auto_senden and not (body.empfaenger_email or "").strip():
         raise HTTPException(400, "Auto-Versand braucht eine Empfänger-E-Mail.")
+    if body.endet_am and body.endet_am < body.naechste_am:
+        raise HTTPException(400, ENDE_VOR_TERMIN)
     cur = db.execute(
         """
         INSERT INTO rechnung_abo (gewerbe_id, empfaenger_name, empfaenger_anschrift,
             empfaenger_email, notiz, steuerhinweis, positionen_json, intervall,
-            naechste_am, auto_senden, betreff, mail_text, absender_email)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            naechste_am, endet_am, auto_senden, betreff, mail_text, absender_email)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.gewerbe_id,
@@ -156,6 +154,7 @@ def create_abo(
             json.dumps([p.model_dump() for p in body.positionen]),
             body.intervall,
             body.naechste_am,
+            body.endet_am,
             1 if body.auto_senden else 0,
             (body.betreff or "").strip() or None,
             (body.mail_text or "").strip() or None,
@@ -180,6 +179,20 @@ def update_abo(
         raise HTTPException(404, "Abo nicht gefunden.")
     check_gewerbe(db, user, row["gewerbe_id"])
     fields, values = [], []
+    # Enddatum: None heißt hier „entfernen“, deshalb zählt nur, ob das Feld mitgeschickt wurde.
+    ende_gesetzt = "endet_am" in body.model_fields_set
+    ende = body.endet_am if ende_gesetzt else row["endet_am"]
+    naechste = body.naechste_am or row["naechste_am"]
+    war_beendet = ist_beendet(row)
+    if (ende_gesetzt or body.naechste_am is not None) and ende and ende < naechste:
+        raise HTTPException(400, ENDE_VOR_TERMIN)
+    if body.aktiv and ende and ende < naechste:
+        raise HTTPException(400, "Das Abo ist beendet. Zum Fortsetzen das Enddatum ändern oder entfernen.")
+    if ende_gesetzt:
+        fields.append("endet_am = ?"); values.append(body.endet_am)
+        # Ein beendetes Abo, dessen Ende verlängert oder entfernt wird, läuft wieder.
+        if war_beendet and not row["aktiv"] and body.aktiv is None:
+            fields.append("aktiv = ?"); values.append(1)
     if body.empfaenger_name is not None:
         fields.append("empfaenger_name = ?"); values.append(body.empfaenger_name.strip())
     for col, val in [
@@ -237,6 +250,8 @@ def run_abo(
     if abo is None:
         raise HTTPException(404, "Abo nicht gefunden.")
     check_gewerbe(db, user, abo["gewerbe_id"])
+    if ist_beendet(abo):
+        raise HTTPException(409, "Das Abo ist beendet — nach dem Enddatum entsteht keine Rechnung mehr.")
     heute = dt.date.today()
     stichtag = min(dt.date.fromisoformat(abo["naechste_am"]), heute)
     ergebnis = erstelle_rechnung_aus_abo(db, abo, stichtag, heute)
@@ -245,5 +260,7 @@ def run_abo(
         "UPDATE rechnung_abo SET naechste_am = ?, updated_at = datetime('now') WHERE id = ?",
         (neuer.isoformat(), abo_id),
     )
+    if ist_beendet(abo, neuer):
+        beende(db, abo_id)
     db.commit()
     return {**ergebnis, "abo": _row(db, abo_id)}
