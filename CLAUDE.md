@@ -520,7 +520,9 @@ der Mapping-Version des Jahres aufgelöst.
   übersprungen, IBAN aus dem Vorspann; Spalten werden aus den Überschriften geraten — DKB,
   Sparkasse-CSV, Soll/Haben getestet — und sind im Import-Dialog mit Vorschau änderbar, auch
   getrennte Spalten für Gegenpartei bei Eingang/Ausgang). XML mit DOCTYPE/ENTITY wird abgelehnt
-  (XXE). Aufbau nach Haben (Konto aus der IBAN, Dubletten, Saldenprüfung, Zuordnungs-Vorschläge mit
+  (XXE). CAMT ohne `<RltdPties>` (Vivid): Gegenpartei und IBAN kommen aus `AddtlTxInf`/`AddtlNtryInf`
+  (`_partei_aus_zusatz`: Überweisung/Lastschrift „An|Von <Name> <Zweck> <IBAN> <BIC>“, Karte „<Händler>, <Ort>, <Land>“;
+  lässt sich Name und Zweck nicht sicher trennen, bleibt der Name leer). Mit einem echten Vivid-Auszug (441 Umsätze) geprüft. Aufbau nach Haben (Konto aus der IBAN, Dubletten, Saldenprüfung, Zuordnungs-Vorschläge mit
   Begründung). **Dubletten:** Fingerprint aus Datum, Betrag, Gegenpartei, Zweck, Referenz + laufender
   Index je gleichem Umsatz — dieselbe/überlappende Datei darf beliebig oft importiert werden.
   Saldenprüfung nur bei CAMT (Anfangs-/Endsaldo). Fremdwährung und Vorgemerktes werden übersprungen.

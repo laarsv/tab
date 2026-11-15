@@ -155,6 +155,44 @@ def _cent_aus_betrag(amt: ET.Element | None, ind: str) -> int | None:
     return -cent if ind.upper() == "DBIT" else cent
 
 
+_ZUSATZ_PARTEI = re.compile(
+    r"^(?:Erstattung von\s+)?(?:Ausgehende[rn]?|Eingehende[rn]?)?\s*(?:SEPA-)?"
+    r"(?:Überweisung|Echtzeitüberweisung|Lastschriftmandat|Lastschrift)\s+(?:An|Von)\s+(.+)$",
+    re.IGNORECASE,
+)
+_ZUSATZ_KARTE = re.compile(r"^Kartentransaktion\s+(.+)$")
+_ZUSATZ_IBAN_BIC = re.compile(r"\s+([A-Z]{2}\d{2}[A-Z0-9]{10,30})(?:\s+([A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?))?$")
+
+
+def _partei_aus_zusatz(info: str, zweck: str) -> tuple[str, str]:
+    """Gegenpartei aus dem Freitext (AddtlTxInf/AddtlNtryInf), wenn die Bank keine <RltdPties> liefert
+    (z. B. Vivid: „Ausgehende Überweisung An <Name> <Zweck> <IBAN> <BIC>“, „Kartentransaktion <Händler>, <Ort>, <Land>“).
+    Liefert (Name, IBAN); im Zweifel leer statt geraten."""
+    info = _spaces(info)
+    if not info:
+        return "", ""
+    m = _ZUSATZ_KARTE.match(info)
+    if m:
+        teile = [t.strip() for t in m.group(1).split(",")]
+        if len(teile) >= 3 and re.fullmatch(r"[A-Z]{2}", teile[-1]):
+            teile = teile[:-2]  # Ort und Land
+        return ", ".join(teile).strip(), ""
+    m = _ZUSATZ_PARTEI.match(info)
+    if not m:
+        return "", ""
+    rest, iban = m.group(1), ""
+    ib = _ZUSATZ_IBAN_BIC.search(rest)
+    if ib:
+        iban, rest = ib.group(1), rest[: ib.start()]
+    rest = rest.strip()
+    zweck = _spaces(zweck)
+    if zweck and rest.endswith(zweck):
+        rest = rest[: -len(zweck)].strip()
+    elif zweck:
+        return "", iban  # Name und Zweck lassen sich nicht sicher trennen
+    return rest, iban
+
+
 def parse_camt053(data: bytes) -> Ergebnis:
     # XML aus unbekannter Quelle: DOCTYPE/ENTITY (XXE, Entity-Bombe) gar nicht erst zulassen
     kopf = data[:200_000].lower()
@@ -216,11 +254,18 @@ def parse_camt053(data: bytes) -> Ergebnis:
                 refs.append(_t(_pfad(det, "Refs", "EndToEndId")))
             zweck = _spaces(" ".join(z for z in zwecke if z)) or _t(_pfad(ntry, "AddtlNtryInf"))
             ref = next((r for r in refs if r and r.upper() != "NOTPROVIDED"), "") or _t(_pfad(ntry, "AcctSvcrRef"))
+            name = next((n for n in namen if n), "")
+            iban_g = next((i for i in ibans if i), "")
+            if not name:
+                zusatz = [_t(_pfad(d, "AddtlTxInf")) for nd in _kinder(ntry, "NtryDtls") for d in _kinder(nd, "TxDtls")]
+                info = next((z for z in zusatz if z), "") or _t(_pfad(ntry, "AddtlNtryInf"))
+                name, z_iban = _partei_aus_zusatz(info, " ".join(z for z in zwecke if z))
+                iban_g = iban_g or z_iban
             erg.umsaetze.append(
                 Umsatz(
                     datum=datum, wert_datum=wert, betrag_cent=cent,
-                    gegenpartei=next((n for n in namen if n), ""),
-                    gegenpartei_iban=iban_normal(next((i for i in ibans if i), "")),
+                    gegenpartei=name,
+                    gegenpartei_iban=iban_normal(iban_g),
                     verwendungszweck=zweck, referenz=ref,
                 )
             )
