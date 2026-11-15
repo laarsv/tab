@@ -25,7 +25,7 @@ Ausdruck je Jahr erhalten (siehe 7).
 | Tätigkeit | **[ausfüllen, z. B. Versicherungsvermittlung (steuerfrei nach § 4 Nr. 11 UStG) und IT-Dienstleistungen]** |
 | Gewinnermittlung | Einnahmen-Überschuss-Rechnung (§ 4 Abs. 3 EStG), Anlage EÜR |
 | Umsatzsteuer | Kleinunternehmer (§ 19 UStG); steuerfreie Umsätze nach § 4 Nr. 11 zählen nicht zur Grenze (§ 19 Abs. 2 UStG) |
-| Beschäftigte | keine; der Inhaber erledigt alle Schritte selbst |
+| Beschäftigte | **[ausfüllen: Anzahl, Art (z. B. Minijob); wer die Lohnabrechnung macht]** — die Buchführung in Tab erledigt der Inhaber selbst |
 | Steuerberatung | **[ausfüllen: Kanzlei, ob sie Zugang zu Tab hat]** |
 
 **[ausfüllen, falls vorher ein anderes Programm genutzt wurde: welches, für welche Jahre, bis wann.]**
