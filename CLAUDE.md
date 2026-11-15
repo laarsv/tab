@@ -667,6 +667,13 @@ der Mapping-Version des Jahres aufgelöst.
   (`ist_admin`), Domain-Nutzer nicht. Bei NEUEN Routen mit `gewerbe_id`/Objekt-IDs IMMER
   `check_gewerbe` einbauen. Ein Nutzer = eine E-Mail (Gmail vs. Workspace nicht mischen).
 
+## Verfahrensdokumentation
+
+`docs/VERFAHRENSDOKUMENTATION.md` ist die **Vorlage** der GoBD-Verfahrensdokumentation (Belegwege, ersetzendes Scannen,
+Protokoll/Festschreibung, Backups, Kontrollen, Aufbewahrung). **Repo ist öffentlich** — die ausgefüllte Fassung mit
+Anschrift/Steuernummer nie einchecken. Ändert sich ein dort beschriebener Ablauf (Belegwege, Sperre, Backup, Zugriff),
+die Vorlage im selben Commit nachziehen und in Abschnitt 9 eintragen.
+
 ## Tests / Validierung
 
 Kein Test-Framework eingecheckt. Vor größeren Backend-Änderungen lohnt ein TestClient-Smoke
