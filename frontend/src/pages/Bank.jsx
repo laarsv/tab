@@ -3,9 +3,9 @@ import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
-import { DialogFuss, Gruppe } from '../components/DialogParts.jsx';
+import { DialogFuss, Gruppe, SchalterZeile } from '../components/DialogParts.jsx';
 import Dropdown from '../components/Dropdown.jsx';
-import { IconArrowIn, IconArrowOut, IconBank, IconUpload } from '../components/Icons.jsx';
+import { IconArrowIn, IconArrowOut, IconBank, IconSparkles, IconUpload } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -13,7 +13,8 @@ import { formatDateDE, formatEuro } from '../lib/format.js';
 
 // Bank (Aufbau nach Haben): Kontoauszug als CAMT.053, CSV oder PDF (nur C24 Bank) importieren, jeden Umsatz einer
 // Buchung zuordnen, ignorieren oder offen lassen. Kein Bankabruf — die Datei kommt von dir.
-// Zugeordnet wird im normalen Buchungs-Fenster, vorbelegt aus dem Umsatz.
+// Zugeordnet wird im normalen Buchungs-Fenster, vorbelegt aus dem Umsatz. Eindeutige Treffer ordnet Tab selbst zu
+// (nach jedem Import und stündlich, services/auto_zuordnung.py); jede automatische Zuordnung lässt sich zurücknehmen.
 
 const FILTER = [
   ['offen', 'Offen'],
@@ -34,6 +35,7 @@ export default function Bank() {
   const [importDateien, setImportDateien] = useState(null);
   const [umsatz, setUmsatz] = useState(null);
   const [buchen, setBuchen] = useState(null);
+  const [autoBusy, setAutoBusy] = useState(false);
   const dateiRef = useRef(null);
 
   async function load() {
@@ -65,6 +67,28 @@ export default function Bank() {
   async function nachAenderung() {
     await load();
     reloadBadges?.();
+  }
+
+  async function automatischZuordnen() {
+    setAutoBusy(true);
+    try {
+      const r = (await api.post('/api/bank/automatisch', { gewerbe_id: Number(gewerbeId) })).data;
+      autoMeldung(r, true);
+      await nachAenderung();
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setAutoBusy(false);
+    }
+  }
+
+  async function automatikSchalten(an) {
+    try {
+      await api.put('/api/bank/automatik', { gewerbe_id: Number(gewerbeId), an });
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
+    }
   }
 
   // Zuordnen: Buchungs-Fenster vorbelegt öffnen (Kategorien des Umsatzjahres nachladen).
@@ -147,6 +171,22 @@ export default function Bank() {
             <Kennzahl label="Offene Eingänge" value={formatEuro(daten.offen.eingaenge_cent)} royal />
             <Kennzahl label="Offene Ausgänge" value={formatEuro(daten.offen.ausgaenge_cent)} />
           </Kennzahlen>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="min-w-[16rem] flex-1">
+              <SchalterZeile
+                titel="Automatisch zuordnen"
+                hinweis="Nur eindeutige Treffer: bezahlte Rechnungen, fällige Dauerbelege, schon vorhandene Buchungen und Belege aus dem Eingang mit bekannter Kategorie. Läuft nach jedem Import und stündlich."
+                checked={daten.automatik}
+                onChange={automatikSchalten}
+              />
+            </div>
+            {daten.automatik && daten.offen.anzahl > 0 && (
+              <button className="btn-outline btn-sm" disabled={autoBusy} onClick={automatischZuordnen}>
+                <IconSparkles className="mr-1 h-4 w-4" /> {autoBusy ? 'Ordnet zu…' : 'Jetzt zuordnen'}
+              </button>
+            )}
+          </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap gap-2" role="group" aria-label="Filter">
@@ -239,6 +279,21 @@ export default function Bank() {
   );
 }
 
+// Ergebnis der automatischen Zuordnung als Meldung (nach Import oder „Jetzt zuordnen“)
+function autoMeldung(r, auchWennNichts = false) {
+  if (!r) return;
+  const n = (r.verknuepft || 0) + (r.gebucht || 0);
+  if (n > 0) {
+    const teile = [r.gebucht ? `${r.gebucht} gebucht` : null, r.verknuepft ? `${r.verknuepft} mit vorhandenen Buchungen verknüpft` : null];
+    toast.success(`Automatisch zugeordnet: ${teile.filter(Boolean).join(', ')}. Unter „Zugeordnet“ steht jeweils der Grund.`, {
+      duration: 9000,
+    });
+  } else if (auchWennNichts) {
+    toast('Nichts eindeutig — die offenen Umsätze bleiben zum Zuordnen.', { duration: 6000 });
+  }
+  if (r.fehler?.length) toast.error(`${r.fehler.length} automatische Buchungen gingen nicht (z. B. Jahr abgeschlossen).`, { duration: 9000 });
+}
+
 function UmsatzZeile({ u, onOeffnen }) {
   const eingang = u.betrag_cent > 0;
   const status = u.status_effektiv;
@@ -257,7 +312,7 @@ function UmsatzZeile({ u, onOeffnen }) {
               <Zustand ton="warn">Offen</Zustand>
             )
           ) : status === 'zugeordnet' ? (
-            <Zustand ton="pos">Gebucht</Zustand>
+            <Zustand ton="pos">{u.auto_grund ? (u.auto_buchung ? 'Automatisch gebucht' : 'Automatisch zugeordnet') : 'Gebucht'}</Zustand>
           ) : (
             <Zustand>Ignoriert{u.ignoriert_grund ? ` · ${u.ignoriert_grund}` : ''}</Zustand>
           )}
@@ -320,7 +375,15 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
     setBusy(true);
     try {
       await api.post(`/api/bank/umsaetze/${umsatz.id}/${pfad}`, body);
-      toast.success(pfad === 'ignorieren' ? 'Ignoriert.' : pfad === 'zuordnen' ? 'Der Buchung zugeordnet.' : 'Wieder offen.');
+      toast.success(
+        pfad === 'ignorieren'
+          ? 'Ignoriert.'
+          : pfad === 'zuordnen'
+            ? 'Der Buchung zugeordnet.'
+            : pfad === 'auto-rueckgaengig'
+              ? 'Zurückgenommen — der Umsatz ist wieder offen.'
+              : 'Wieder offen.',
+      );
       await onChanged();
     } catch (e) {
       toast.error(apiError(e));
@@ -352,7 +415,28 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
           {umsatz.referenz && <Zeile label="Referenz" wert={umsatz.referenz} mono />}
         </dl>
 
-        {umsatz.status_effektiv === 'zugeordnet' && (
+        {umsatz.status_effektiv === 'zugeordnet' && umsatz.auto_grund && (
+          <>
+            <Hinweis>
+              {umsatz.auto_buchung ? 'Automatisch gebucht' : 'Automatisch der vorhandenen Buchung zugeordnet'}:{' '}
+              {umsatz.auto_grund}.{' '}
+              {umsatz.auto_buchung
+                ? '„Rückgängig“ löscht die Buchung wieder (ein Beleg fällt zurück in den Eingang, eine Rechnung ist wieder offen).'
+                : '„Rückgängig“ löst nur die Verknüpfung, die Buchung bleibt.'}{' '}
+              Danach ordnet Tab diesen Umsatz nicht mehr selbst zu.
+            </Hinweis>
+            <DialogFuss>
+              <button className="btn-ghost" onClick={onClose}>
+                Schließen
+              </button>
+              <button className="btn-outline" disabled={busy} onClick={() => aufrufen('auto-rueckgaengig')}>
+                Rückgängig
+              </button>
+            </DialogFuss>
+          </>
+        )}
+
+        {umsatz.status_effektiv === 'zugeordnet' && !umsatz.auto_grund && (
           <>
             <Hinweis>
               Gebucht als Buchung vom {formatDateDE(umsatz.buchung?.datum)}
@@ -688,6 +772,7 @@ function ImportModal({ datei, gewerbeId, konten, onClose, onDone }) {
         { duration: 7000 },
       );
       d.warnungen?.forEach((w) => toast(w, { duration: 9000 }));
+      autoMeldung(d.automatisch);
       if (d.saldo_pruefung && d.saldo_pruefung !== 'ok' && d.saldo_pruefung !== 'unbekannt')
         toast.error(`Saldenprüfung: ${d.saldo_pruefung} — möglicherweise fehlen Umsätze im Auszug.`, { duration: 10000 });
       onClose();
@@ -850,6 +935,7 @@ function MehrfachImportModal({ dateien, gewerbeId, onClose, onDone }) {
     setBusy(true);
     let neu = 0;
     let ok = 0;
+    const auto = { verknuepft: 0, gebucht: 0 };
     for (let i = 0; i < dateien.length; i += 1) {
       if (stand[i].zustand !== 'bereit') continue;
       const fd = new FormData();
@@ -859,6 +945,8 @@ function MehrfachImportModal({ dateien, gewerbeId, onClose, onDone }) {
         const d = (await api.post('/api/bank/import', fd)).data;
         neu += d.neu;
         ok += 1;
+        auto.verknuepft += d.automatisch?.verknuepft || 0;
+        auto.gebucht += d.automatisch?.gebucht || 0;
         setze(i, { zustand: 'importiert', ergebnis: d });
       } catch (e) {
         setze(i, { zustand: 'fehler', text: apiError(e) });
@@ -867,6 +955,7 @@ function MehrfachImportModal({ dateien, gewerbeId, onClose, onDone }) {
     setBusy(false);
     setFertig(true);
     toast.success(`${ok} ${ok === 1 ? 'Auszug' : 'Auszüge'} importiert, ${neu} neue Umsätze.`, { duration: 7000 });
+    autoMeldung(auto);
     await onDone();
   }
 

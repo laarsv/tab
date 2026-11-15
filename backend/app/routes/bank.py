@@ -8,6 +8,7 @@ Vorschläge, Ignorieren/Wieder öffnen.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services import auto_zuordnung as auto
 from ..services import bank_import as imp
 from ..services import bank_match as match
 from ..services.girocode import iban_gueltig, iban_normal
@@ -178,13 +180,21 @@ def import_ausfuehren(
     check_gewerbe(db, user, gewerbe_id)
     data = file.file.read(imp.MAX_BYTES + 1)
     try:
-        return imp.importiere(
+        ergebnis = imp.importiere(
             db, gewerbe_id=gewerbe_id, konto_id=konto_id, dateiname=file.filename or "", data=data,
             mapping=_mapping(mapping), email=user["email"],
         )
     except imp.BankImportError as e:
         db.rollback()
         raise HTTPException(400, str(e))
+    # Gleich danach eindeutige Treffer zuordnen (ohne Fotos: Texterkennung dauert; die holt der Stundenlauf)
+    try:
+        ergebnis["automatisch"] = auto.lauf(db, gewerbe_id, user, bilder=False)
+    except Exception:
+        db.rollback()
+        logging.getLogger("tab.auto_zuordnung").exception("Auto-Zuordnung nach dem Import fehlgeschlagen")
+        ergebnis["automatisch"] = None
+    return ergebnis
 
 
 # ── Umsatzliste ─────────────────────────────────────────────────────────────
@@ -255,9 +265,11 @@ def umsaetze(
         f"WHERE {scope} AND {stat['offen']}",
         scope_args,
     ).fetchone()
+    g = db.execute("SELECT bank_auto FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
     return {
         "umsaetze": ergebnis,
         "offen": {"anzahl": s["n"], "eingaenge_cent": s["ein"], "ausgaenge_cent": s["aus"]},
+        "automatik": bool(g["bank_auto"]) if g else False,
     }
 
 
@@ -328,9 +340,48 @@ def wieder_oeffnen(umsatz_id: int, user: dict = Depends(get_current_user), db: s
     """Ignoriert → offen, oder Verknüpfung mit der Buchung lösen (die Buchung bleibt bestehen)."""
     _umsatz(db, user, umsatz_id)
     db.execute(
-        "UPDATE bank_umsatz SET status = 'offen', ignoriert_grund = NULL, buchung_id = NULL, zugeordnet_am = NULL "
+        "UPDATE bank_umsatz SET status = 'offen', ignoriert_grund = NULL, buchung_id = NULL, zugeordnet_am = NULL, "
+        "auto_grund = NULL, auto_buchung = 0, auto_aus = CASE WHEN buchung_id IS NOT NULL THEN 1 ELSE auto_aus END "
         "WHERE id = ?",
         (umsatz_id,),
     )
     db.commit()
+    return {"ok": True}
+
+
+# ── Automatische Zuordnung (services/auto_zuordnung.py) ──────────────────────
+
+class AutomatikIn(BaseModel):
+    gewerbe_id: int
+    an: bool
+
+
+@router.put("/automatik")
+def automatik_schalten(body: AutomatikIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    check_gewerbe(db, user, body.gewerbe_id)
+    db.execute("UPDATE gewerbe SET bank_auto = ? WHERE id = ?", (1 if body.an else 0, body.gewerbe_id))
+    db.commit()
+    return {"an": body.an}
+
+
+class AutoLaufIn(BaseModel):
+    gewerbe_id: int
+
+
+@router.post("/automatisch")
+def automatisch_zuordnen(body: AutoLaufIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    """Offene Umsätze jetzt zuordnen, soweit eindeutig (auch mit Fotos im Beleg-Eingang)."""
+    g = check_gewerbe(db, user, body.gewerbe_id)
+    if not g["bank_auto"]:
+        raise HTTPException(409, "Die automatische Zuordnung ist für dieses Gewerbe ausgeschaltet.")
+    return auto.lauf(db, body.gewerbe_id, user, bilder=True)
+
+
+@router.post("/umsaetze/{umsatz_id}/auto-rueckgaengig")
+def auto_rueckgaengig(umsatz_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    """Eine automatische Zuordnung zurücknehmen; danach ordnet Tab diesen Umsatz nie wieder selbst zu."""
+    u = _umsatz(db, user, umsatz_id)
+    if not u["auto_grund"]:
+        raise HTTPException(409, "Dieser Umsatz wurde nicht automatisch zugeordnet.")
+    auto.rueckgaengig(db, u)
     return {"ok": True}

@@ -4,7 +4,7 @@ Verfahrensdokumentation nach den GoBD (BMF-Schreiben vom 28.11.2019, Rz. 151 ff.
 Tab. Aufbau nach dem Muster der AWV (Allgemeine Beschreibung, Anwender-, technische System- und
 Betriebsdokumentation, internes Kontrollsystem).
 
-**Stand:** 15.11.2026 · **Version:** 1 · **Verantwortlich:** der Inhaber (siehe 1.1)
+**Stand:** 15.11.2026 · **Version:** 2 · **Verantwortlich:** der Inhaber (siehe 1.1)
 
 **Das ist die Vorlage.** Das Repo ist öffentlich: Die ausgefüllte Fassung (Abschnitte mit **[ausfüllen]**)
 wird als Kopie außerhalb des Repos geführt und mit dem Jahresarchiv aufbewahrt, nie hier eingecheckt. Ändert sich ein Ablauf, wird diese Datei angepasst
@@ -82,6 +82,13 @@ zufälligen Namen gespeichert, der ursprüngliche Dateiname wird mitgeführt.
 Jede Buchung trägt ihre Belegdateien; jeder Bankumsatz wird genau einer Buchung zugeordnet oder mit Grund
 als „ignoriert“ markiert (z. B. privat, Umbuchung). So ist jeder Geldfluss auf dem Geschäftskonto entweder
 belegt oder begründet.
+
+**Automatische Zuordnung:** Eindeutige Fälle ordnet Tab selbst zu (nach jedem Import und stündlich): Zahlungseingang
+= offener Betrag genau einer Rechnung; Abbuchung = fälliger Termin eines Dauerbelegs (Betrag, Bezeichnung, Termin);
+Umsatz = bereits vorhandene Buchung; Abbuchung = genau ein Beleg im Eingang mit gleichem Betrag und passendem Datum,
+wenn die Kategorie aus früheren Buchungen derselben Gegenpartei eindeutig ist. **Ohne Beleg bucht Tab nicht.** Jede
+automatische Zuordnung ist am Umsatz mit Begründung gekennzeichnet, steht im Änderungsprotokoll und kann
+zurückgenommen werden. Der Inhaber sieht die automatisch gebuchten Umsätze beim monatlichen Bankabgleich durch.
 
 ### 2.4 Ersetzendes Scannen von Papierbelegen
 
@@ -219,3 +226,4 @@ exportiert (Belege, Buchungen, Rechnungen, Auswertungen, DATEV-/CSV-Export) und 
 | Datum | Version | Änderung |
 |---|---|---|
 | 15.11.2026 | 1 | Erste Fassung |
+| 15.11.2026 | 2 | Automatische Zuordnung von Bankumsätzen (2.3) |

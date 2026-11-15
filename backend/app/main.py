@@ -47,6 +47,7 @@ from .routes import (
     vorschlaege,
 )
 from .seed import seed
+from .services import auto_zuordnung
 from .services.abo import run_faellige_abos
 from .services.audit import SPERR_PRAEFIX, ensure_triggers
 from .services.mail_import import run_mail_import
@@ -56,6 +57,7 @@ from .auth.session import decode_session
 
 ABO_INTERVALL_SEKUNDEN = 6 * 3600
 MAIL_IMPORT_INTERVALL_SEKUNDEN = 10 * 60
+AUTO_ZUORDNUNG_INTERVALL_SEKUNDEN = 60 * 60
 
 
 def _mit_connection(fn, actor: str) -> None:
@@ -91,6 +93,9 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_scheduler("abo", run_faellige_abos, ABO_INTERVALL_SEKUNDEN)),
         asyncio.create_task(
             _scheduler("mail_import", run_mail_import, MAIL_IMPORT_INTERVALL_SEKUNDEN)
+        ),
+        asyncio.create_task(
+            _scheduler("auto_zuordnung", auto_zuordnung.lauf_alle, AUTO_ZUORDNUNG_INTERVALL_SEKUNDEN)
         ),
     ]
     yield

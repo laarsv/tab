@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 43,
+    datum: '2026-11-15',
+    titel: 'Bankumsätze ordnen sich selbst zu',
+    text: 'Nach jedem Kontoauszug und einmal pro Stunde ordnet Tab eindeutige Umsätze selbst zu: Zahlungseingänge zur passenden Rechnung, Abbuchungen zum fälligen Dauerbeleg oder zur schon vorhandenen Buchung und Abbuchungen zu einem Beleg aus dem Eingang, wenn Betrag und Datum passen und Tab die Kategorie von früher kennt. Ohne Beleg bucht Tab nichts. Jeder Umsatz zeigt den Grund und lässt sich mit „Rückgängig“ zurücknehmen; abschalten kannst du es auf der Bank-Seite. Vivid-Kontoauszüge (XML) liest Tab jetzt mit Namen der Gegenseite.',
+    link: { to: '/bank', label: 'Zur Bank' },
+  },
+  {
     id: 42,
     datum: '2026-11-14',
     titel: 'Mehrere Kontoauszüge auf einmal',

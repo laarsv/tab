@@ -194,7 +194,8 @@ SCHWELLE_DAUERBELEG = 70
 
 def dauerbeleg_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
     """Dauerbelege, deren nächster Termin zu dieser Abbuchung passt: Betrag exakt (50) plus Bezeichnung im
-    Verwendungszweck (30) und/oder Termin binnen 7 Tagen (20) — erst ab 70 Punkten. Tab bucht nie von selbst:
+    Verwendungszweck (30) und/oder Termin binnen 7 Tagen (20) — erst ab 70 Punkten. Von selbst bucht nur die
+    automatische Zuordnung, und nur bei 100 Punkten (services/auto_zuordnung.py); sonst:
     „Buchen“ öffnet das Buchungsfenster, das den Umsatz und den Termin zusammen verbucht."""
     if u["betrag_cent"] >= 0:
         return []

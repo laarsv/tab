@@ -873,6 +873,21 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE rechnung_abo ADD COLUMN endet_am TEXT;
         """,
     ),
+    Migration(
+        version=33,
+        sql="""
+        -- v33: Automatische Zuordnung von Bankumsätzen.
+        --  auto_grund   = warum Tab den Umsatz selbst zugeordnet hat (NULL = von Hand / offen);
+        --                 bleibt stehen, wenn die Buchung später gelöscht wird -> Tab ordnet nicht erneut zu
+        --  auto_buchung = 1, wenn Tab dafür eine NEUE Buchung angelegt hat (0 = nur verknüpft)
+        --  auto_aus     = 1: für diesen Umsatz nie automatisch (nach „Rückgängig“ oder „Verknüpfung lösen“)
+        --  gewerbe.bank_auto = Schalter je Gewerbe (Standard an)
+        ALTER TABLE bank_umsatz ADD COLUMN auto_grund TEXT;
+        ALTER TABLE bank_umsatz ADD COLUMN auto_buchung INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE bank_umsatz ADD COLUMN auto_aus INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE gewerbe ADD COLUMN bank_auto INTEGER NOT NULL DEFAULT 1;
+        """,
+    ),
 ]
 
 

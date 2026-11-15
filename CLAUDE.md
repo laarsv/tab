@@ -73,7 +73,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -464,7 +464,7 @@ der Mapping-Version des Jahres aufgelöst.
   CSV-Import, Aufteilung von Vorsteuer (Kleinunternehmer: gibt es nicht).
 - **Dauerbelege (`/dauerbelege`, `pages/Dauerbelege.jsx`, `routes/dauerbelege.py`, `services/dauerbelege.py`,
   v24):** Aufbau nach Haben (Vorlage einmal, Termine fällig, Änderungen nur für künftige Termine,
-  Pausieren/Beenden, **bucht nie von selbst**). Vorlage: Bezeichnung (wird die Buchungsbeschreibung),
+  Pausieren/Beenden, **bucht nie von selbst** — Ausnahme: die automatische Zuordnung eines Bankumsatzes bei 100 Punkten, siehe Bank-Import). Vorlage: Bezeichnung (wird die Buchungsbeschreibung),
   Ausgabe-Kategorie (nicht AfA, nicht `belegpflicht_extra`), Betrag brutto, Privatanteil, Rhythmus
   (monatlich/vierteljährlich/halbjährlich/jährlich), `naechste_am` = nächster **offener** Termin, `endet_am`,
   `aktiv`, Notiz. **Zeiger statt Termin-Tabelle:** „fällig“ = `naechste_am` ≤ heute (nachzuholende Termine
@@ -541,8 +541,24 @@ der Mapping-Version des Jahres aufgelöst.
   buchen (Summe gleich Umsatzbetrag 50, Datum binnen 14 Tagen 10/20, Beschreibung 30; ab 60; nur Buchungen ohne
   Umsatz und mit passender Richtung) — nötig, wenn ein Termin oder eine Rechnung vor dem Kontoauszug gebucht
   wurde. Die Tabellen stehen im Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut:
-  Splitbuchung eines Umsatzes, automatisches Buchen, mehrere Dateien auf
-  einmal, gespeicherte Originaldateien.
+  Splitbuchung eines Umsatzes, gespeicherte Originaldateien, Bankabruf.
+- **Automatische Zuordnung (`services/auto_zuordnung.py`, v33):** ordnet offene Bankumsätze **nur bei eindeutigen
+  Treffern** selbst zu — nach jedem Import (ohne Fotos), stündlich im Hintergrund (`lauf_alle`, Akteur
+  `system:auto_zuordnung`, mit Fotos/OCR, max. 40) und per „Jetzt zuordnen“ (`POST /api/bank/automatisch`). Schalter je
+  Gewerbe `gewerbe.bank_auto` (Standard an, `PUT /api/bank/automatik`). Reihenfolge: (1) schon gebucht — genau eine
+  Buchung ≥ 80 Punkte (`buchung_treffer`) → nur verknüpfen; (2) Eingang = offener Betrag genau einer Rechnung mit
+  Nummer im Zweck, ohne Nummer nur wenn der Empfänger als Einziger passt → Einnahme wie „Als Einnahme buchen“ (kein
+  Skonto, keine Teilzahlung); (3) Dauerbeleg mit 100 Punkten (Betrag + Bezeichnung + Termin) → Termin buchen; (4) genau
+  ein offener Beleg mit exakt dem Betrag, Belegdatum 3 Tage nach bis 21 Tage vor dem Umsatz, der zu **keinem anderen**
+  offenen Umsatz passt, **und** gelernte Kategorie (die letzten bis zu 3 Buchungen derselben Gegenpartei, per IBAN oder
+  Name über verknüpfte Umsätze, je eine Position, alle gleiche Kategorie; nicht AfA/Bewirtung) → buchen mit Beleg und
+  zuletzt genutztem Privatanteil. **Ohne Beleg bucht Tab nie.** Gebucht wird über `create_buchung`/die normale
+  Verknüpfung (alle Prüfungen, Jahres-Sperre, Protokoll). `auto_grund` = Begründung (UI „Automatisch gebucht/zugeordnet“),
+  `auto_buchung` = neue Buchung angelegt. **Rückgängig** (`POST /umsaetze/{id}/auto-rueckgaengig`): neue Buchung löschen
+  samt Zahlung auf der Rechnung (Status neu) und Dauerbeleg-Zeiger (nur wenn es der letzte Termin war), sonst Verknüpfung
+  lösen; danach `auto_aus = 1`. Auch „Verknüpfung lösen“ setzt `auto_aus`; eine später gelöschte Auto-Buchung lässt
+  `auto_grund` stehen — Tab ordnet solche Umsätze nie erneut zu. Mit dem echten Vivid-Auszug (441 Umsätze) getestet.
+  Nicht gebaut: Regeln von Hand, Buchen ohne Beleg (z. B. Kontogebühren), Aufteilen eines Umsatzes, Skonto/Teilzahlung.
 - **Festschreibung / Jahresabschluss (`/abschluss`, `pages/Abschluss.jsx`, `routes/abschluss.py`,
   `services/audit.py` + `services/abschluss.py`, v20):** Aufbau nach Haben (Sperre + Protokoll als
   Datenbank-Trigger, Hash-Kette, Siegel, „Alles prüfen“, Prüfsummen im Archiv), eigenständig in
