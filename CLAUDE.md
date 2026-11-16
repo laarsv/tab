@@ -782,7 +782,8 @@ der Mapping-Version des Jahres aufgelöst.
 Seite; Datenschutz-URL der Enable-Banking-App). Verantwortlicher + E-Mail kommen aus der `.env` (`DATENSCHUTZ_*`, über
 `GET /api/rechtliches`), nie ins Repo. **Ändert sich ein Datenfluss** (neuer externer Dienst, neue Art gespeicherter Daten,
 Sicherungen), den Text im selben Commit nachziehen und `STAND` anpassen. Die Seite verspricht „keine Inhalte von fremden
-Servern“ — keine externen Skripte, Schriften, Bilder (deshalb auch keine Bank-Logos im Verbinden-Dialog).
+Servern“ — keine externen Skripte, Schriften, Bilder (deshalb auch keine Bank-Logos im Verbinden-Dialog). Seit 16.11.2026
+erzwingt das eine CSP in Caddy (`caddy.snippet`, nur für die Oberfläche): neue externe Quelle = CSP anpassen.
 
 ## Verfahrensdokumentation
 

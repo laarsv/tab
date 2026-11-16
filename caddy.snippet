@@ -11,7 +11,19 @@
 #     (keine generischen Aliase — Routing-Bug-Falle im geteilten proxy-Netz!)
 
 tab.vrwb.de {
+    import hsts
     encode zstd gzip
+
+    # Sicherheits-Header (Audit 2026-11-08, LIVE-06); CSP nur für die Oberfläche, nicht für API/Belege.
+    # data: bei font-src: Vite bettet kleine Schriftdateien als data:-URL ein. Neue externe Quellen hier freigeben
+    # UND auf der Datenschutzseite nennen.
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
 
     # API ans Backend
     @api path /api/* /api
@@ -21,6 +33,7 @@ tab.vrwb.de {
 
     # Alles andere -> SPA (statisches Nginx im Frontend-Container)
     handle {
+        header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         reverse_proxy tab-frontend:80
     }
 
