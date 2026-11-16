@@ -930,6 +930,36 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE gewerbe ADD COLUMN ustva_dauerfrist INTEGER NOT NULL DEFAULT 0;
         """,
     ),
+    Migration(
+        version=36,
+        sql="""
+        -- v36: Bankabruf über Enable Banking (services/bank_abruf.py). Eine Verbindung = eine Zustimmung bei einer Bank
+        --      (PSD2, läuft nach höchstens 180 Tagen ab). state_hash = SHA-256 des state-Werts während der Anmeldung
+        --      bei der Bank; session_id erst nach erfolgreicher Rückkehr. Konten hängen über verbindung_id dran,
+        --      eb_uid = Konto-ID bei Enable Banking, abruf_ab = ab welchem Buchungstag der nächste Abruf fragt.
+        CREATE TABLE bank_verbindung (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id     INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            bank_name      TEXT    NOT NULL,
+            bank_land      TEXT    NOT NULL DEFAULT 'DE',
+            psu_type       TEXT    NOT NULL DEFAULT 'personal',
+            status         TEXT    NOT NULL DEFAULT 'ausstehend'
+                           CHECK (status IN ('ausstehend','aktiv','abgelaufen','getrennt','fehler')),
+            state_hash     TEXT,
+            session_id     TEXT,
+            gueltig_bis    TEXT,
+            letzter_abruf  TEXT,
+            letzter_fehler TEXT,
+            angelegt_von   TEXT,
+            created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_bank_verbindung_gewerbe ON bank_verbindung(gewerbe_id);
+        CREATE INDEX idx_bank_verbindung_state ON bank_verbindung(state_hash);
+        ALTER TABLE bankkonto ADD COLUMN verbindung_id INTEGER REFERENCES bank_verbindung(id) ON DELETE SET NULL;
+        ALTER TABLE bankkonto ADD COLUMN eb_uid TEXT;
+        ALTER TABLE bankkonto ADD COLUMN abruf_ab TEXT;
+        """,
+    ),
 ]
 
 

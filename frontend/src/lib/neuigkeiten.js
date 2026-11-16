@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 47,
+    datum: '2026-11-16',
+    titel: 'Konto verbinden statt Kontoauszug hochladen',
+    text: 'Auf der Bank-Seite kannst du dein Konto jetzt verbinden: Bank wählen, bei der Bank anmelden und freigeben. Danach holt Tab neue Umsätze bis zu viermal am Tag selbst und ordnet Eindeutiges gleich zu. Tab liest nur, Zahlungen sind nicht möglich. Die Freigabe gilt je nach Bank bis zu 180 Tage, danach verbindest du neu. Umsätze, die du schon als Datei importiert hast, kommen nicht doppelt.',
+    link: { to: '/bank', label: 'Zur Bank' },
+  },
+  {
     id: 46,
     datum: '2026-11-16',
     titel: 'Umsatzsteuer-Voranmeldung',

@@ -5,14 +5,14 @@ import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import { DialogFuss, Gruppe, SchalterZeile } from '../components/DialogParts.jsx';
 import Dropdown from '../components/Dropdown.jsx';
-import { IconArrowIn, IconArrowOut, IconBank, IconSparkles, IconUpload } from '../components/Icons.jsx';
+import { IconArrowIn, IconArrowOut, IconBank, IconButton, IconRepeat, IconSparkles, IconTrash, IconUpload } from '../components/Icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatDateDE, formatEuro } from '../lib/format.js';
 
-// Bank (Aufbau nach Haben): Kontoauszug als CAMT.053, CSV oder PDF (nur C24 Bank) importieren, jeden Umsatz einer
-// Buchung zuordnen, ignorieren oder offen lassen. Kein Bankabruf — die Datei kommt von dir.
+// Bank (Aufbau nach Haben): Kontoauszug als CAMT.053, CSV oder PDF (nur C24 Bank) importieren oder das Konto über
+// Enable Banking verbinden (Bankabruf, services/bank_abruf.py), jeden Umsatz einer Buchung zuordnen, ignorieren oder offen lassen.
 // Zugeordnet wird im normalen Buchungs-Fenster, vorbelegt aus dem Umsatz. Eindeutige Treffer ordnet Tab selbst zu
 // (nach jedem Import und stündlich, services/auto_zuordnung.py); jede automatische Zuordnung lässt sich zurücknehmen.
 
@@ -36,18 +36,23 @@ export default function Bank() {
   const [umsatz, setUmsatz] = useState(null);
   const [buchen, setBuchen] = useState(null);
   const [autoBusy, setAutoBusy] = useState(false);
+  const [abruf, setAbruf] = useState({ konfiguriert: false, verbindungen: [] });
+  const [verbinden, setVerbinden] = useState(false);
+  const [abrufBusy, setAbrufBusy] = useState(null);
   const dateiRef = useRef(null);
 
   async function load() {
     if (!gewerbeId) return;
     try {
-      const [k, u] = await Promise.all([
+      const [k, u, a] = await Promise.all([
         api.get('/api/bank/konten', { params: { gewerbe_id: gewerbeId } }),
         api.get('/api/bank/umsaetze', {
           params: { gewerbe_id: gewerbeId, filter, ...(konto ? { konto_id: konto } : {}), ...(q.trim() ? { q: q.trim() } : {}) },
         }),
+        api.get('/api/bank/abruf', { params: { gewerbe_id: gewerbeId } }),
       ]);
       setKonten(k.data);
+      setAbruf(a.data);
       setDaten(u.data);
     } catch (e) {
       toast.error(apiError(e));
@@ -79,6 +84,31 @@ export default function Bank() {
       toast.error(apiError(e));
     } finally {
       setAutoBusy(false);
+    }
+  }
+
+  async function jetztAbrufen(v) {
+    setAbrufBusy(v.id);
+    try {
+      const r = (await api.post(`/api/bank/abruf/${v.id}/abrufen`)).data;
+      toast.success(r.neu ? `${r.neu} neue Umsätze von ${v.bank_name}.` : `Nichts Neues bei ${v.bank_name}.`);
+      if (r.automatisch) autoMeldung(r.automatisch);
+      await nachAenderung();
+    } catch (e) {
+      toast.error(apiError(e), { duration: 8000 });
+      await load();
+    } finally {
+      setAbrufBusy(null);
+    }
+  }
+
+  async function trennen(v) {
+    if (!window.confirm(`Verbindung zu ${v.bank_name} trennen? Die abgerufenen Umsätze bleiben, Tab ruft aber nichts mehr ab.`)) return;
+    try {
+      await api.delete(`/api/bank/abruf/${v.id}`);
+      await load();
+    } catch (e) {
+      toast.error(apiError(e));
     }
   }
 
@@ -121,8 +151,17 @@ export default function Bank() {
     <div>
       <PageHeader
         title="Bank"
-        sub="Kontoauszug importieren und jeden Umsatz einer Buchung zuordnen — Tab ruft dein Konto nicht ab, die Datei kommt von dir."
+        sub={
+          abruf.konfiguriert
+            ? 'Konto verbinden oder Kontoauszug importieren und jeden Umsatz einer Buchung zuordnen.'
+            : 'Kontoauszug importieren und jeden Umsatz einer Buchung zuordnen — die Datei kommt von dir.'
+        }
       >
+        {abruf.konfiguriert && (
+          <button className="btn-outline" onClick={() => setVerbinden(true)}>
+            <IconBank className="mr-1 h-4 w-4" /> Konto verbinden
+          </button>
+        )}
         <input
           ref={dateiRef}
           type="file"
@@ -141,9 +180,24 @@ export default function Bank() {
         </button>
       </PageHeader>
 
+      {abruf.verbindungen.length > 0 && (
+        <div className="mt-5">
+          {abruf.verbindungen.map((v) => (
+            <VerbindungZeile
+              key={v.id}
+              v={v}
+              busy={abrufBusy === v.id}
+              onAbrufen={() => jetztAbrufen(v)}
+              onNeu={() => setVerbinden(true)}
+              onTrennen={() => trennen(v)}
+            />
+          ))}
+        </div>
+      )}
+
       {konten.length === 0 ? (
         <Leer>
-          Noch kein Konto. Exportiere bei deiner Bank die Umsätze als <strong>CAMT.053</strong> (XML) oder CSV und
+          Noch kein Konto.{abruf.konfiguriert && ' Verbinde dein Konto mit „Konto verbinden“ — Tab holt die Umsätze dann selbst. Oder:'} Exportiere bei deiner Bank die Umsätze als <strong>CAMT.053</strong> (XML) oder CSV und
           importiere die Datei mit „Kontoauszug“. Von der <strong>C24 Bank</strong> geht auch der Kontoauszug als PDF. Nennt die Datei die IBAN, legt Tab das Konto selbst an.
         </Leer>
       ) : (
@@ -243,6 +297,7 @@ export default function Bank() {
           }}
         />
       )}
+      {verbinden && <VerbindenModal gewerbeId={gewerbeId} onClose={() => setVerbinden(false)} />}
       {umsatz && (
         <UmsatzModal
           umsatz={umsatz}
@@ -278,6 +333,170 @@ export default function Bank() {
         />
       )}
     </div>
+  );
+}
+
+// Verbindung zu einer Bank (Bankabruf): Zustand, Freigabe bis, letzter Abruf; Aktionen abrufen / neu verbinden / trennen.
+function VerbindungZeile({ v, busy, onAbrufen, onNeu, onTrennen }) {
+  const heute = new Date().toISOString().slice(0, 10);
+  const tageRest = v.gueltig_bis ? Math.round((new Date(v.gueltig_bis) - new Date(heute)) / 86400000) : null;
+  const abgelaufen = v.status !== 'aktiv';
+  const bald = !abgelaufen && tageRest !== null && tageRest <= 14;
+  const letzter = v.letzter_abruf ? new Date(v.letzter_abruf).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
+  return (
+    <Row
+      kind={abgelaufen ? 'late' : bald ? 'warn' : 'file'}
+      icon={IconBank}
+      title={`${v.bank_name}${v.konten.length ? ' · ' + v.konten.map((k) => k.name).join(', ') : ''}`}
+      sub={
+        <>
+          {abgelaufen ? (
+            <Zustand ton="late">Freigabe abgelaufen — neu verbinden</Zustand>
+          ) : bald ? (
+            <Zustand ton="warn">Freigabe endet {tageRest <= 0 ? 'heute' : `in ${tageRest} Tagen`}</Zustand>
+          ) : (
+            <Zustand ton="pos">Verbunden</Zustand>
+          )}
+          {!abgelaufen && v.gueltig_bis && (
+            <>
+              {PUNKT}
+              <span>bis {formatDateDE(v.gueltig_bis)}</span>
+            </>
+          )}
+          {letzter && (
+            <>
+              {PUNKT}
+              <span>zuletzt abgerufen {letzter}</span>
+            </>
+          )}
+          {v.letzter_fehler && !abgelaufen && (
+            <>
+              {PUNKT}
+              <Zustand ton="neg">Fehler beim letzten Abruf</Zustand>
+            </>
+          )}
+        </>
+      }
+      actions={
+        <>
+          {!abgelaufen && (
+            <IconButton icon={IconRepeat} label={busy ? 'Ruft ab…' : 'Jetzt abrufen'} disabled={busy} onClick={onAbrufen} />
+          )}
+          {(abgelaufen || bald) && (
+            <button className="btn-primary btn-sm" onClick={onNeu}>
+              Neu verbinden
+            </button>
+          )}
+          <IconButton icon={IconTrash} variant="danger" label="Verbindung trennen" onClick={onTrennen} />
+        </>
+      }
+    >
+      {v.letzter_fehler && <p className="mt-0.5 text-[13px] leading-snug text-ink/60">{v.letzter_fehler}</p>}
+    </Row>
+  );
+}
+
+// Bank wählen → weiter zur Anmeldung der Bank (Enable Banking). Zurück kommt man über /bank/verbunden.
+function VerbindenModal({ gewerbeId, onClose }) {
+  const [banken, setBanken] = useState(null);
+  const [suche, setSuche] = useState('');
+  const [gewaehlt, setGewaehlt] = useState(null);
+  const [art, setArt] = useState('personal');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .get('/api/bank/abruf/banken', { params: { land: 'DE' } })
+      .then((r) => setBanken(r.data))
+      .catch((e) => {
+        toast.error(apiError(e));
+        setBanken([]);
+      });
+  }, []);
+
+  const s = suche.trim().toLowerCase();
+  const treffer = (banken || []).filter((b) => !s || b.name.toLowerCase().includes(s)).slice(0, 40);
+
+  async function weiter() {
+    setBusy(true);
+    try {
+      const r = await api.post('/api/bank/abruf/start', {
+        gewerbe_id: Number(gewerbeId),
+        bank_name: gewaehlt.name,
+        land: gewaehlt.land,
+        psu_type: gewaehlt.psu_types.includes(art) ? art : gewaehlt.psu_types[0],
+      });
+      window.location.assign(r.data.url);
+    } catch (e) {
+      toast.error(apiError(e), { duration: 8000 });
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Konto verbinden" subtitle="Über Enable Banking (PSD2), nur lesen" onClose={onClose} maxWidth="max-w-xl">
+      <div className="space-y-3">
+        <input
+          className="input"
+          placeholder="Bank suchen, z. B. Vivid, C24, Sparkasse…"
+          value={suche}
+          autoFocus
+          onChange={(e) => {
+            setSuche(e.target.value);
+            setGewaehlt(null);
+          }}
+          aria-label="Bank suchen"
+        />
+        {banken === null ? (
+          <p className="text-sm text-ink/60">Lädt Banken…</p>
+        ) : (
+          <ul className="max-h-72 overflow-y-auto divide-y divide-ink/[0.06]" role="listbox" aria-label="Banken">
+            {treffer.map((b) => (
+              <li key={b.name}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={gewaehlt?.name === b.name}
+                  onClick={() => setGewaehlt(b)}
+                  className={`flex w-full items-center gap-3 px-2 py-2 text-left text-[15px] outline-none hover:bg-royal/[0.06] focus-visible:bg-royal/[0.08] ${gewaehlt?.name === b.name ? 'bg-royal/[0.08] font-bold text-royal' : ''}`}
+                >
+                  {b.logo ? <img src={b.logo} alt="" className="h-6 w-6 shrink-0 object-contain" /> : <IconBank className="h-5 w-5 shrink-0 text-ink/60" />}
+                  <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                  {b.beta && <span className="text-xs text-ink/60">Beta</span>}
+                </button>
+              </li>
+            ))}
+            {treffer.length === 0 && <li className="py-4 text-center text-sm text-ink/60">Keine Bank gefunden.</li>}
+          </ul>
+        )}
+        {gewaehlt && gewaehlt.psu_types.length > 1 && (
+          <div className="block">
+            <span className="field-label">Kontoart</span>
+            <Dropdown
+              value={art}
+              onChange={(v) => setArt(String(v))}
+              options={[
+                { value: 'personal', label: 'Privatkonto' },
+                { value: 'business', label: 'Geschäftskonto' },
+              ]}
+            />
+          </div>
+        )}
+        <p className="text-[13px] leading-snug text-ink/60">
+          Du meldest dich bei deiner Bank an und gibst Tab die Umsätze frei (bis zu 180 Tage, je nach Bank). Tab liest nur
+          Umsätze und IBAN, Zahlungen sind nicht möglich. Danach holt Tab neue Umsätze bis zu viermal am Tag und ordnet
+          Eindeutiges selbst zu. Die Daten laufen über Enable Banking (Finnland).
+        </p>
+      </div>
+      <DialogFuss>
+        <button className="btn-outline" onClick={onClose}>
+          Abbrechen
+        </button>
+        <button className="btn-primary" disabled={!gewaehlt || busy} onClick={weiter}>
+          {busy ? 'Leitet weiter…' : 'Weiter zur Bank'}
+        </button>
+      </DialogFuss>
+    </Modal>
   );
 }
 

@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     @property
     def system_mail_konfiguriert(self) -> bool:
         return bool(self.SYSTEM_SMTP_HOST and self.SYSTEM_SMTP_USER and self.SYSTEM_SMTP_PASSWORT)
+    # ── Bankabruf (Enable Banking, PSD2) ──────────────────────────────────────
+    # App-ID aus dem Enable-Banking-Kontrollzentrum und der private Schlüssel (PEM) dazu. Ohne beides ist der
+    # Bankabruf aus. Der Schlüssel liegt als Datei neben der Datenbank (nicht im Backup, nicht im Repo).
+    ENABLE_BANKING_APP_ID: str = ""
+    ENABLE_BANKING_KEY_FILE: str = "/app/data/enablebanking.pem"
+    ENABLE_BANKING_URL: str = "https://api.enablebanking.com"
+
     # Wohin nach Login/Logout zurück (Frontend-Origin).
     FRONTEND_URL: str = "https://tab.vrwb.de"
 

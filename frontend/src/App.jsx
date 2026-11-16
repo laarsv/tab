@@ -12,6 +12,7 @@ import JahresCheck from './pages/JahresCheck.jsx';
 import Fahrten from './pages/Fahrten.jsx';
 import Fristen from './pages/Fristen.jsx';
 import Umsatzsteuer from './pages/Umsatzsteuer.jsx';
+import BankVerbunden from './pages/BankVerbunden.jsx';
 import Abschluss from './pages/Abschluss.jsx';
 import Bank from './pages/Bank.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/umsatzsteuer" element={<Umsatzsteuer />} />
         <Route path="/abschluss" element={<Abschluss />} />
         <Route path="/bank" element={<Bank />} />
+        <Route path="/bank/verbunden" element={<BankVerbunden />} />
         <Route path="/rechnungen" element={<Rechnungen />} />
         <Route path="/dauerbelege" element={<Dauerbelege />} />
         <Route path="/rechnungen/angebote" element={<Angebote />} />

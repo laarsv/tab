@@ -7,8 +7,8 @@ Arbeitsanweisungen für Claude Code in diesem Repo. Kurz halten, beim Ändern ak
 Schlanke EÜR-Buchhaltung für Einzelunternehmer mit **Kleinunternehmerregelung (§19 UStG)**; **Regelbesteuerung**
 (Ist-Versteuerung) ist je Gewerbe ab einem Jahr zuschaltbar (v34, siehe „Regelbesteuerung“).
 Belege erfassen → Kategorien → am Jahresende **EÜR-Summenblatt pro Anlage-EÜR-Zeile** +
-**Beleg-Journal (CSV)** exportieren. Kein ELSTER-Direktversand, **kein Bankabruf** (kein PSD2) — Kontoauszüge nur als
-Datei (CAMT.053/CSV, siehe Bank-Import); Belege manuell, per Mail oder Handy-Teilen. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
+**Beleg-Journal (CSV)** exportieren. Kein ELSTER-Direktversand. Kontoauszüge als
+Datei (CAMT.053/CSV/PDF, siehe Bank-Import) oder per **Bankabruf** (Enable Banking, PSD2, nur lesen, v36); Belege manuell, per Mail oder Handy-Teilen. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
 **Keine Steuerberatung.**
 
 ## Verbindliche Quellen
@@ -74,7 +74,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`. v35 = `gewerbe.ustva_zeitraum` (monat|quartal|jahr) + `ustva_dauerfrist` (Umsatzsteuer-Voranmeldung).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`. v35 = `gewerbe.ustva_zeitraum` (monat|quartal|jahr) + `ustva_dauerfrist` (Umsatzsteuer-Voranmeldung). v36 = `bank_verbindung` + `bankkonto.verbindung_id`/`eb_uid`/`abruf_ab` (Bankabruf).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -548,7 +548,7 @@ der Mapping-Version des Jahres aufgelöst.
   Formular: als sonstige Betriebseinnahme buchen). Nicht abgedeckt: Mahnbescheid, Inkasso (Teilzahlungen und Skonto: siehe „Zahlungen auf Rechnungen“; Rechnung
   ist bezahlt oder nicht), Skonto, Mahnbescheid.
 - **Bank-Import (`/bank`, `pages/Bank.jsx`, `routes/bank.py`, `services/bank_import.py` +
-  `bank_match.py`, v21):** **Kein Bankabruf** — der Nutzer importiert die Datei seiner Bank:
+  `bank_match.py`, v21):** Der Nutzer importiert die Datei seiner Bank (oder verbindet das Konto, siehe „Bankabruf“):
   **CAMT.053** (XML), **CSV** oder **PDF der C24 Bank** (`parse_pdf_c24`, Format `pdf_c24`, 2026-11-14: C24 gibt nur
   PDF heraus; Textebene über PyMuPDF-Wortpositionen, Spalten aus der Kopfzeile „Buchung · Valuta ·
   Transaktionsinformation · Betrag“, Info-Zeilen = Vorgangsart, Gegenpartei, Zweck, „IBAN: … / BIC: …“; Jahr aus dem
@@ -579,7 +579,28 @@ der Mapping-Version des Jahres aufgelöst.
   buchen (Summe gleich Umsatzbetrag 50, Datum binnen 14 Tagen 10/20, Beschreibung 30; ab 60; nur Buchungen ohne
   Umsatz und mit passender Richtung) — nötig, wenn ein Termin oder eine Rechnung vor dem Kontoauszug gebucht
   wurde. Die Tabellen stehen im Änderungsprotokoll (`AUDIT_TABELLEN`). Nicht gebaut:
-  Splitbuchung eines Umsatzes, gespeicherte Originaldateien, Bankabruf.
+  Splitbuchung eines Umsatzes, gespeicherte Originaldateien.
+- **Bankabruf (v36, `services/bank_abruf.py`, Endpunkte `/api/bank/abruf*` in `routes/bank.py`, `pages/BankVerbunden.jsx`,
+  `VerbindenModal`/`VerbindungZeile` in `Bank.jsx`):** über **Enable Banking** (PSD2-Kontoinformation, nur lesen, keine
+  Zahlungen). Zugang: `ENABLE_BANKING_APP_ID` + private Schlüsseldatei `ENABLE_BANKING_KEY_FILE` (Standard
+  `/app/data/enablebanking.pem` = Host `/opt/appdata/tab/data/`, nicht im Backup-ZIP, nie ins Repo); ohne beides ist alles
+  aus (`konfiguriert()`, Knopf „Konto verbinden“ fehlt). Jede API-Anfrage ist ein JWT (RS256, `kid` = App-ID, 1 h).
+  **Ablauf:** Bank wählen (`GET /abruf/banken`, 12 h Cache) → `POST /abruf/start` legt `bank_verbindung` „ausstehend“ an
+  (nur SHA-256 des `state`, 30 min gültig) und leitet zur Bank → Rückkehr auf **`<FRONTEND_URL>/bank/verbunden`** (diese
+  Adresse muss in der Enable-Banking-App als Redirect-URL eingetragen sein) → `POST /abruf/abschliessen` tauscht den Code
+  gegen die Sitzung (prüft `check_gewerbe`), ordnet Euro-Konten über die IBAN zu (`konto_aufloesen`, fehlende werden
+  angelegt) und ruft sofort ab. Freigabe = Bank-Maximum, höchstens 180 Tage (`gueltig_bis`); danach „abgelaufen“, neu
+  verbinden. **Abruf:** nur `BOOK` in EUR, `DBIT` negativ, Gegenpartei = creditor bzw. debtor, Zweck =
+  `remittance_information`; Fingerprint `eb:<entry_reference>` (sonst Hash). Erster Abruf ab dem Tag nach dem letzten
+  vorhandenen Umsatz des Kontos (sonst 90 Tage), danach ab `abruf_ab` − 7 Tage. **Dubletten Datei↔Abruf:** gleicher Tag +
+  gleicher Betrag auf dem Konto = derselbe Umsatz (je Umsatz einmal) — in beide Richtungen (`_speichern` und
+  `bank_import.importiere`). Je Abruf ein `bank_import` mit Format `api`. **Hintergrund** `lauf_alle` alle 30 min, je
+  Verbindung höchstens alle 6 h (PSD2: 4 Abrufe/Tag ohne Nutzer), danach `auto_zuordnung.lauf`; „Jetzt abrufen“ schickt
+  `Psu-Ip-Address`/`Psu-User-Agent` mit (Nutzer anwesend). „Trennen“ schließt die Sitzung bei Enable Banking, Umsätze
+  bleiben. Fehler stehen an der Verbindung (`letzter_fehler`), EXPIRED/REVOKED → „abgelaufen“. Steuerberatung: kein
+  Zugriff. Gegen eine nachgebaute API getestet (JWT geprüft); **mit dem echten Enable Banking und einer echten Bank noch
+  nicht**. Nicht gebaut: Salden, mehrere Länder in der Auswahl (nur DE), Geschäftskunden-Freigabe über mehrere Personen,
+  Benachrichtigung vor Ablauf der Freigabe (nur Anzeige ab 14 Tagen vorher).
 - **Automatische Zuordnung (`services/auto_zuordnung.py`, v33):** ordnet offene Bankumsätze **nur bei eindeutigen
   Treffern** selbst zu — nach jedem Import (ohne Fotos), stündlich im Hintergrund (`lauf_alle`, Akteur
   `system:auto_zuordnung`, mit Fotos/OCR, max. 40) und per „Jetzt zuordnen“ (`POST /api/bank/automatisch`). Schalter je
@@ -745,5 +766,5 @@ keine generischen Aliase), `scripts/deploy.sh`. Frontend baut mit getracktem
 
 ## Noch offen / nicht gebaut
 
-- **ELSTER-Versand** der Voranmeldung (Tab rechnet nur), Sondervorauszahlung, § 13b. Ebenso Bilanzierung (doppelte Buchführung, E-Bilanz) und der Bankabruf (Enable Banking).
-- Weiterhin außen vor: Multi-User/Mandant, Bankabruf, ELSTER-Direktversand.
+- **ELSTER-Versand** der Voranmeldung (Tab rechnet nur), Sondervorauszahlung, § 13b. Ebenso Bilanzierung (doppelte Buchführung, E-Bilanz).
+- Weiterhin außen vor: Multi-User/Mandant, ELSTER-Direktversand, Zahlungen aus Tab.

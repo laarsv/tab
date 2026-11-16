@@ -716,8 +716,22 @@ def importiere(
     sha = hashlib.sha256(data).hexdigest()
     fps = fingerprints(erg.umsaetze)
     neu = dubletten = 0
+    belegt: set[int] = set()
     for u, fp in zip(erg.umsaetze, fps):
         if conn.execute("SELECT 1 FROM bank_umsatz WHERE konto_id = ? AND fingerprint = ?", (konto["id"], fp)).fetchone():
+            dubletten += 1
+            continue
+        # Schon per Bankabruf da (services/bank_abruf.py, Fingerprint „eb:…“, andere Schreibweise): gleicher Tag +
+        # gleicher Betrag zählt als derselbe Umsatz, jeder abgerufene höchstens einmal.
+        frei = [
+            r["id"] for r in conn.execute(
+                "SELECT id FROM bank_umsatz WHERE konto_id = ? AND datum = ? AND betrag_cent = ? AND fingerprint LIKE 'eb:%' "
+                "ORDER BY id", (konto["id"], u.datum, u.betrag_cent),
+            )
+            if r["id"] not in belegt
+        ]
+        if frei:
+            belegt.add(frei[0])
             dubletten += 1
             continue
         conn.execute(

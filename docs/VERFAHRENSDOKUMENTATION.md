@@ -83,6 +83,11 @@ Jede Buchung trägt ihre Belegdateien; jeder Bankumsatz wird genau einer Buchung
 als „ignoriert“ markiert (z. B. privat, Umbuchung). So ist jeder Geldfluss auf dem Geschäftskonto entweder
 belegt oder begründet.
 
+**Bankumsätze kommen** als Datei (Kontoauszug CAMT.053, CSV oder PDF) oder per **Bankabruf**: Der Inhaber verbindet das
+Konto einmalig über den Kontoinformationsdienst Enable Banking (PSD2, nur lesender Zugriff, Freigabe bei der Bank, gültig
+höchstens 180 Tage); Tab holt danach gebuchte Umsätze bis zu viermal am Tag. Derselbe Umsatz wird nur einmal übernommen,
+auch wenn er per Datei und per Abruf kommt. Jeder Abruf ist als Import protokolliert.
+
 **Automatische Zuordnung:** Eindeutige Fälle ordnet Tab selbst zu (nach jedem Import und stündlich): Zahlungseingang
 = offener Betrag genau einer Rechnung; Abbuchung = fälliger Termin eines Dauerbelegs (Betrag, Bezeichnung, Termin);
 Umsatz = bereits vorhandene Buchung; Abbuchung = genau ein Beleg im Eingang mit gleichem Betrag und passendem Datum,
@@ -227,3 +232,4 @@ exportiert (Belege, Buchungen, Rechnungen, Auswertungen, DATEV-/CSV-Export) und 
 |---|---|---|
 | 15.11.2026 | 1 | Erste Fassung |
 | 15.11.2026 | 2 | Automatische Zuordnung von Bankumsätzen (2.3) |
+| 16.11.2026 | 3 | Bankabruf über Enable Banking als zweiter Weg für Bankumsätze (2.3) |

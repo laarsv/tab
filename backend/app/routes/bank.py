@@ -1,6 +1,6 @@
-"""Bank: Kontoauszug-Import (CAMT.053/CSV), Umsatzliste, Zuordnungsvorschläge.
+"""Bank: Kontoauszug-Import (CAMT.053/CSV/PDF), Bankabruf (Enable Banking, unten), Umsatzliste, Zuordnungsvorschläge.
 
-Kein Bankabruf. Zugeordnet wird über das normale Buchungs-Fenster (BuchungModal, vorbelegt) —
+Zugeordnet wird über das normale Buchungs-Fenster (BuchungModal, vorbelegt) —
 `POST /api/buchungen` mit `bank_umsatz_id` verknüpft den Umsatz in derselben Transaktion
 (und markiert bei `rechnung_id` die Rechnung als bezahlt). Hier: Konten, Import, Liste,
 Vorschläge, Ignorieren/Wieder öffnen.
@@ -11,12 +11,13 @@ import json
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services import auto_zuordnung as auto
+from ..services import bank_abruf as abruf
 from ..services import bank_import as imp
 from ..services import bank_match as match
 from ..services.girocode import iban_gueltig, iban_normal
@@ -384,4 +385,121 @@ def auto_rueckgaengig(umsatz_id: int, user: dict = Depends(get_current_user), db
     if not u["auto_grund"]:
         raise HTTPException(409, "Dieser Umsatz wurde nicht automatisch zugeordnet.")
     auto.rueckgaengig(db, u)
+    return {"ok": True}
+
+
+# ── Bankabruf (Enable Banking, services/bank_abruf.py) ──────────────────────
+
+def _verbindung(db: sqlite3.Connection, user: dict, verbindung_id: int) -> sqlite3.Row:
+    v = db.execute("SELECT * FROM bank_verbindung WHERE id = ?", (verbindung_id,)).fetchone()
+    if v is None:
+        raise HTTPException(404, "Verbindung nicht gefunden.")
+    check_gewerbe(db, user, v["gewerbe_id"])
+    return v
+
+
+def _psu(request: Request) -> dict:
+    """Nutzer sitzt davor: IP + Browser an die Bank (zählt nicht gegen die Hintergrund-Abrufe)."""
+    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (request.client.host if request.client else "")
+    return {"Psu-Ip-Address": ip, "Psu-User-Agent": request.headers.get("user-agent", "")[:300]}
+
+
+@router.get("/abruf")
+def abruf_status(gewerbe_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    check_gewerbe(db, user, gewerbe_id)
+    verbindungen = []
+    for v in db.execute(
+        "SELECT * FROM bank_verbindung WHERE gewerbe_id = ? AND status IN ('aktiv','abgelaufen','fehler') ORDER BY id",
+        (gewerbe_id,),
+    ):
+        konten = db.execute("SELECT id, name, iban FROM bankkonto WHERE verbindung_id = ? ORDER BY name", (v["id"],)).fetchall()
+        verbindungen.append({
+            "id": v["id"], "bank_name": v["bank_name"], "status": v["status"], "gueltig_bis": v["gueltig_bis"],
+            "letzter_abruf": v["letzter_abruf"], "letzter_fehler": v["letzter_fehler"],
+            "konten": [dict(k) for k in konten],
+        })
+    return {"konfiguriert": abruf.konfiguriert(), "verbindungen": verbindungen}
+
+
+@router.get("/abruf/banken")
+def abruf_banken(land: str = "DE", user: dict = Depends(get_current_user)):
+    if not abruf.konfiguriert():
+        raise HTTPException(400, "Bankabruf ist auf diesem Server nicht eingerichtet.")
+    try:
+        return abruf.banken(land[:2])
+    except abruf.AbrufFehler as e:
+        raise HTTPException(502, str(e))
+
+
+class AbrufStartIn(BaseModel):
+    gewerbe_id: int
+    bank_name: str = Field(min_length=1, max_length=200)
+    land: str = Field(default="DE", min_length=2, max_length=2)
+    psu_type: str = Field(default="personal", pattern="^(personal|business)$")
+
+
+@router.post("/abruf/start")
+def abruf_start(body: AbrufStartIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    check_gewerbe(db, user, body.gewerbe_id)
+    if not abruf.konfiguriert():
+        raise HTTPException(400, "Bankabruf ist auf diesem Server nicht eingerichtet.")
+    try:
+        url = abruf.starten(db, gewerbe_id=body.gewerbe_id, bank_name=body.bank_name, land=body.land,
+                            psu_type=body.psu_type, email=user["email"])
+    except abruf.AbrufFehler as e:
+        raise HTTPException(502, str(e))
+    return {"url": url}
+
+
+class AbrufAbschlussIn(BaseModel):
+    code: str = Field(min_length=1, max_length=2000)
+    state: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/abruf/abschliessen")
+def abruf_abschliessen(
+    body: AbrufAbschlussIn, request: Request,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    v = abruf.ausstehende(db, body.state)
+    if v is None:
+        raise HTTPException(400, "Diese Anmeldung bei der Bank ist abgelaufen oder unbekannt — bitte noch einmal verbinden.")
+    check_gewerbe(db, user, v["gewerbe_id"])
+    try:
+        erg = abruf.abschliessen(db, v, body.code, _psu(request))
+    except abruf.AbrufFehler as e:
+        db.rollback()
+        db.execute("UPDATE bank_verbindung SET status = 'fehler', letzter_fehler = ? WHERE id = ? AND status = 'ausstehend'",
+                   (str(e)[:500], v["id"]))
+        db.commit()
+        raise HTTPException(502, str(e))
+    try:
+        erg["automatisch"] = auto.lauf(db, v["gewerbe_id"], user, bilder=False)
+    except Exception:
+        db.rollback()
+        logging.getLogger("tab.auto_zuordnung").exception("Auto-Zuordnung nach dem Abruf fehlgeschlagen")
+    return {"gewerbe_id": v["gewerbe_id"], "bank_name": v["bank_name"], **erg}
+
+
+@router.post("/abruf/{verbindung_id}/abrufen")
+def abruf_jetzt(
+    verbindung_id: int, request: Request,
+    user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db),
+):
+    v = _verbindung(db, user, verbindung_id)
+    try:
+        erg = abruf.abrufen(db, v["id"], email=user["email"], psu=_psu(request))
+    except abruf.AbrufFehler as e:
+        raise HTTPException(502, str(e))
+    try:
+        erg["automatisch"] = auto.lauf(db, v["gewerbe_id"], user, bilder=False)
+    except Exception:
+        db.rollback()
+        logging.getLogger("tab.auto_zuordnung").exception("Auto-Zuordnung nach dem Abruf fehlgeschlagen")
+    return erg
+
+
+@router.delete("/abruf/{verbindung_id}")
+def abruf_trennen(verbindung_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    abruf.trennen(db, _verbindung(db, user, verbindung_id))
     return {"ok": True}
