@@ -134,12 +134,21 @@ def main(argv=None) -> int:
             print("   teils bekannt:", b.datum, b.text[:60], b.positionen)
         buchungen = neu
         dateien = {g: p for g, p in dateien.items() if f"guid:{g}" not in bekannt}
+    # Übergangszeit: was schon direkt in Tab gebucht wurde (gleicher Betrag, ±7 Tage), nicht noch einmal anlegen
+    buchungen, schon_da = di.schon_in_tab(conn, a.gewerbe, buchungen)
+    if schon_da:
+        print(f"Schon in Tab gebucht (ausgelassen): {len(schon_da)}")
+        for b, bid in schon_da:
+            print(f"   {b.datum} {b.zahlbetrag() / 100:>10.2f} {b.text[:50]}  ->  Tab-Buchung {bid}")
     if not a.ausfuehren:
         print("Probelauf — nichts geschrieben.")
         return 0
 
     try:
         erg = di.ausfuehren(conn, gewerbe_id=a.gewerbe, buchungen=buchungen, dateien=dateien)
+        for b, bid in schon_da:  # Herkunft merken: diese Lexware-Zeilen gehören zur Tab-Buchung
+            for z in b.zeilen:
+                erg["ref"][z] = bid
         _herkunft_speichern(conn, a.gewerbe, zeilen, bekannt, erg["ref"], erg["guids"])
         print({k: v for k, v in erg.items() if k not in ("ref", "guids")})
         bz = di.bank_zeilen(zeilen, konto_iban, erg["ref"])

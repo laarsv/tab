@@ -369,6 +369,38 @@ def ausfuehren(conn: sqlite3.Connection, *, gewerbe_id: int, buchungen: list[Buc
     return erg
 
 
+def schon_in_tab(conn: sqlite3.Connection, gewerbe_id: int, buchungen: list[Buchung],
+                 tage: int = 7) -> tuple[list[Buchung], list[tuple[Buchung, int]]]:
+    """Nachimport: Lexware-Buchungen erkennen, die es in Tab schon als eigene Buchung gibt (in der Übergangszeit direkt
+    in Tab gebucht, z. B. beim Abarbeiten der Bankumsätze). Treffer = Tab-Buchung, die nicht aus einem Import stammt
+    (kein fremd_import-Eintrag), mit gleichem Zahlbetrag (Einnahmen +, Ausgaben −) und Datum höchstens `tage` Tage
+    entfernt; jede Tab-Buchung fängt höchstens eine Lexware-Buchung. Liefert (neu, [(lexware_buchung, tab_buchung_id)])."""
+    eigene: dict[int, tuple[str, int]] = {}
+    for r in conn.execute(
+        "SELECT b.id, b.datum, SUM(CASE WHEN k.typ = 'einnahme' THEN p.betrag_cent ELSE -p.betrag_cent END) AS netto "
+        "FROM buchung b JOIN buchung_position p ON p.buchung_id = b.id JOIN kategorie k ON k.id = p.kategorie_id "
+        "WHERE b.gewerbe_id = ? AND NOT EXISTS (SELECT 1 FROM fremd_import f WHERE f.buchung_id = b.id) GROUP BY b.id",
+        (gewerbe_id,),
+    ):
+        eigene[r["id"]] = (r["datum"], r["netto"])
+    neu, doppelt = [], []
+    belegt: set[int] = set()
+    for b in buchungen:
+        z = b.zahlbetrag()
+        tag = dt.date.fromisoformat(b.datum)
+        treffer = sorted(
+            (abs((dt.date.fromisoformat(d) - tag).days), bid)
+            for bid, (d, netto) in eigene.items()
+            if bid not in belegt and netto == z and abs((dt.date.fromisoformat(d) - tag).days) <= tage
+        )
+        if treffer:
+            belegt.add(treffer[0][1])
+            doppelt.append((b, treffer[0][1]))
+        else:
+            neu.append(b)
+    return neu, doppelt
+
+
 def anlagen_uebernehmen(conn: sqlite3.Connection, *, gewerbe_id: int, anlagen: list[dict], stichtag: str) -> int:
     """Anlagen mit ihrem Buchwert zum Stichtag übernehmen (Tab rechnet die AfA ab dem Anschaffungsdatum; die Geschichte
     vor dem Stichtag steckt in den abgeschlossenen Jahren). `anlagen`: [{bezeichnung, buchwert_cent, nd_rest,

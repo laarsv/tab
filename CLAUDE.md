@@ -253,6 +253,9 @@ der Mapping-Version des Jahres aufgelöst.
   Belege „Lexware …“). **Nachimport (v40, Tabelle `fremd_import`):** jede Lexware-Zeile und jedes Belegbild bekommt einen
   stabilen Schlüssel (Hash der Felder + laufender Index); ein erneuter Lauf mit einem neueren Export übernimmt nur Buchungen,
   deren Zeilen alle neu sind (teils bekannte werden gemeldet, nicht gebucht), Kontoumsätze per Fingerprint/Tag+Betrag.
+  **Übergangszeit:** was schon direkt in Tab gebucht ist (Tab-Buchung ohne `fremd_import`-Eintrag, gleicher Zahlbetrag samt
+  Richtung, Datum ±7 Tage, je Tab-Buchung ein Treffer), lässt der Nachimport aus (`datev_import.schon_in_tab`) und merkt sich die
+  Lexware-Zeilen als zu dieser Tab-Buchung gehörig — seit 16.11.2026 werden offene Bankumsätze 2026 direkt in Tab gebucht.
   Für den Import vom 16.11.2026 wurden die Schlüssel per `--herkunft-nachtragen` nachgetragen. Am 16.11.2026 für Lars
   ausgeführt (2020–2026); Originale unter `UPLOAD_ROOT/archiv/`. Lexware bleibt bis 31.12.2026 führend → Anfang 2027
   Nachimport mit dem letzten Export (gleiche Optionen, ohne `--anlagen`/`--abschliessen-bis`).
