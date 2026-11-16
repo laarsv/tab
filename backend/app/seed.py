@@ -9,8 +9,9 @@ Mapping ist jahres-versioniert, Zeilen und Mapping gelten je Jahr:
 - 2026: Anlage EÜR 2026 (BMF-Schreiben vom 01.09.2026). Neue Zeile 27 (Rücklage
   Tierbewertung, nur Land-/Forstwirte) — dadurch rutschen fast alle Zeilen ab 29 nach hinten.
 
-Nie befüllte Zeilen (Kleinunternehmer = brutto): Zeilen 15 und 17 sowie Vorsteuer und
-an das Finanzamt gezahlte USt (2025: 57/58, 2026: 58/59).
+Bei Kleinunternehmern nie befüllte Zeilen (KU = brutto): 15, 17, 18 sowie Vorsteuer und an das
+Finanzamt gezahlte USt (2025: 57/58, 2026: 58/59). Bei Regelbesteuerung (EUER_KATEGORIEN.md §8) sind
+genau diese Zeilen die Umsatzsteuer-Zeilen.
 """
 from __future__ import annotations
 
@@ -18,23 +19,51 @@ import sqlite3
 
 # Zeilen, die bei Kleinunternehmern niemals befüllt werden (Guard im Export), je Jahr.
 NIE_BEFUELLT_JE_JAHR: dict[int, set[int]] = {
-    2025: {15, 17, 57, 58},
-    2026: {15, 17, 58, 59},
+    2025: {15, 17, 18, 57, 58},
+    2026: {15, 17, 18, 58, 59},
 }
 
 
 def nie_befuellt(jahr: int) -> set[int]:
+    """Nur für Kleinunternehmer-Jahre — bei Regelbesteuerung sind das die USt-Zeilen."""
     return NIE_BEFUELLT_JE_JAHR.get(jahr, set())
+
+
+# Regelbesteuerung: Zeilen, die nicht aus einer Kategorie kommen, sondern aus den Steuerbeträgen der
+# Positionen (vereinnahmte USt) bzw. der Vorsteuer (Positionen + AfA-Kauf). Am Vordruck geprüft.
+UST_ZEILEN_JE_JAHR: dict[int, dict[str, int]] = {
+    2025: {"ust": 17, "vorsteuer": 57},
+    2026: {"ust": 17, "vorsteuer": 58},
+}
+
+# Kategorien, die es nur bei einer Besteuerungsart gibt (sonst 400 beim Buchen).
+NUR_BESTEUERUNG: dict[str, str] = {
+    "einnahme_ku": "kleinunternehmer",
+    "einnahme_ust": "regelbesteuerung",
+    "ust_erstattung": "regelbesteuerung",
+    "ust_zahlung": "regelbesteuerung",
+}
+
+# Vorgeschlagener Steuersatz (Basispunkte) bei Regelbesteuerung; Standard 19 %. Nur Vorschlag —
+# der Beleg entscheidet. 0 = in der Regel ohne USt (Versicherung, Zinsen, Lohn, Gebühren, Pauschalen …).
+UST_STANDARD_NULL: set[str] = {
+    "einnahme_ku", "einnahme_steuerfrei", "kfz_privatnutzung", "entnahme_sonstig",
+    "personal", "afa_beweglich", "restbuchwert", "miete_raeume", "versicherungen_betrieb",
+    "gebuehren_abgaben", "kontogebuehren", "zinsen", "verpflegungsmehraufwand", "arbeitszimmer",
+    "homeoffice_pauschale", "fahrtkosten_kfz", "wege_wohnung_betrieb", "ust_erstattung", "ust_zahlung",
+}
 
 
 # (key, name, typ, abzug_quote, ist_afa, belegpflicht_extra, sort_order)
 KATEGORIEN: list[tuple] = [
     # --- Einnahmen ---
     ("einnahme_ku",        "Einnahme Kleinunternehmer (z. B. App-/IAP-Erlöse)", "einnahme", 1.0, 0, 0, 10),
+    ("einnahme_ust",       "Umsatzsteuerpflichtige Einnahme (Regelbesteuerung)", "einnahme", 1.0, 0, 0, 10),
     ("einnahme_steuerfrei","Umsatzsteuerfreie Einnahme §4 Nr. 11 (Courtage)",   "einnahme", 1.0, 0, 0, 11),
     ("veraeusserung_av",   "Veräußerung/Entnahme Anlagevermögen",               "einnahme", 1.0, 0, 0, 12),
     ("kfz_privatnutzung",  "Private Kfz-Nutzung (1 %-Regelung, Betriebs-Kfz)",  "einnahme", 1.0, 0, 0, 13),
     ("entnahme_sonstig",   "Sonstige Entnahmen (Sach-/Nutzungs-/Leistungsentnahme)", "einnahme", 1.0, 0, 0, 14),
+    ("ust_erstattung",     "Umsatzsteuer-Erstattung vom Finanzamt",              "einnahme", 1.0, 0, 0, 15),
     # --- Ausgaben: Wareneinsatz/Fremdleistungen ---
     ("waren",              "Waren / Roh- und Hilfsstoffe",                       "ausgabe", 1.0, 0, 0, 20),
     ("fremdleistungen",    "Bezogene Leistungen / Fremdleistungen / Provisionen","ausgabe", 1.0, 0, 0, 21),
@@ -71,6 +100,8 @@ KATEGORIEN: list[tuple] = [
     ("kfz_kosten",         "Kfz-Kosten Betriebs-Kfz (Benzin, Versicherung, Reparatur, Leasing)", "ausgabe", 1.0, 0, 0, 45),
     ("oepnv",              "ÖPNV / Bahn / Taxi (Geschäftsfahrten)",              "ausgabe", 1.0, 0, 0, 46),
     ("zinsen",             "Zinsen & Finanzierungskosten (betrieblich)",         "ausgabe", 1.0, 0, 0, 47),
+    # --- Umsatzsteuer (nur Regelbesteuerung) ---
+    ("ust_zahlung",        "Umsatzsteuer-Zahlung an das Finanzamt",              "ausgabe", 1.0, 0, 0, 48),
 ]
 
 # ======================================================================================
@@ -81,7 +112,10 @@ KATEGORIEN: list[tuple] = [
 # (nummer, bezeichnung) — Zeilen-Stammdaten
 ZEILEN_2025: list[tuple[int, str]] = [
     (12, "Betriebseinnahmen als umsatzsteuerlicher Kleinunternehmer (brutto)"),
+    (15, "Umsatzsteuerpflichtige Betriebseinnahmen (netto)"),
     (16, "Umsatzsteuerfreie Betriebseinnahmen (§4 UStG)"),
+    (17, "Vereinnahmte Umsatzsteuer sowie Umsatzsteuer auf unentgeltliche Wertabgaben"),
+    (18, "Vom Finanzamt erstattete und ggf. verrechnete Umsatzsteuer"),
     (19, "Veräußerung/Entnahme von Anlagevermögen"),
     (20, "Private Kfz-Nutzung (1 %-Regelung)"),
     (21, "Sonstige Sach-, Nutzungs- und Leistungsentnahmen"),
@@ -93,6 +127,8 @@ ZEILEN_2025: list[tuple[int, str]] = [
     (39, "Miete/Pacht für Geschäftsräume und betrieblich genutzte Grundstücke"),
     (41, "Sonstige Grundstücksaufwendungen (betrieblich)"),
     (44, "Reisekosten (Übernachtung/Nebenkosten)"),
+    (57, "Gezahlte und nach § 15 UStG abziehbare Vorsteuerbeträge"),
+    (58, "An das Finanzamt gezahlte und ggf. verrechnete Umsatzsteuer"),
     (60, "Übrige unbeschränkt abziehbare Betriebsausgaben"),
     (62, "Geschenke (beschränkt abziehbar)"),
     (63, "Bewirtungsaufwendungen (70 % abziehbar)"),
@@ -106,7 +142,10 @@ ZEILEN_2025: list[tuple[int, str]] = [
 # key -> zeilen-nummer
 MAPPING_2025: dict[str, int] = {
     "einnahme_ku": 12,
+    "einnahme_ust": 15,
     "einnahme_steuerfrei": 16,
+    "ust_erstattung": 18,
+    "ust_zahlung": 58,
     "veraeusserung_av": 19,
     "kfz_privatnutzung": 20,
     "entnahme_sonstig": 21,
@@ -150,7 +189,10 @@ MAPPING_2025: dict[str, int] = {
 
 ZEILEN_2026: list[tuple[int, str]] = [
     (12, "Betriebseinnahmen als umsatzsteuerlicher Kleinunternehmer (brutto)"),
+    (15, "Umsatzsteuerpflichtige Betriebseinnahmen (netto)"),
     (16, "Umsatzsteuerfreie Betriebseinnahmen (§4 UStG)"),
+    (17, "Vereinnahmte Umsatzsteuer sowie Umsatzsteuer auf unentgeltliche Wertabgaben"),
+    (18, "Vom Finanzamt erstattete und ggf. verrechnete Umsatzsteuer"),
     (19, "Veräußerung/Entnahme von Anlagevermögen"),
     (20, "Private Kfz-Nutzung (1 %-Regelung)"),
     (21, "Sonstige Sach-, Nutzungs- und Leistungsentnahmen"),
@@ -171,6 +213,8 @@ ZEILEN_2026: list[tuple[int, str]] = [
     (50, "Beiträge, Gebühren, Abgaben und Versicherungen"),
     (55, "Werbekosten"),
     (57, "Übrige Schuldzinsen"),
+    (58, "Gezahlte und nach § 15 UStG abziehbare Vorsteuerbeträge"),
+    (59, "An das Finanzamt gezahlte und ggf. verrechnete Umsatzsteuer"),
     (61, "Übrige unbeschränkt abziehbare Betriebsausgaben"),
     (63, "Geschenke (beschränkt abziehbar)"),
     (64, "Bewirtungsaufwendungen (70 % abziehbar)"),
@@ -184,7 +228,10 @@ ZEILEN_2026: list[tuple[int, str]] = [
 
 MAPPING_2026: dict[str, int] = {
     "einnahme_ku": 12,
+    "einnahme_ust": 15,
     "einnahme_steuerfrei": 16,
+    "ust_erstattung": 18,
+    "ust_zahlung": 59,
     "veraeusserung_av": 19,
     "kfz_privatnutzung": 20,
     "entnahme_sonstig": 21,
@@ -233,14 +280,18 @@ JAHRE: dict[int, tuple[int, str]] = {
 def _pruefe_stammdaten() -> None:
     """Konsistenz der Stammdaten (läuft bei jedem Start, schlägt früh und laut fehl)."""
     keys = {k[0] for k in KATEGORIEN}
+    if set(NUR_BESTEUERUNG) - keys or UST_STANDARD_NULL - keys:
+        raise ValueError("NUR_BESTEUERUNG/UST_STANDARD_NULL nennen unbekannte Kategorien.")
     for jahr in JAHRE:
+        if jahr not in UST_ZEILEN_JE_JAHR:
+            raise ValueError(f"UST_ZEILEN_JE_JAHR fehlt für {jahr}.")
         mapping = MAPPING_JE_JAHR[jahr]
         zeilen = {nummer for nummer, _ in ZEILEN_JE_JAHR[jahr]}
         if set(mapping) != keys:
             raise ValueError(f"Mapping {jahr}: Kategorien passen nicht ({set(mapping) ^ keys}).")
         for key, nummer in mapping.items():
-            # Defensiver Guard: kein Mapping darf auf eine nie befüllte Zeile zeigen.
-            if nummer in nie_befuellt(jahr):
+            # Defensiver Guard: keine KU-taugliche Kategorie darf auf eine bei KU nie befüllte Zeile zeigen.
+            if nummer in nie_befuellt(jahr) and NUR_BESTEUERUNG.get(key) != "regelbesteuerung":
                 raise ValueError(f"Mapping {jahr} {key} -> Zeile {nummer} ist nie befüllt (KU brutto).")
             if nummer not in zeilen:
                 raise ValueError(f"Mapping {jahr} {key} -> Zeile {nummer} fehlt in den Zeilen-Stammdaten.")
@@ -264,6 +315,13 @@ def seed(conn: sqlite3.Connection) -> None:
         """,
         KATEGORIEN,
     )
+
+    # 1b) Umsatzsteuer-Stammdaten (EUER_KATEGORIEN.md §8)
+    for key, *_ in KATEGORIEN:
+        conn.execute(
+            "UPDATE kategorie SET ust_standard_bp = ?, nur_besteuerung = ? WHERE key = ?",
+            (0 if key in UST_STANDARD_NULL else 1900, NUR_BESTEUERUNG.get(key), key),
+        )
 
     # key -> id
     key_to_id = {r["key"]: r["id"] for r in conn.execute("SELECT id, key FROM kategorie")}

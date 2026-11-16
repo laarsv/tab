@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.abo import INTERVALL_MONATE, beende, erstelle_rechnung_aus_abo, ist_beendet, naechster_termin
+from ..services import rechnung_summen
 from ..services.mailer import is_configured
 from ..services.rechnung_pdf import STEUERHINWEISE
 from .kontakte import upsert_kontakt
@@ -27,7 +28,8 @@ ENDE_VOR_TERMIN = "Das Enddatum liegt vor der nächsten Rechnung."
 class AboPositionIn(BaseModel):
     beschreibung: str = Field(min_length=1, max_length=500)
     menge: float = Field(gt=0, le=100000)
-    einzelpreis_cent: int = Field(gt=0)
+    einzelpreis_cent: int = Field(gt=0)  # bei Regelbesteuerung netto
+    ust_bp: int = Field(default=0, ge=0, le=1900)  # Steuersatz (nur Regelbesteuerung)
 
 
 class AboIn(BaseModel):
@@ -97,13 +99,22 @@ class AboPatch(AboIn):
         return v
 
 
+def _steuer(db: sqlite3.Connection, gewerbe_id: int, datum: str, hinweis: str, positionen) -> str:
+    """Steuersätze gegen die Besteuerung im Jahr des nächsten Termins (services/rechnung_summen)."""
+    try:
+        return rechnung_summen.pruefe_steuer(db, gewerbe_id, datum, hinweis, positionen)
+    except rechnung_summen.SteuerFehler as e:
+        raise HTTPException(400, str(e))
+
+
 def _row(db: sqlite3.Connection, abo_id: int) -> dict:
     r = db.execute("SELECT * FROM rechnung_abo WHERE id = ?", (abo_id,)).fetchone()
     if r is None:
         raise HTTPException(404, "Abo nicht gefunden.")
     d = dict(r)
     d["positionen"] = json.loads(d.pop("positionen_json"))
-    d["summe_cent"] = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in d["positionen"])
+    s = rechnung_summen.summen(d["positionen"])
+    d.update(summe_cent=s["brutto_cent"], netto_cent=s["netto_cent"], ust_cent=s["ust_cent"], mit_ust=s["mit_ust"])
     d["absender_konfiguriert"] = is_configured(db, d["absender_email"])
     d["beendet"] = ist_beendet(d)
     return d
@@ -137,6 +148,7 @@ def create_abo(
         raise HTTPException(400, "Auto-Versand braucht eine Empfänger-E-Mail.")
     if body.endet_am and body.endet_am < body.naechste_am:
         raise HTTPException(400, ENDE_VOR_TERMIN)
+    body.steuerhinweis = _steuer(db, body.gewerbe_id, body.naechste_am, body.steuerhinweis, body.positionen)
     cur = db.execute(
         """
         INSERT INTO rechnung_abo (gewerbe_id, empfaenger_name, empfaenger_anschrift,
@@ -193,6 +205,11 @@ def update_abo(
         # Ein beendetes Abo, dessen Ende verlängert oder entfernt wird, läuft wieder.
         if war_beendet and not row["aktiv"] and body.aktiv is None:
             fields.append("aktiv = ?"); values.append(1)
+    if body.positionen is not None or body.steuerhinweis is not None or body.naechste_am is not None:
+        body.steuerhinweis = _steuer(
+            db, row["gewerbe_id"], naechste, body.steuerhinweis or row["steuerhinweis"],
+            body.positionen if body.positionen is not None else json.loads(row["positionen_json"]),
+        )
     if body.empfaenger_name is not None:
         fields.append("empfaenger_name = ?"); values.append(body.empfaenger_name.strip())
     for col, val in [

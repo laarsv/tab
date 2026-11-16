@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services.e_rechnung import rechnungs_pdf
+from ..services import rechnung_summen
 from ..services import zahlungen as zsvc
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
 from ..services.fristen import faelligkeit
@@ -52,7 +53,8 @@ def _valid_date(value: str) -> str:
 class RPositionIn(BaseModel):
     beschreibung: str = Field(min_length=1, max_length=500)
     menge: float = Field(gt=0, le=100000)
-    einzelpreis_cent: int = Field(gt=0)
+    einzelpreis_cent: int = Field(gt=0)  # bei Regelbesteuerung netto
+    ust_bp: int = Field(default=0, ge=0, le=1900)  # Steuersatz (nur Regelbesteuerung): 1900, 700, 0
 
 
 class RechnungIn(BaseModel):
@@ -110,6 +112,14 @@ class RechnungPatch(BaseModel):
         return v
 
 
+def _steuer(db: sqlite3.Connection, gewerbe_id: int, datum: str, hinweis: str, positionen) -> str:
+    """Steuersätze/Steuerhinweis gegen die Besteuerung des Jahres prüfen (services/rechnung_summen)."""
+    try:
+        return rechnung_summen.pruefe_steuer(db, gewerbe_id, datum, hinweis, positionen)
+    except rechnung_summen.SteuerFehler as e:
+        raise HTTPException(400, str(e))
+
+
 def _positionen(db: sqlite3.Connection, rechnung_id: int) -> list[dict]:
     return [
         dict(r)
@@ -133,7 +143,10 @@ def _row(db: sqlite3.Connection, rechnung_id: int) -> dict:
         raise HTTPException(404, "Rechnung nicht gefunden.")
     d = dict(r)
     d["positionen"] = _positionen(db, rechnung_id)
-    d["summe_cent"] = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in d["positionen"])
+    s = rechnung_summen.summen(d["positionen"])
+    # summe_cent = Rechnungsbetrag (brutto); bei Kleinunternehmern = Summe der Positionen wie bisher
+    d.update(summe_cent=s["brutto_cent"], netto_cent=s["netto_cent"], ust_cent=s["ust_cent"],
+             ust_je_satz=s["je_satz"], mit_ust=s["mit_ust"])
     d["mahnungen"] = mahnungen_zu(db, rechnung_id)
     # Zahlungsstand (Teilzahlungen, Skonto, Ausbuchungen) und Skonto-Angebot
     st = zsvc.stand(db, d)
@@ -183,6 +196,7 @@ def rechnung_vorschau(
     """PDF-Vorschau aus ungespeicherten Formulardaten — legt NICHTS an und
     verbraucht keine Nummer (zeigt die voraussichtliche)."""
     g = check_gewerbe(db, user, body.gewerbe_id)
+    hinweis = _steuer(db, body.gewerbe_id, body.datum, body.steuerhinweis, body.positionen)
     jahr = int(body.datum[:4])
     lauf = (
         db.execute(
@@ -208,7 +222,7 @@ def rechnung_vorschau(
         "empfaenger_anschrift": (body.empfaenger_anschrift or "").strip() or None,
         "notiz": (body.notiz or "").strip() or None,
         "bestellnummer": (body.bestellnummer or "").strip() or None,
-        "steuerhinweis": body.steuerhinweis,
+        "steuerhinweis": hinweis,
     }
     pdf = rechnungs_pdf(rechnung, [p.model_dump() for p in body.positionen], g)
     return Response(
@@ -225,6 +239,7 @@ def create_rechnung(
     db: sqlite3.Connection = Depends(get_db),
 ):
     check_gewerbe(db, user, body.gewerbe_id)
+    hinweis = _steuer(db, body.gewerbe_id, body.datum, body.steuerhinweis, body.positionen)
     ziel = body.zahlungsziel_tage if body.zahlungsziel_tage is not None else standard_zahlungsziel(db, body.gewerbe_id)
     skonto_bp, skonto_tage = _skonto_felder(body.skonto_prozent, body.skonto_tage, ziel)
     rid = erstelle_rechnung(
@@ -236,7 +251,7 @@ def create_rechnung(
         empfaenger_anschrift=body.empfaenger_anschrift,
         empfaenger_email=body.empfaenger_email,
         notiz=body.notiz,
-        steuerhinweis=body.steuerhinweis,
+        steuerhinweis=hinweis,
         positionen=[p.model_dump() for p in body.positionen],
         zahlungsziel_tage=body.zahlungsziel_tage,
         skonto_bp=skonto_bp,
@@ -271,6 +286,13 @@ def update_rechnung(
         )
     if body.datum is not None and int(body.datum[:4]) != cur["jahr"]:
         raise HTTPException(400, "Das Jahr einer Rechnung ist durch die Nummer fixiert.")
+    if body.positionen is not None or body.steuerhinweis is not None:
+        neu_hinweis = _steuer(
+            db, cur["gewerbe_id"], body.datum or cur["datum"], body.steuerhinweis or cur["steuerhinweis"],
+            body.positionen if body.positionen is not None else _positionen(db, rechnung_id),
+        )
+        if neu_hinweis != (body.steuerhinweis or cur["steuerhinweis"]) or body.steuerhinweis is not None:
+            body.steuerhinweis = neu_hinweis
 
     fields, values = [], []
     for col, val in [
@@ -315,9 +337,9 @@ def update_rechnung(
     if body.positionen is not None:
         db.execute("DELETE FROM rechnung_position WHERE rechnung_id = ?", (rechnung_id,))
         db.executemany(
-            "INSERT INTO rechnung_position (rechnung_id, beschreibung, menge, einzelpreis_cent) "
-            "VALUES (?, ?, ?, ?)",
-            [(rechnung_id, p.beschreibung.strip(), p.menge, p.einzelpreis_cent) for p in body.positionen],
+            "INSERT INTO rechnung_position (rechnung_id, beschreibung, menge, einzelpreis_cent, ust_bp) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [(rechnung_id, p.beschreibung.strip(), p.menge, p.einzelpreis_cent, p.ust_bp) for p in body.positionen],
         )
     db.commit()
     return _row(db, rechnung_id)

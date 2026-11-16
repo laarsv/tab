@@ -215,5 +215,58 @@ Daher:
 
 ---
 
+## 8. Regelbesteuerung (Umsatzsteuer, Ist-Versteuerung)
+
+Optional je Gewerbe **ab einem Kalenderjahr** (`gewerbe_besteuerung`, Wechsel immer zum 1.1.). Alles oben
+(§§ 1–7) gilt weiter; dieser Abschnitt regelt nur, was sich bei Regelbesteuerung ändert. Geprüft am Vordruck
+2025/2026 (Seiten 1–2) und an der Anleitung 2026 zu den Zeilen 15–20, 58/59.
+
+**Zeilen (je Jahr am Vordruck geprüft):**
+
+| Inhalt | 2025 | 2026 |
+|---|---|---|
+| Umsatzsteuerpflichtige Betriebseinnahmen, **netto** (ohne 0-%-Umsätze) | 15 | 15 |
+| Umsatzsteuerfreie/nicht steuerbare Einnahmen, 0 %-Umsätze, § 13b | 16 | 16 |
+| Vereinnahmte Umsatzsteuer + USt auf unentgeltliche Wertabgaben | 17 | 17 |
+| Vom Finanzamt erstattete und ggf. verrechnete Umsatzsteuer | 18 | 18 |
+| Gezahlte und nach § 15 UStG abziehbare Vorsteuerbeträge | 57 | 58 |
+| An das Finanzamt gezahlte und ggf. verrechnete Umsatzsteuer | 58 | 59 |
+
+**Grundregel je Buchungsposition:** gespeichert wird der **gezahlte Bruttobetrag** (Zahlungsfluss) plus Steuersatz
+(`ust_bp`: 1900, 700 oder 0) und Steuerbetrag (`ust_cent`, aus dem Beleg; Vorschlag brutto × Satz / (100 % + Satz),
+kaufmännisch gerundet). Netto = brutto − USt.
+- **Einnahme:** netto in die Zeile der Kategorie, USt → **Z17** (gilt auch für Anlagenverkauf Z19 und die
+  Entnahmen Z20/21: Wert netto, USt auf die Wertabgabe → Z17).
+- **Ausgabe:** netto in die Zeile der Kategorie, Vorsteuer → **Vorsteuer-Zeile** (2025 Z57, 2026 Z58).
+- **Privatanteil:** gilt für Netto **und** Vorsteuer — nur der betriebliche Teil der Vorsteuer ist abziehbar.
+- **Bewirtung:** 70 % vom **Netto** in die Bewirtungszeile; die Vorsteuer ist zu 100 % abziehbar.
+- **Geschenke über 50 €:** weder Aufwand noch Vorsteuer abziehbar — bleibt wie bisher ein weicher Hinweis.
+- **AfA:** Anschaffungskosten **netto**; die Vorsteuer aus dem Kauf (`afa_buchung.vorsteuer_cent`) geht im
+  Anschaffungsjahr in die Vorsteuer-Zeile. GWG-Grenze 800 € **netto** (weicher Hinweis).
+- **USt-Zahlungen/Erstattungen ans/vom Finanzamt:** eigene Kategorien (`ust_zahlung` → Z58/59,
+  `ust_erstattung` → Z18), ohne Steuersatz. **10-Tage-Regel (§ 11 EStG):** eine Vorauszahlung oder Erstattung für
+  das Vorjahr, die bis 10.01. fällig und geflossen ist, gehört ins Vorjahr — Tab bucht nach Datum; der Nutzer
+  setzt bei diesen Zahlungen das Datum auf den 31.12. des Vorjahres (Hinweis im Buchungsfenster).
+- **Private Kfz-Nutzung (1 %-Regelung):** der 1 %-Wert ist netto (Z20). USt darauf trägt der Nutzer selbst ein
+  (Vereinfachung der Finanzverwaltung: 80 % des 1 %-Werts × 19 %; bei E-Autos gilt dafür der **volle**
+  Listenpreis, nicht der geviertelte). Tab rechnet das nicht aus, nur Hinweis.
+
+**Kategorien:** `einnahme_ust` („Umsatzsteuerpflichtige Einnahme“ → Z15) nur in Regel-Jahren, `einnahme_ku` nur
+in KU-Jahren; `ust_zahlung`, `ust_erstattung` nur in Regel-Jahren. `kategorie.ust_standard_bp` ist der vorgeschlagene
+Satz (19 % Standard; 0 % für Versicherungen, Zinsen, Personal, Gebühren/Abgaben, Kontogebühren, Courtage, Entnahme-
+Sonderfälle, USt-Kategorien) — immer nur Vorschlag, der Beleg entscheidet.
+
+**Rechnungen:** Positionspreise sind **netto**; USt je Satz auf die Netto-Summe des Satzes, kaufmännisch gerundet
+(EN 16931); Rechnung zeigt Netto, USt je Satz, Brutto. 0-%-Positionen (z. B. § 4 Nr. 11) behalten ihren
+Steuerhinweis. Eine Zahlung auf eine Rechnung mit mehreren Sätzen wird **anteilig je Satz** gebucht.
+
+**KU-Jahre bleiben unverändert:** alle Positionen ohne USt, Zeilen 15, 17, 18 und Vorsteuer/USt-Zahlung bleiben leer
+(`NIE_BEFUELLT_JE_JAHR`, Guard im Export).
+
+**Nicht abgedeckt:** Soll-Versteuerung, USt-Voranmeldung (folgt), § 13b als Leistungsempfänger, innergemeinschaftliche
+Lieferungen/Erwerbe, Differenzbesteuerung, Vorsteuer-Berichtigung § 15a, Wechsel innerhalb eines Jahres.
+
+---
+
 *Quelle: BMF-Schreiben „Anlage EÜR" 2025 und 2026 (Vordrucke + Anleitung). Dieses Dokument ist
 eine technische Spezifikation, keine Steuerberatung.*

@@ -14,9 +14,10 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services import besteuerung as best
 from ..services import dauerbelege as dsvc
 from ..services import zahlungen as zsvc
-from ..services.privatanteil import betrieblich_cent, privat_cent
+from ..services.privatanteil import betrieblich_cent, betrieblich_ust_cent, privat_cent
 
 router = APIRouter(
     prefix="/api/buchungen", tags=["buchungen"], dependencies=[Depends(get_current_user)]
@@ -36,6 +37,9 @@ class PositionIn(BaseModel):
     betrag_cent: int = Field(gt=0)
     beleg_details: str | None = None
     privat_bp: int = Field(default=0, ge=0, le=10000)  # privater Anteil, 2000 = 20 % (nur Ausgaben)
+    # Regelbesteuerung (v34): Satz (1900 = 19 %) und Steuerbetrag im Bruttobetrag. ust_cent fehlt -> aus dem Satz.
+    ust_bp: int = Field(default=0, ge=0, le=2500)
+    ust_cent: int | None = Field(default=None, ge=0)
 
 
 class BuchungIn(BaseModel):
@@ -68,7 +72,9 @@ class BuchungPatch(BaseModel):
         return _valid_date(v) if v is not None else v
 
 
-def _check_position(db: sqlite3.Connection, pos: PositionIn) -> None:
+def _check_position(db: sqlite3.Connection, pos: PositionIn, art: str = best.KU) -> None:
+    """Prüft eine Position und setzt `ust_cent` (bei Regelbesteuerung aus dem Satz, wenn nicht angegeben).
+    `art` = Besteuerung im Jahr des Buchungsdatums (services/besteuerung.art)."""
     k = db.execute("SELECT * FROM kategorie WHERE id = ?", (pos.kategorie_id,)).fetchone()
     if k is None:
         raise HTTPException(404, "Kategorie nicht gefunden.")
@@ -78,6 +84,33 @@ def _check_position(db: sqlite3.Connection, pos: PositionIn) -> None:
         raise HTTPException(400, f"Für „{k['name']}“ sind Beleg-Details Pflicht.")
     if pos.privat_bp and k["typ"] != "ausgabe":
         raise HTTPException(400, "Einen Privatanteil gibt es nur bei Ausgaben.")
+    pruefe_ust(k, pos, art)
+
+
+def pruefe_ust(k: sqlite3.Row, pos, art: str) -> None:
+    """Umsatzsteuer-Regeln einer Position (EUER_KATEGORIEN.md §8). `pos` braucht betrag_cent, ust_bp, ust_cent;
+    `ust_cent` wird bei Regelbesteuerung ergänzt, bei Kleinunternehmern auf 0 gesetzt."""
+    nur = k["nur_besteuerung"]
+    if art == best.KU:
+        if nur == best.REGEL:
+            raise HTTPException(400, f"„{k['name']}“ gibt es nur bei Regelbesteuerung — dieses Jahr ist Kleinunternehmer.")
+        if pos.ust_bp or pos.ust_cent:
+            raise HTTPException(400, "Als Kleinunternehmer gibt es keine Umsatzsteuer — bitte ohne Steuersatz buchen.")
+        pos.ust_cent = 0
+        return
+    if nur == best.KU:
+        raise HTTPException(
+            400, f"„{k['name']}“ gibt es nur für Kleinunternehmer — in diesem Jahr gilt Regelbesteuerung "
+            "(„Umsatzsteuerpflichtige Einnahme“ mit Steuersatz wählen)."
+        )
+    if k["key"] in best.OHNE_SATZ and (pos.ust_bp or pos.ust_cent):
+        raise HTTPException(400, f"„{k['name']}“ hat selbst keinen Steuersatz.")
+    if pos.ust_cent is None:
+        pos.ust_cent = best.ust_aus_brutto(pos.betrag_cent, pos.ust_bp)
+    if pos.ust_cent and not pos.ust_bp:
+        raise HTTPException(400, "Zum Steuerbetrag fehlt der Steuersatz.")
+    if pos.ust_cent >= pos.betrag_cent:
+        raise HTTPException(400, "Die Umsatzsteuer muss kleiner sein als der Bruttobetrag.")
 
 
 def _check_buchung(db: sqlite3.Connection, user: dict, buchung_id: int) -> sqlite3.Row:
@@ -105,6 +138,9 @@ def _anteile(pos: dict) -> dict:
     """Betrieblicher und privater Teil der Position (betrag_cent = gezahlter Betrag)."""
     pos["privat_cent"] = privat_cent(pos["betrag_cent"], pos["privat_bp"])
     pos["betrieblich_cent"] = betrieblich_cent(pos["betrag_cent"], pos["privat_bp"])
+    # Regelbesteuerung: Netto und (betriebliche) Steuer; bei Kleinunternehmern ist ust_cent 0
+    pos["netto_cent"] = pos["betrag_cent"] - pos["ust_cent"]
+    pos["betrieblich_ust_cent"] = betrieblich_ust_cent(pos["ust_cent"], pos["privat_bp"])
     return pos
 
 
@@ -197,8 +233,9 @@ def create_buchung(
     db: sqlite3.Connection = Depends(get_db),
 ):
     check_gewerbe(db, user, body.gewerbe_id)
+    art = best.art_zum_datum(db, body.gewerbe_id, body.datum)
     for pos in body.positionen:
-        _check_position(db, pos)
+        _check_position(db, pos, art)
 
     # Eingangs-Belege prüfen (müssen zum Gewerbe gehören und noch offen sein)
     for bid in body.beleg_ids:
@@ -271,10 +308,11 @@ def create_buchung(
     )
     buchung_id = cur.lastrowid
     db.executemany(
-        "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, privat_bp) "
-        "VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, privat_bp, ust_bp, ust_cent) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
-            (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None, p.privat_bp)
+            (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None, p.privat_bp,
+             p.ust_bp if p.ust_cent else 0, p.ust_cent or 0)
             for p in body.positionen
         ],
     )
@@ -317,7 +355,17 @@ def update_buchung(
     user: dict = Depends(get_current_user),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    _check_buchung(db, user, buchung_id)
+    alt = _check_buchung(db, user, buchung_id)
+    datum = body.datum or alt["datum"]
+    art = best.art_zum_datum(db, alt["gewerbe_id"], datum)
+    if body.positionen is None and body.datum is not None and art != best.art_zum_datum(db, alt["gewerbe_id"], alt["datum"]):
+        # Datum wandert in ein Jahr mit anderer Besteuerung: die bestehenden Positionen müssen dort passen
+        for r in db.execute(
+            "SELECT p.betrag_cent, p.ust_bp, p.ust_cent, k.* FROM buchung_position p "
+            "JOIN kategorie k ON k.id = p.kategorie_id WHERE p.buchung_id = ?", (buchung_id,)
+        ).fetchall():
+            pruefe_ust(r, PositionIn(kategorie_id=r["id"], betrag_cent=r["betrag_cent"], ust_bp=r["ust_bp"],
+                                     ust_cent=r["ust_cent"]), art)
 
     fields, values = [], []
     if body.datum is not None:
@@ -332,13 +380,14 @@ def update_buchung(
         if len(body.positionen) == 0:
             raise HTTPException(400, "Mindestens eine Position ist nötig.")
         for pos in body.positionen:
-            _check_position(db, pos)
+            _check_position(db, pos, art)
         db.execute("DELETE FROM buchung_position WHERE buchung_id = ?", (buchung_id,))
         db.executemany(
-            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, privat_bp) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, privat_bp, ust_bp, ust_cent) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
-                (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None, p.privat_bp)
+                (buchung_id, p.kategorie_id, p.betrag_cent, (p.beleg_details or "").strip() or None, p.privat_bp,
+                 p.ust_bp if p.ust_cent else 0, p.ust_cent or 0)
                 for p in body.positionen
             ],
         )
@@ -359,7 +408,9 @@ def delete_buchung(
 
 
 # ── CSV-Import (einmalige Übernahme aus der alten Excel-Liste) ──────────────────
-# Semikolon-CSV, Spalten: Datum;Betrag;Kategorie[;Beschreibung[;Beleg-Details]].
+# Semikolon-CSV, Spalten: Datum;Betrag;Kategorie[;Beschreibung[;Beleg-Details[;USt-Satz]]].
+# Betrag = brutto. USt-Satz (z. B. 19, 7, 0) nur in Jahren mit Regelbesteuerung; fehlt er dort, gilt der
+# vorgeschlagene Satz der Kategorie (ust_standard_bp).
 # Datum TT.MM.JJJJ oder JJJJ-MM-TT, Betrag deutsch (1.234,56), Kategorie = Key oder Name.
 # Alles-oder-nichts: bei Fehlern wird nichts angelegt, die Fehlerliste kommt als 400.
 
@@ -413,7 +464,8 @@ def import_csv(
         raise HTTPException(400, "Keine Datenzeilen gefunden.")
 
     fehler: list[str] = []
-    parsed: list[tuple[str, int, sqlite3.Row, str | None, str | None]] = []
+    parsed: list[tuple[str, int, sqlite3.Row, str | None, str | None, int, int]] = []
+    arten: dict[str, str] = {}
     for i, z in enumerate(zeilen, start=1):
         if len(z) < 3:
             fehler.append(f"Zeile {i}: erwartet Datum;Betrag;Kategorie (mind. 3 Spalten).")
@@ -433,21 +485,45 @@ def import_csv(
             fehler.append(f"Zeile {i}: AfA-Kategorien bitte über die AfA-Erfassung anlegen.")
         elif kat["belegpflicht_extra"] and not details:
             fehler.append(f"Zeile {i}: für „{kat['name']}“ sind Beleg-Details Pflicht (5. Spalte).")
+        ust_bp = ust_cent = 0
+        if datum and betrag and kat:
+            jahr = datum[:4]
+            if jahr not in arten:
+                arten[jahr] = best.art(db, gewerbe_id, int(jahr))
+            satz_roh = z[5].strip().replace("%", "").replace(",", ".") if len(z) > 5 else ""
+            if arten[jahr] == best.KU:
+                if satz_roh and satz_roh not in ("0", "0.0"):
+                    fehler.append(f"Zeile {i}: {jahr} ist Kleinunternehmer — ohne USt-Satz importieren.")
+                if kat["nur_besteuerung"] == best.REGEL:
+                    fehler.append(f"Zeile {i}: „{kat['name']}“ gibt es nur bei Regelbesteuerung.")
+            else:
+                if kat["nur_besteuerung"] == best.KU:
+                    fehler.append(f"Zeile {i}: {jahr} ist Regelbesteuerung — „{kat['name']}“ passt nicht.")
+                try:
+                    ust_bp = round(float(satz_roh) * 100) if satz_roh else (
+                        0 if kat["nur_besteuerung"] == best.REGEL else kat["ust_standard_bp"])
+                except ValueError:
+                    fehler.append(f"Zeile {i}: ungültiger USt-Satz „{z[5].strip()}“ (z. B. 19, 7 oder 0).")
+                    ust_bp = 0
+                if not 0 <= ust_bp <= 2500:
+                    fehler.append(f"Zeile {i}: USt-Satz außerhalb 0–25 %.")
+                    ust_bp = 0
+                ust_cent = best.ust_aus_brutto(betrag, ust_bp)
         if datum and betrag and kat and not kat["ist_afa"] and not (kat["belegpflicht_extra"] and not details):
-            parsed.append((datum, betrag, kat, beschreibung, details))
+            parsed.append((datum, betrag, kat, beschreibung, details, ust_bp, ust_cent))
 
     if fehler:
         raise HTTPException(400, "Import abgebrochen — nichts angelegt:\n" + "\n".join(fehler[:20]))
 
-    for datum, betrag, kat, beschreibung, details in parsed:
+    for datum, betrag, kat, beschreibung, details, ust_bp, ust_cent in parsed:
         cur = db.execute(
             "INSERT INTO buchung (gewerbe_id, datum, beschreibung) VALUES (?, ?, ?)",
             (gewerbe_id, datum, beschreibung),
         )
         db.execute(
-            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details) "
-            "VALUES (?, ?, ?, ?)",
-            (cur.lastrowid, kat["id"], betrag, details),
+            "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, beleg_details, ust_bp, ust_cent) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (cur.lastrowid, kat["id"], betrag, details, ust_bp if ust_cent else 0, ust_cent),
         )
     db.commit()
     return {"angelegt": len(parsed)}

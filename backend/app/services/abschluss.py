@@ -62,9 +62,10 @@ def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, d
     for b in conn.execute(
         "SELECT * FROM buchung WHERE gewerbe_id = ? AND substr(datum, 1, 4) = ? ORDER BY id", (gewerbe_id, j)
     ):
-        # privat_bp nur, wenn gesetzt: Siegel aus der Zeit vor v24 bleiben nachrechenbar
+        # privat_bp/ust_* nur, wenn gesetzt: Siegel aus der Zeit vor v24/v34 bleiben nachrechenbar
         pos = [
             [p["id"], p["kategorie_id"], p["betrag_cent"], p["beleg_details"] or ""] + ([p["privat_bp"]] if p["privat_bp"] else [])
+            + ([["ust", p["ust_bp"], p["ust_cent"]]] if p["ust_bp"] or p["ust_cent"] else [])
             for p in conn.execute("SELECT * FROM buchung_position WHERE buchung_id = ? ORDER BY id", (b["id"],))
         ]
         buchungen.append([b["id"], b["datum"], b["beschreibung"] or "", pos])
@@ -85,6 +86,7 @@ def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, d
             a["id"], a["kategorie_id"], a["anschaffungsdatum"], a["anschaffungskosten_cent"],
             a["nutzungsdauer_jahre"], a["afa_methode"], afa_jahr(a, jahr),
         ] + ([a["degressiv_bp"], a["linear_ab_jahr"]] if a["degressiv_bp"] or a["linear_ab_jahr"] else [])
+        + ([["vorsteuer", a["vorsteuer_cent"]]] if a["vorsteuer_cent"] else [])
         for a in conn.execute("SELECT * FROM afa_buchung WHERE gewerbe_id = ? ORDER BY id", (gewerbe_id,))
         if _afa_betrifft(a, jahr)
     ]

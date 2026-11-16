@@ -14,6 +14,7 @@ import re
 import sqlite3
 from xml.sax.saxutils import escape
 
+from . import rechnung_summen
 from .rechnung_pdf import STEUERHINWEISE, build_rechnung_pdf
 
 log = logging.getLogger("tab.e_rechnung")
@@ -66,13 +67,30 @@ def _adresse_xml(a: dict) -> str:
 
 
 def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
-    """EN-16931-CII-XML für unsere (einfache) KU-Rechnung."""
+    """EN-16931-CII-XML. Kleinunternehmer: alles Kategorie E (0 %, Grund = Steuerhinweis) wie bisher.
+    Regelbesteuerung: Kategorie S je Satz, Positionen ohne USt Kategorie E mit dem Steuerhinweis als Grund;
+    Steuer je Satz auf die Netto-Summe (services/rechnung_summen)."""
     hinweis = STEUERHINWEISE.get(rechnung["steuerhinweis"], STEUERHINWEISE["ku19"])
-    summe = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in positionen)
+    sm = rechnung_summen.summen(positionen)
+    mit_ust = sm["mit_ust"]
+    summe = sm["netto_cent"]
+
+    def _satz(p) -> int:
+        try:
+            return p["ust_bp"] or 0
+        except (KeyError, IndexError):
+            return 0
+
+    def _steuer_zeile(satz: int) -> str:
+        if mit_ust and satz:
+            return (f"<ram:TypeCode>VAT</ram:TypeCode>\n          <ram:CategoryCode>S</ram:CategoryCode>\n"
+                    f"          <ram:RateApplicablePercent>{satz / 100:.2f}</ram:RateApplicablePercent>")
+        return ("<ram:TypeCode>VAT</ram:TypeCode>\n          <ram:CategoryCode>E</ram:CategoryCode>\n"
+                "          <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>")
 
     zeilen_xml = []
     for i, p in enumerate(positionen, start=1):
-        line_total = round(p["menge"] * p["einzelpreis_cent"])
+        line_total = rechnung_summen.zeile_netto(p["menge"], p["einzelpreis_cent"])
         zeilen_xml.append(f"""
     <ram:IncludedSupplyChainTradeLineItem>
       <ram:AssociatedDocumentLineDocument><ram:LineID>{i}</ram:LineID></ram:AssociatedDocumentLineDocument>
@@ -85,9 +103,7 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
       </ram:SpecifiedLineTradeDelivery>
       <ram:SpecifiedLineTradeSettlement>
         <ram:ApplicableTradeTax>
-          <ram:TypeCode>VAT</ram:TypeCode>
-          <ram:CategoryCode>E</ram:CategoryCode>
-          <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>
+          {_steuer_zeile(_satz(p))}
         </ram:ApplicableTradeTax>
         <ram:SpecifiedTradeSettlementLineMonetarySummation>
           <ram:LineTotalAmount>{_eur(line_total)}</ram:LineTotalAmount>
@@ -119,6 +135,50 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
             f'<ram:ID schemeID="FC">{escape(gewerbe["steuernummer"])}</ram:ID>'
             "</ram:SpecifiedTaxRegistration>"
         )
+    ust_id = (gewerbe["ust_id"] if "ust_id" in gewerbe.keys() else None) or ""
+    if ust_id.strip():
+        # BT-31 USt-IdNr. des Verkäufers
+        steuernr_xml += (
+            "<ram:SpecifiedTaxRegistration>"
+            f'<ram:ID schemeID="VA">{escape(ust_id.strip())}</ram:ID>'
+            "</ram:SpecifiedTaxRegistration>"
+        )
+
+    # Steuer im Kopf: KU genau wie bisher eine E-Gruppe; Regelbesteuerung je Satz eine Gruppe
+    if mit_ust:
+        gruppen = []
+        for g in sm["je_satz"]:
+            if g["ust_bp"]:
+                gruppen.append(f"""
+      <ram:ApplicableTradeTax>
+        <ram:CalculatedAmount>{_eur(g["ust_cent"])}</ram:CalculatedAmount>
+        <ram:TypeCode>VAT</ram:TypeCode>
+        <ram:BasisAmount>{_eur(g["netto_cent"])}</ram:BasisAmount>
+        <ram:CategoryCode>S</ram:CategoryCode>
+        <ram:RateApplicablePercent>{g["ust_bp"] / 100:.2f}</ram:RateApplicablePercent>
+      </ram:ApplicableTradeTax>""")
+            else:
+                gruppen.append(f"""
+      <ram:ApplicableTradeTax>
+        <ram:CalculatedAmount>0.00</ram:CalculatedAmount>
+        <ram:TypeCode>VAT</ram:TypeCode>
+        <ram:ExemptionReason>{escape(hinweis or "Steuerfreie Leistung")}</ram:ExemptionReason>
+        <ram:BasisAmount>{_eur(g["netto_cent"])}</ram:BasisAmount>
+        <ram:CategoryCode>E</ram:CategoryCode>
+        <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>
+      </ram:ApplicableTradeTax>""")
+        steuer_xml = "".join(gruppen)
+    else:
+        steuer_xml = f"""
+      <ram:ApplicableTradeTax>
+        <ram:CalculatedAmount>0.00</ram:CalculatedAmount>
+        <ram:TypeCode>VAT</ram:TypeCode>
+        <ram:ExemptionReason>{escape(hinweis)}</ram:ExemptionReason>
+        <ram:BasisAmount>{_eur(summe)}</ram:BasisAmount>
+        <ram:CategoryCode>E</ram:CategoryCode>
+        <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>
+      </ram:ApplicableTradeTax>"""
+    hinweis_xml = f"\n    <ram:IncludedNote><ram:Content>{escape(hinweis)}</ram:Content></ram:IncludedNote>" if hinweis else ""
 
     zahlung_xml = ""
     if gewerbe["iban"]:
@@ -160,8 +220,7 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
   <rsm:ExchangedDocument>
     <ram:ID>{escape(rechnung["nummer"])}</ram:ID>
     <ram:TypeCode>380</ram:TypeCode>
-    <ram:IssueDateTime><udt:DateTimeString format="102">{_datum_102(rechnung["datum"])}</udt:DateTimeString></ram:IssueDateTime>
-    <ram:IncludedNote><ram:Content>{escape(hinweis)}</ram:Content></ram:IncludedNote>
+    <ram:IssueDateTime><udt:DateTimeString format="102">{_datum_102(rechnung["datum"])}</udt:DateTimeString></ram:IssueDateTime>{hinweis_xml}
   </rsm:ExchangedDocument>
   <rsm:SupplyChainTradeTransaction>{"".join(zeilen_xml)}
     <ram:ApplicableHeaderTradeAgreement>
@@ -177,21 +236,13 @@ def zugferd_xml(rechnung, positionen, gewerbe) -> bytes:
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery/>
     <ram:ApplicableHeaderTradeSettlement>
-      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>{zahlung_xml}
-      <ram:ApplicableTradeTax>
-        <ram:CalculatedAmount>0.00</ram:CalculatedAmount>
-        <ram:TypeCode>VAT</ram:TypeCode>
-        <ram:ExemptionReason>{escape(hinweis)}</ram:ExemptionReason>
-        <ram:BasisAmount>{_eur(summe)}</ram:BasisAmount>
-        <ram:CategoryCode>E</ram:CategoryCode>
-        <ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>
-      </ram:ApplicableTradeTax>{zahlungsbedingungen_xml}
+      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>{zahlung_xml}{steuer_xml}{zahlungsbedingungen_xml}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
         <ram:LineTotalAmount>{_eur(summe)}</ram:LineTotalAmount>
         <ram:TaxBasisTotalAmount>{_eur(summe)}</ram:TaxBasisTotalAmount>
-        <ram:TaxTotalAmount currencyID="EUR">0.00</ram:TaxTotalAmount>
-        <ram:GrandTotalAmount>{_eur(summe)}</ram:GrandTotalAmount>
-        <ram:DuePayableAmount>{_eur(summe)}</ram:DuePayableAmount>
+        <ram:TaxTotalAmount currencyID="EUR">{_eur(sm["ust_cent"])}</ram:TaxTotalAmount>
+        <ram:GrandTotalAmount>{_eur(sm["brutto_cent"])}</ram:GrandTotalAmount>
+        <ram:DuePayableAmount>{_eur(sm["brutto_cent"])}</ram:DuePayableAmount>
       </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
     </ram:ApplicableHeaderTradeSettlement>
   </rsm:SupplyChainTradeTransaction>

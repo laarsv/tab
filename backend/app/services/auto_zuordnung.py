@@ -30,7 +30,9 @@ from fastapi import HTTPException
 
 from ..config import settings
 from . import bank_match as match
+from . import besteuerung as best
 from . import dauerbelege as dsvc
+from . import rechnung_summen
 from . import zahlungen as zsvc
 from .beleg_extract import vorschlag_fuer_beleg
 
@@ -61,15 +63,17 @@ def _markieren(conn: sqlite3.Connection, umsatz_id: int, grund: str, neu_gebucht
     conn.commit()
 
 
-def gelernte_kategorie(conn: sqlite3.Connection, u: dict) -> tuple[int, int] | None:
-    """(kategorie_id, privat_bp) aus den letzten Buchungen derselben Gegenpartei — nur wenn eindeutig."""
+def gelernte_kategorie(conn: sqlite3.Connection, u: dict) -> tuple[int, int, int] | None:
+    """(kategorie_id, privat_bp, ust_bp) aus den letzten Buchungen derselben Gegenpartei — nur wenn eindeutig.
+    Steuersatz: in einem Kleinunternehmer-Jahr 0; sonst der zuletzt gebuchte Satz, war der 0 (z. B. aus einem
+    KU-Jahr), der vorgeschlagene Satz der Kategorie."""
     name = (u.get("gegenpartei") or "").strip().lower()
     iban = (u.get("gegenpartei_iban") or "").strip()
     if not name and not iban:
         return None
     rows = conn.execute(
         """
-        SELECT b.id, COUNT(p.id) AS n, MAX(p.kategorie_id) AS kat, MAX(p.privat_bp) AS privat
+        SELECT b.id, COUNT(p.id) AS n, MAX(p.kategorie_id) AS kat, MAX(p.privat_bp) AS privat, MAX(p.ust_bp) AS ust
         FROM bank_umsatz x
         JOIN buchung b ON b.id = x.buchung_id
         JOIN buchung_position p ON p.buchung_id = b.id
@@ -89,7 +93,11 @@ def gelernte_kategorie(conn: sqlite3.Connection, u: dict) -> tuple[int, int] | N
         return None
     if k["typ"] != ("einnahme" if u["betrag_cent"] > 0 else "ausgabe"):
         return None
-    return k["id"], (rows[0]["privat"] or 0) if k["typ"] == "ausgabe" else 0
+    art = best.art_zum_datum(conn, u["gewerbe_id"], u["datum"])
+    if (k["nur_besteuerung"] or art) != art:
+        return None
+    ust_bp = 0 if art == best.KU or k["key"] in best.OHNE_SATZ else (rows[0]["ust"] or k["ust_standard_bp"])
+    return k["id"], ((rows[0]["privat"] or 0) if k["typ"] == "ausgabe" else 0), ust_bp
 
 
 class _Belege:
@@ -166,12 +174,6 @@ def _rechnung_eindeutig(offen: list[dict], u: dict) -> tuple[dict, str] | None:
     return None
 
 
-def _kategorie_fuer_rechnung(conn: sqlite3.Connection, r: dict) -> int | None:
-    key = "einnahme_steuerfrei" if r.get("steuerhinweis") == "vers4nr11" else "einnahme_ku"
-    row = conn.execute("SELECT id FROM kategorie WHERE key = ?", (key,)).fetchone()
-    return row["id"] if row else None
-
-
 def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool = True) -> dict:
     """Ordnet die offenen Umsätze eines Gewerbes zu, soweit eindeutig. Gibt eine Zusammenfassung zurück."""
     from ..routes.buchungen import BuchungIn, PositionIn, create_buchung  # Zirkel vermeiden
@@ -223,11 +225,14 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
             r = _rechnung_eindeutig(offen_rech, u)
             if r:
                 rech, grund = r
-                kat = _kategorie_fuer_rechnung(conn, rech)
-                if kat and buchen(
+                rrow = conn.execute("SELECT * FROM rechnung WHERE id = ?", (rech["id"],)).fetchone()
+                pos = [PositionIn(kategorie_id=p["kategorie_id"], betrag_cent=p["betrag_cent"], ust_bp=p["ust_bp"],
+                                  ust_cent=p["ust_cent"])
+                       for p in rechnung_summen.zahlung_positionen(conn, rrow, u["betrag_cent"], u["datum"])]
+                if pos and buchen(
                     u,
                     {"datum": u["datum"], "beschreibung": f"Rechnung {rech['nummer']} – {rech['empfaenger_name']}",
-                     "positionen": [PositionIn(kategorie_id=kat, betrag_cent=u["betrag_cent"])],
+                     "positionen": pos,
                      "rechnung_id": rech["id"]},
                     grund,
                 ):
@@ -244,7 +249,8 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
                     u,
                     {"datum": u["datum"], "beschreibung": d["bezeichnung"],
                      "positionen": [PositionIn(kategorie_id=d["kategorie_id"], betrag_cent=d["betrag_cent"],
-                                               privat_bp=d["privat_bp"] or 0)],
+                                               privat_bp=d["privat_bp"] or 0, ust_bp=d.get("ust_bp") or 0,
+                                               ust_cent=d.get("ust_cent") if d.get("ust_bp") else None)],
                      "dauerbeleg_id": d["id"], "termin": d["termin"]},
                     grund,
                 ):
@@ -255,14 +261,15 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
         if gelernt:
             b = belege.passend(u, [x for x in umsaetze if x["id"] not in zugeordnet])
             if b:
-                kat, privat = gelernt
+                kat, privat, ust_bp = gelernt
                 kname = conn.execute("SELECT name FROM kategorie WHERE id = ?", (kat,)).fetchone()["name"]
                 grund = (f"Beleg „{b['name']}“: Betrag und Datum passen; Kategorie „{kname}“ wie bei "
                          f"{u['gegenpartei'] or 'dieser Gegenpartei'} zuletzt")
                 if buchen(
                     u,
                     {"datum": u["datum"], "beschreibung": u["gegenpartei"] or b["name"],
-                     "positionen": [PositionIn(kategorie_id=kat, betrag_cent=abs(u["betrag_cent"]), privat_bp=privat)],
+                     "positionen": [PositionIn(kategorie_id=kat, betrag_cent=abs(u["betrag_cent"]), privat_bp=privat,
+                                                 ust_bp=ust_bp)],
                      "beleg_ids": [b["id"]]},
                     grund,
                 ):

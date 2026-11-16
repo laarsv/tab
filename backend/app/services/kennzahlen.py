@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import sqlite3
 
-from .privatanteil import BETRIEBLICH_SQL
+from . import besteuerung as best
+from .privatanteil import BETRIEBLICH_SQL, BETRIEBLICH_UST_SQL
 
 # §19 UStG Kleinunternehmer-Grenzen (brutto), in Cent.
 KU_GRENZE_VORJAHR_CENT = 25_000_00
@@ -15,13 +16,19 @@ def summen(db: sqlite3.Connection, gewerbe_id: int, jahr: int) -> dict:
 
     ku_umsatz: Gesamtumsatz i. S. d. §19 Abs. 2 UStG — steuerfreie Umsätze nach §4 Nr. 11 (Courtage)
     und Verkäufe von Anlagevermögen bleiben außer Ansatz.
+
+    Einnahmen/Ausgaben sind Zahlungsflüsse (brutto, betrieblicher Teil). Bei Regelbesteuerung ist das nach der
+    EÜR-Ist-Versteuerung auch der Gewinn (vereinnahmte USt ist Einnahme, Vorsteuer Ausgabe); `ust_cent` und
+    `vorsteuer_cent` zeigen die enthaltene Steuer, `besteuerung` die Art des Jahres.
     """
     row = db.execute(
         f"""
         SELECT
           COALESCE(SUM(CASE WHEN k.typ='einnahme' THEN p.betrag_cent ELSE 0 END), 0) AS einnahmen,
           COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN {BETRIEBLICH_SQL} ELSE 0 END), 0) AS ausgaben,
-          COALESCE(SUM(CASE WHEN k.key='einnahme_ku' THEN p.betrag_cent ELSE 0 END), 0) AS ku_umsatz
+          COALESCE(SUM(CASE WHEN k.key='einnahme_ku' THEN p.betrag_cent ELSE 0 END), 0) AS ku_umsatz,
+          COALESCE(SUM(CASE WHEN k.typ='einnahme' THEN p.ust_cent ELSE 0 END), 0) AS ust,
+          COALESCE(SUM(CASE WHEN k.typ='ausgabe'  THEN {BETRIEBLICH_UST_SQL} ELSE 0 END), 0) AS vorsteuer
         FROM buchung_position p
         JOIN buchung b ON b.id = p.buchung_id
         JOIN kategorie k ON k.id = p.kategorie_id
@@ -33,12 +40,15 @@ def summen(db: sqlite3.Connection, gewerbe_id: int, jahr: int) -> dict:
         "einnahmen_cent": row["einnahmen"],
         "ausgaben_cent": row["ausgaben"],
         "ku_umsatz_cent": row["ku_umsatz"],
+        "ust_cent": row["ust"],
+        "vorsteuer_cent": row["vorsteuer"],
+        "besteuerung": best.art(db, gewerbe_id, jahr),
     }
 
 
 def mit_ku_guard(werte: dict) -> dict:
     """Ergänzt Grenzen und Warnungen (Vorjahres- und laufende Grenze)."""
-    ku = werte["ku_umsatz_cent"]
+    ku = werte["ku_umsatz_cent"] if werte.get("besteuerung", best.KU) == best.KU else 0
     return {
         **werte,
         "ku_grenze_vorjahr_cent": KU_GRENZE_VORJAHR_CENT,

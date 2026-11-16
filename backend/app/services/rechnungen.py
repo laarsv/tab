@@ -26,7 +26,7 @@ def erstelle_rechnung(
     empfaenger_email: str | None,
     notiz: str | None,
     steuerhinweis: str,
-    positionen: list[dict],  # {beschreibung, menge, einzelpreis_cent}
+    positionen: list[dict],  # {beschreibung, menge, einzelpreis_cent[, ust_bp]} — Preise netto bei Regelbesteuerung
     zahlungsziel_tage: int | None = None,  # None = Standard-Zahlungsziel des Gewerbes
     skonto_bp: int | None = None,
     skonto_tage: int | None = None,
@@ -71,10 +71,10 @@ def erstelle_rechnung(
     )
     rid = cur.lastrowid
     conn.executemany(
-        "INSERT INTO rechnung_position (rechnung_id, beschreibung, menge, einzelpreis_cent) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT INTO rechnung_position (rechnung_id, beschreibung, menge, einzelpreis_cent, ust_bp) "
+        "VALUES (?, ?, ?, ?, ?)",
         [
-            (rid, p["beschreibung"].strip(), p["menge"], p["einzelpreis_cent"])
+            (rid, p["beschreibung"].strip(), p["menge"], p["einzelpreis_cent"], p.get("ust_bp") or 0)
             for p in positionen
         ],
     )

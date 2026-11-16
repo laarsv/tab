@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services import afa as svc
+from ..services import besteuerung as best
 
 router = APIRouter(prefix="/api/afa", tags=["afa"], dependencies=[Depends(get_current_user)])
 
@@ -42,6 +43,7 @@ class AfaIn(BaseModel):
     afa_methode: Methode = "linear"
     degressiv_bp: int | None = Field(default=None, gt=0, le=3000)  # leer = Höchstsatz
     linear_ab_jahr: int | None = Field(default=None, ge=2000, le=2200)
+    vorsteuer_cent: int = Field(default=0, ge=0)  # Regelbesteuerung: Vorsteuer aus dem Kauf (AK sind dann netto)
 
     @field_validator("anschaffungsdatum")
     @classmethod
@@ -65,6 +67,7 @@ class AfaPatch(BaseModel):
     afa_methode: Methode | None = None
     degressiv_bp: int | None = Field(default=None, gt=0, le=3000)
     linear_ab_jahr: int | None = Field(default=None, ge=2000, le=2200)  # explizit null = kein früherer Wechsel
+    vorsteuer_cent: int | None = Field(default=None, ge=0)
 
     @field_validator("anschaffungsdatum", "abgang_datum")
     @classmethod
@@ -85,6 +88,12 @@ class VorschauIn(BaseModel):
     @classmethod
     def _v_date(cls, v: str | None) -> str | None:
         return _valid_date(v) if v is not None else v
+
+
+def _check_vorsteuer(db: sqlite3.Connection, gewerbe_id: int, anschaffungsdatum: str, vorsteuer_cent: int) -> None:
+    """Vorsteuer aus dem Kauf gibt es nur bei Regelbesteuerung im Anschaffungsjahr (EUER_KATEGORIEN.md §8)."""
+    if vorsteuer_cent and best.art_zum_datum(db, gewerbe_id, anschaffungsdatum) == best.KU:
+        raise HTTPException(400, "Als Kleinunternehmer gibt es keine Vorsteuer — Anschaffungskosten brutto eintragen.")
 
 
 def _check_abgang(anschaffungsdatum: str, abgang_datum: str | None) -> None:
@@ -138,7 +147,7 @@ def _hinweise(methode: str, ak_cent: int) -> list[str]:
         if not (svc.SAMMELPOSTEN_VON_CENT <= ak_cent <= svc.SAMMELPOSTEN_BIS_CENT):
             out.append(
                 "Ein Sammelposten ist nur für Anschaffungen von 250,01 bis 1.000 € vorgesehen "
-                "(als Kleinunternehmer zählt der Betrag inklusive USt)."
+                "(als Kleinunternehmer zählt der Betrag inklusive USt, bei Regelbesteuerung netto)."
             )
         out.append(
             "Das Wahlrecht gilt einheitlich für alle Anschaffungen dieses Jahres in diesem Bereich: "
@@ -216,6 +225,7 @@ def create_afa(
     check_gewerbe(db, user, body.gewerbe_id)
     _afa_kategorie(db, body.kategorie_id)
     _check_abgang(body.anschaffungsdatum, body.abgang_datum)
+    _check_vorsteuer(db, body.gewerbe_id, body.anschaffungsdatum, body.vorsteuer_cent)
     nd, methode, bp, lin = _normalisiere(
         body.anschaffungsdatum, body.nutzungsdauer_jahre, body.afa_methode, body.degressiv_bp, body.linear_ab_jahr
     )
@@ -224,8 +234,8 @@ def create_afa(
         INSERT INTO afa_buchung
             (gewerbe_id, kategorie_id, bezeichnung, anschaffungskosten_cent,
              anschaffungsdatum, nutzungsdauer_jahre, abgang_datum, beschreibung,
-             afa_methode, degressiv_bp, linear_ab_jahr)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             afa_methode, degressiv_bp, linear_ab_jahr, vorsteuer_cent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.gewerbe_id,
@@ -239,6 +249,7 @@ def create_afa(
             methode,
             bp,
             lin,
+            body.vorsteuer_cent,
         ),
     )
     db.commit()
@@ -287,9 +298,13 @@ def update_afa(
         ("bezeichnung", body.bezeichnung.strip() if body.bezeichnung else None),
         ("anschaffungskosten_cent", body.anschaffungskosten_cent),
         ("anschaffungsdatum", body.anschaffungsdatum),
+        ("vorsteuer_cent", body.vorsteuer_cent),
     ]:
         if val is not None:
             fields.append(f"{col} = ?"); values.append(val)
+    if body.vorsteuer_cent is not None or body.anschaffungsdatum is not None:
+        _check_vorsteuer(db, cur["gewerbe_id"], body.anschaffungsdatum or cur["anschaffungsdatum"],
+                         body.vorsteuer_cent if body.vorsteuer_cent is not None else cur["vorsteuer_cent"])
     # Methode und Dauer immer mitschreiben (unveränderte Werte lösen den Sperr-Trigger nicht aus: IS NOT)
     fields += ["nutzungsdauer_jahre = ?", "afa_methode = ?", "degressiv_bp = ?", "linear_ab_jahr = ?"]
     values += [nd_neu, methode_neu, bp_neu, lin_neu]

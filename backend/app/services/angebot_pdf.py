@@ -12,7 +12,8 @@ from fpdf.enums import MethodReturnValue
 
 from .export import _date_de, format_cent_de
 from .girocode import absender_name
-from .rechnung_pdf import INK, LINE, MUTED, ROYAL, STEUERHINWEISE, _menge_de, latin1
+from . import rechnung_summen
+from .rechnung_pdf import INK, LINE, MUTED, ROYAL, STEUERHINWEISE, _menge_de, _satz, _satz_de, latin1, zeichne_steuerblock
 from .logo import zeichne_logo
 
 
@@ -79,11 +80,17 @@ def build_angebot_pdf(
         pdf.multi_cell(0, 5.4, latin1(angebot["einleitung"].strip()), align="L")
     pdf.ln(4)
 
-    # Positionen
-    w_pos, w_menge, w_preis, w_summe = 96, 18, 27, 27
+    # Positionen — bei Regelbesteuerung Netto-Preise mit Spalte „USt“ (wie die Rechnung)
+    s_normal = rechnung_summen.summen([p for p in positionen if p["art"] != "optional"])
+    s_optional = rechnung_summen.summen([p for p in positionen if p["art"] == "optional"])
+    mit_ust = s_normal["mit_ust"] or s_optional["mit_ust"]
+    w_ust = 13 if mit_ust else 0
+    w_pos, w_menge, w_preis, w_summe = 96 - w_ust, 18, 27, 27
     pdf.set_font("helvetica", "B", 8)
     pdf.set_text_color(*MUTED)
     pdf.cell(w_pos, 6, "LEISTUNG")
+    if mit_ust:
+        pdf.cell(w_ust, 6, "USt", align="R")
     pdf.cell(w_menge, 6, "MENGE", align="R")
     pdf.cell(w_preis, 6, "EINZELPREIS", align="R")
     pdf.cell(w_summe, 6, "BETRAG", align="R", new_x="LMARGIN", new_y="NEXT")
@@ -91,14 +98,10 @@ def build_angebot_pdf(
     pdf.line(22, pdf.get_y(), 190, pdf.get_y())
     pdf.ln(1.5)
 
-    summe = optional = 0
+    summe, optional = s_normal["brutto_cent"], s_optional["brutto_cent"]
     for p in positionen:
-        betrag = round(p["menge"] * p["einzelpreis_cent"])
+        betrag = rechnung_summen.zeile_netto(p["menge"], p["einzelpreis_cent"])
         ist_optional = p["art"] == "optional"
-        if ist_optional:
-            optional += betrag
-        else:
-            summe += betrag
         text = latin1(p["beschreibung"]) + ("\nOptional, nicht in der Angebotssumme" if ist_optional else "")
         pdf.set_font("helvetica", "", 10)
         zeilen = len(pdf.multi_cell(w_pos, 5.4, text, dry_run=True, output=MethodReturnValue.LINES))
@@ -109,6 +112,8 @@ def build_angebot_pdf(
         pdf.multi_cell(w_pos, 5.4, text)
         y1 = pdf.get_y()
         pdf.set_xy(22 + w_pos, y0)
+        if mit_ust:
+            pdf.cell(w_ust, 5.4, _satz_de(_satz(p)), align="R")
         pdf.cell(w_menge, 5.4, _menge_de(p["menge"]), align="R")
         pdf.cell(w_preis, 5.4, format_cent_de(p["einzelpreis_cent"]) + " EUR", align="R")
         pdf.cell(w_summe, 5.4, format_cent_de(betrag) + " EUR", align="R")
@@ -118,22 +123,27 @@ def build_angebot_pdf(
         pdf.ln(1.5)
 
     pdf.ln(2)
+    if s_normal["mit_ust"]:
+        zeichne_steuerblock(pdf, s_normal, links=22 + w_pos + w_ust + w_menge - 40, breite=w_preis + 40, w_betrag=w_summe)
     pdf.set_font("helvetica", "B", 11.5)
     pdf.set_text_color(*INK)
-    pdf.cell(w_pos, 7, "")
+    pdf.cell(w_pos + w_ust, 7, "")
     pdf.cell(w_menge + w_preis, 7, "Angebotssumme", align="R")
     pdf.set_text_color(*ROYAL)
     pdf.cell(w_summe, 7, format_cent_de(summe) + " EUR", align="R", new_x="LMARGIN", new_y="NEXT")
     if optional:
         pdf.set_font("helvetica", "", 9)
         pdf.set_text_color(*MUTED)
-        pdf.cell(0, 5, f"Optionale Positionen zusätzlich: {format_cent_de(optional)} EUR", align="R",
+        pdf.cell(0, 5, f"Optionale Positionen zusätzlich: {format_cent_de(optional)} EUR"
+                 + (" inkl. USt" if s_optional["mit_ust"] else ""), align="R",
                  new_x="LMARGIN", new_y="NEXT")
 
-    pdf.ln(3)
-    pdf.set_font("helvetica", "", 9)
-    pdf.set_text_color(*MUTED)
-    pdf.multi_cell(0, 5, STEUERHINWEISE.get(angebot["steuerhinweis"], STEUERHINWEISE["ku19"]))
+    hinweis = STEUERHINWEISE.get(angebot["steuerhinweis"], STEUERHINWEISE["ku19"])
+    if hinweis:
+        pdf.ln(3)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(*MUTED)
+        pdf.multi_cell(0, 5, ("Positionen mit 0 % USt: " if mit_ust else "") + hinweis)
     if (angebot["notiz"] or "").strip():
         pdf.ln(3)
         pdf.set_font("helvetica", "", 10)

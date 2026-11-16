@@ -888,6 +888,38 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE gewerbe ADD COLUMN bank_auto INTEGER NOT NULL DEFAULT 1;
         """,
     ),
+    Migration(
+        version=34,
+        sql="""
+        -- v34: Regelbesteuerung (Umsatzsteuer) als Option, EUER_KATEGORIEN.md §8.
+        --  gewerbe_besteuerung: ab welchem Kalenderjahr welche Besteuerung gilt (letzter Eintrag <= Jahr;
+        --                       ohne Eintrag = Kleinunternehmer). services/besteuerung.py ist die einzige Quelle.
+        --  buchung_position: Betrag bleibt BRUTTO (Zahlungsfluss); ust_bp = Satz (1900 = 19 %), ust_cent = Steuer.
+        --  rechnung/angebot_position.ust_bp: Satz je Position (Preise sind bei Regelbesteuerung netto).
+        --  dauerbeleg: Satz + Steuer der Vorlage; afa_buchung.vorsteuer_cent: Vorsteuer aus dem Kauf.
+        --  kategorie: ust_standard_bp = vorgeschlagener Satz, nur_besteuerung = Kategorie nur bei KU/Regel.
+        --  gewerbe.ust_id: USt-IdNr. für Rechnungen (optional).
+        CREATE TABLE gewerbe_besteuerung (
+            gewerbe_id INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            ab_jahr    INTEGER NOT NULL,
+            art        TEXT    NOT NULL CHECK (art IN ('kleinunternehmer','regelbesteuerung')),
+            created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (gewerbe_id, ab_jahr)
+        );
+        INSERT INTO gewerbe_besteuerung (gewerbe_id, ab_jahr, art)
+            SELECT id, 2000, 'regelbesteuerung' FROM gewerbe WHERE besteuerung = 'regelbesteuerung';
+        ALTER TABLE buchung_position ADD COLUMN ust_bp INTEGER NOT NULL DEFAULT 0 CHECK (ust_bp BETWEEN 0 AND 10000);
+        ALTER TABLE buchung_position ADD COLUMN ust_cent INTEGER NOT NULL DEFAULT 0 CHECK (ust_cent >= 0);
+        ALTER TABLE rechnung_position ADD COLUMN ust_bp INTEGER NOT NULL DEFAULT 0 CHECK (ust_bp BETWEEN 0 AND 10000);
+        ALTER TABLE angebot_position ADD COLUMN ust_bp INTEGER NOT NULL DEFAULT 0 CHECK (ust_bp BETWEEN 0 AND 10000);
+        ALTER TABLE dauerbeleg ADD COLUMN ust_bp INTEGER NOT NULL DEFAULT 0 CHECK (ust_bp BETWEEN 0 AND 10000);
+        ALTER TABLE dauerbeleg ADD COLUMN ust_cent INTEGER NOT NULL DEFAULT 0 CHECK (ust_cent >= 0);
+        ALTER TABLE afa_buchung ADD COLUMN vorsteuer_cent INTEGER NOT NULL DEFAULT 0 CHECK (vorsteuer_cent >= 0);
+        ALTER TABLE kategorie ADD COLUMN ust_standard_bp INTEGER NOT NULL DEFAULT 1900;
+        ALTER TABLE kategorie ADD COLUMN nur_besteuerung TEXT;
+        ALTER TABLE gewerbe ADD COLUMN ust_id TEXT;
+        """,
+    ),
 ]
 
 

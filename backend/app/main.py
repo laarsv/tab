@@ -47,7 +47,7 @@ from .routes import (
     vorschlaege,
 )
 from .seed import seed
-from .services import auto_zuordnung
+from .services import auto_zuordnung, besteuerung
 from .services.abo import run_faellige_abos
 from .services.audit import SPERR_PRAEFIX, ensure_triggers
 from .services.mail_import import run_mail_import
@@ -87,6 +87,7 @@ async def lifespan(app: FastAPI):
         run_migrations(conn)
         ensure_triggers(conn)  # Sperren, Änderungsprotokoll, Hash-Kette (services/audit.py)
         seed(conn)
+        besteuerung.sync_alle(conn)  # gewerbe.besteuerung = Stand im laufenden Jahr (v34)
     finally:
         conn.close()
     tasks = [

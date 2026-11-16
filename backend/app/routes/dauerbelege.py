@@ -12,6 +12,7 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 import sqlite3
+from types import SimpleNamespace
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services import besteuerung as best
 from ..services import dauerbelege as dsvc
 from ..services.audit import SPERR_PRAEFIX
 from ..services.privatanteil import betrieblich_cent
@@ -43,6 +45,8 @@ class DauerIn(BaseModel):
     kategorie_id: int
     betrag_cent: int = Field(gt=0)
     privat_bp: int = Field(default=0, ge=0, le=10000)
+    ust_bp: int = Field(default=0, ge=0, le=2500)  # Regelbesteuerung: Satz, 1900 = 19 %
+    ust_cent: int | None = Field(default=None, ge=0)  # Steuer im Betrag; fehlt -> aus dem Satz
     intervall: Intervall = "monatlich"
     naechste_am: str  # erster Termin
     endet_am: str | None = None
@@ -59,6 +63,8 @@ class DauerPatch(BaseModel):
     kategorie_id: int | None = None
     betrag_cent: int | None = Field(default=None, gt=0)
     privat_bp: int | None = Field(default=None, ge=0, le=10000)
+    ust_bp: int | None = Field(default=None, ge=0, le=2500)
+    ust_cent: int | None = Field(default=None, ge=0)
     intervall: Intervall | None = None
     naechste_am: str | None = None
     endet_am: str | None = None  # null löscht das Ende (model_fields_set)
@@ -89,6 +95,16 @@ def _pruefe_privat(k: sqlite3.Row, privat_bp: int) -> None:
     """Privatanteil gibt es nur bei Ausgaben (wie bei der Buchung selbst)."""
     if privat_bp and k["typ"] != "ausgabe":
         raise HTTPException(400, "Einen Privatanteil gibt es nur bei Ausgaben.")
+
+
+def _ust(db: sqlite3.Connection, k: sqlite3.Row, gewerbe_id: int, datum: str, betrag: int, ust_bp: int,
+         ust_cent: int | None) -> tuple[int, int]:
+    """Steuer der Vorlage nach der Besteuerung im Jahr des (nächsten) Termins — gleiche Regeln wie beim Buchen."""
+    from .buchungen import pruefe_ust  # Zirkular-Import vermeiden
+
+    pos = SimpleNamespace(betrag_cent=betrag, ust_bp=ust_bp, ust_cent=ust_cent)
+    pruefe_ust(k, pos, best.art_zum_datum(db, gewerbe_id, datum))
+    return (ust_bp if pos.ust_cent else 0), pos.ust_cent
 
 
 def _check(db: sqlite3.Connection, user: dict, dauerbeleg_id: int) -> sqlite3.Row:
@@ -138,16 +154,18 @@ def faellig(gewerbe_id: int, user: dict = Depends(get_current_user), db: sqlite3
 @router.post("", status_code=201)
 def anlegen(body: DauerIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     check_gewerbe(db, user, body.gewerbe_id)
-    _pruefe_privat(_pruefe_kategorie(db, body.kategorie_id), body.privat_bp)
+    k = _pruefe_kategorie(db, body.kategorie_id)
+    _pruefe_privat(k, body.privat_bp)
     if body.endet_am and body.endet_am < body.naechste_am:
         raise HTTPException(400, "„Endet nach dem“ liegt vor dem ersten Termin.")
+    ust_bp, ust_cent = _ust(db, k, body.gewerbe_id, body.naechste_am, body.betrag_cent, body.ust_bp, body.ust_cent)
     cur = db.execute(
         "INSERT INTO dauerbeleg (gewerbe_id, bezeichnung, notiz, kategorie_id, betrag_cent, privat_bp, intervall, "
-        "anker_tag, naechste_am, endet_am) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "anker_tag, naechste_am, endet_am, ust_bp, ust_cent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             body.gewerbe_id, body.bezeichnung.strip(), (body.notiz or "").strip() or None, body.kategorie_id,
             body.betrag_cent, body.privat_bp, body.intervall, int(body.naechste_am[8:10]), body.naechste_am,
-            body.endet_am,
+            body.endet_am, ust_bp, ust_cent,
         ),
     )
     db.commit()
@@ -160,10 +178,21 @@ def aendern(
 ):
     """Änderungen gelten für künftige Termine; schon gebuchte Buchungen bleiben, wie sie sind."""
     cur = _check(db, user, dauerbeleg_id)
+    fields, values = [], []
     if body.kategorie_id is not None or body.privat_bp is not None:
         k = _pruefe_kategorie(db, body.kategorie_id if body.kategorie_id is not None else cur["kategorie_id"])
         _pruefe_privat(k, body.privat_bp if body.privat_bp is not None else cur["privat_bp"])
-    fields, values = [], []
+    if any(x is not None for x in (body.kategorie_id, body.betrag_cent, body.ust_bp, body.ust_cent, body.naechste_am)):
+        # Steuer neu prüfen (Kategorie, Betrag, Satz oder Termin-Jahr kann sich geändert haben)
+        k = _pruefe_kategorie(db, body.kategorie_id if body.kategorie_id is not None else cur["kategorie_id"])
+        betrag = body.betrag_cent if body.betrag_cent is not None else cur["betrag_cent"]
+        satz = body.ust_bp if body.ust_bp is not None else cur["ust_bp"]
+        # neuer Betrag oder Satz ohne Steuerbetrag: neu aus dem Satz rechnen
+        steuer = body.ust_cent if body.ust_cent is not None else (
+            None if (body.betrag_cent is not None or body.ust_bp is not None) else cur["ust_cent"])
+        ust_bp, ust_cent = _ust(db, k, cur["gewerbe_id"], body.naechste_am or cur["naechste_am"], betrag, satz, steuer)
+        fields += ["ust_bp = ?", "ust_cent = ?"]
+        values += [ust_bp, ust_cent]
     for col in ("bezeichnung", "kategorie_id", "betrag_cent", "privat_bp", "intervall"):
         val = getattr(body, col)
         if val is not None:
@@ -250,14 +279,23 @@ def faellige_buchen(body: FaelligeIn, user: dict = Depends(get_current_user), db
                 dsvc.termin_verbrauchen(db, v["id"], termin)
                 db.commit()
                 continue
+            k = db.execute("SELECT * FROM kategorie WHERE id = ?", (v["kategorie_id"],)).fetchone()
+            try:
+                ust_bp, ust_cent = _ust(db, k, v["gewerbe_id"], termin, v["betrag_cent"], v["ust_bp"], v["ust_cent"])
+            except HTTPException as e:
+                # z. B. Vorlage mit Umsatzsteuer, Termin aber in einem Kleinunternehmer-Jahr
+                fehler.append({"dauerbeleg_id": v["id"], "bezeichnung": v["bezeichnung"], "termin": termin,
+                               "meldung": e.detail})
+                break
             try:
                 cur = db.execute(
                     "INSERT INTO buchung (gewerbe_id, datum, beschreibung, dauerbeleg_id, termin) VALUES (?, ?, ?, ?, ?)",
                     (v["gewerbe_id"], termin, v["bezeichnung"], v["id"], termin),
                 )
                 db.execute(
-                    "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, privat_bp) VALUES (?, ?, ?, ?)",
-                    (cur.lastrowid, v["kategorie_id"], v["betrag_cent"], v["privat_bp"]),
+                    "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, privat_bp, ust_bp, ust_cent) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (cur.lastrowid, v["kategorie_id"], v["betrag_cent"], v["privat_bp"], ust_bp, ust_cent),
                 )
                 dsvc.termin_verbrauchen(db, v["id"], termin)
                 db.commit()

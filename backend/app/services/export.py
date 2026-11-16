@@ -7,6 +7,9 @@
 - Guard: fehlt ein Mapping fürs angeforderte Jahr -> MappingMissingError (klare
   Fehlermeldung statt Crash). Nie befüllte Zeilen werden je Jahr defensiv geprüft
   (`seed.nie_befuellt`).
+- Regelbesteuerung (EUER_KATEGORIEN.md §8, Jahr über services/besteuerung.art): Positionen netto in ihre Zeile,
+  vereinnahmte USt -> Z17, Vorsteuer (betrieblicher Teil, auch aus AfA-Käufen) -> Vorsteuer-Zeile
+  (`seed.UST_ZEILEN_JE_JAHR`). Kleinunternehmer-Jahre rechnen unverändert brutto.
 - CSV-Dialekt: deutsch/Excel — Semikolon, Komma-Dezimal, UTF-8-BOM, Datum TT.MM.JJJJ.
 """
 from __future__ import annotations
@@ -19,10 +22,11 @@ import os
 import sqlite3
 import zipfile
 
+from . import besteuerung as best
 from .afa import afa_jahr, methode_text
-from .privatanteil import betrieblich_cent
+from .privatanteil import betrieblich_cent, betrieblich_netto_cent, betrieblich_ust_cent
 from ..config import settings
-from ..seed import nie_befuellt
+from ..seed import UST_ZEILEN_JE_JAHR, nie_befuellt
 
 
 class MappingMissingError(Exception):
@@ -30,7 +34,7 @@ class MappingMissingError(Exception):
 
 
 class BesteuerungNotSupportedError(Exception):
-    """Export ist aktuell nur für Kleinunternehmer (§19) verfügbar."""
+    """Besteuerung passt nicht zum Export (seit v34 nicht mehr ausgelöst, bleibt für die Routen)."""
 
 
 def format_cent_de(cent: int) -> str:
@@ -60,12 +64,8 @@ def _gewerbe_or_404(conn: sqlite3.Connection, gewerbe_id: int) -> sqlite3.Row:
 
 def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> dict:
     gewerbe = _gewerbe_or_404(conn, gewerbe_id)
-
-    if gewerbe["besteuerung"] != "kleinunternehmer":
-        raise BesteuerungNotSupportedError(
-            "Der EÜR-Export ist aktuell nur für Kleinunternehmer (§19 UStG) verfügbar. "
-            "Dieses Gewerbe ist auf Regelbesteuerung gesetzt."
-        )
+    art = best.art(conn, gewerbe_id, jahr)
+    regel = art == best.REGEL
 
     jahr_meta = conn.execute("SELECT * FROM euer_jahr WHERE jahr = ?", (jahr,)).fetchone()
     mapping_rows = conn.execute(
@@ -91,14 +91,24 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
     zeile_typ: dict[int, str] = {}
 
     roh_je_kat: dict[int, int] = {}
+    ust_einnahmen = vorsteuer = 0
     for r in conn.execute(
-        "SELECT p.kategorie_id, p.betrag_cent, p.privat_bp FROM buchung_position p "
+        "SELECT p.kategorie_id, p.betrag_cent, p.privat_bp, p.ust_cent FROM buchung_position p "
         "JOIN buchung b ON b.id = p.buchung_id "
         "WHERE b.gewerbe_id = ? AND substr(b.datum,1,4) = ?",
         (gewerbe_id, str(jahr)),
     ):
         # Nur der betriebliche Teil zählt (Privatanteil bei Ausgaben, services/privatanteil.py)
-        betrieblich = betrieblich_cent(r["betrag_cent"], r["privat_bp"])
+        if regel:
+            betrieblich = betrieblich_netto_cent(r["betrag_cent"], r["ust_cent"], r["privat_bp"])
+            if kategorien[r["kategorie_id"]]["typ"] == "einnahme":
+                ust_einnahmen += r["ust_cent"]
+            else:
+                vorsteuer += betrieblich_ust_cent(r["ust_cent"], r["privat_bp"])
+        else:
+            if r["ust_cent"]:
+                raise ValueError(f"{jahr} ist ein Kleinunternehmer-Jahr, enthält aber Buchungen mit Umsatzsteuer.")
+            betrieblich = betrieblich_cent(r["betrag_cent"], r["privat_bp"])
         roh_je_kat[r["kategorie_id"]] = roh_je_kat.get(r["kategorie_id"], 0) + betrieblich
 
     for kat_id, roh in roh_je_kat.items():
@@ -117,10 +127,12 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
     # AfA -> Jahres-AfA-Betrag in die jeweilige (ist_afa-)Zeile.
     for r in conn.execute(
         "SELECT kategorie_id, anschaffungskosten_cent, anschaffungsdatum, "
-        "nutzungsdauer_jahre, abgang_datum, afa_methode, degressiv_bp, linear_ab_jahr "
+        "nutzungsdauer_jahre, abgang_datum, afa_methode, degressiv_bp, linear_ab_jahr, vorsteuer_cent "
         "FROM afa_buchung WHERE gewerbe_id = ?",
         (gewerbe_id,),
     ):
+        if regel and r["vorsteuer_cent"] and r["anschaffungsdatum"][:4] == str(jahr):
+            vorsteuer += r["vorsteuer_cent"]  # Vorsteuer aus dem Kauf zählt im Anschaffungsjahr
         if r["kategorie_id"] not in mapping:
             raise MappingMissingError(
                 f"AfA-Kategorie „{kategorien[r['kategorie_id']]['name']}“ hat kein "
@@ -133,6 +145,16 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
         zeile_cent[nummer] = zeile_cent.get(nummer, 0) + betrag
         zeile_typ[nummer] = "ausgabe"
 
+    if regel:
+        ust_zeilen = UST_ZEILEN_JE_JAHR.get(jahr)
+        if ust_zeilen is None:
+            raise MappingMissingError(f"Für {jahr} sind die Umsatzsteuer-Zeilen nicht hinterlegt (seed.UST_ZEILEN_JE_JAHR).")
+        for nummer, betrag, typ in ((ust_zeilen["ust"], ust_einnahmen, "einnahme"),
+                                    (ust_zeilen["vorsteuer"], vorsteuer, "ausgabe")):
+            if betrag:
+                zeile_cent[nummer] = zeile_cent.get(nummer, 0) + betrag
+                zeile_typ[nummer] = typ
+
     zeilen = []
     summe_einnahmen = 0
     summe_ausgaben = 0
@@ -140,7 +162,7 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
         betrag = zeile_cent[nummer]
         if betrag == 0:
             continue
-        if nummer in nie_befuellt(jahr):
+        if not regel and nummer in nie_befuellt(jahr):
             raise ValueError(f"Zeile {nummer} darf bei Kleinunternehmern nie befüllt werden.")
         typ = zeile_typ[nummer]
         zeilen.append(
@@ -161,9 +183,9 @@ def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> d
             "id": gewerbe["id"],
             "name": gewerbe["name"],
             "steuernummer": gewerbe["steuernummer"],
-            "besteuerung": gewerbe["besteuerung"],
+            "besteuerung": art,
         },
-        "kleinunternehmer": True,
+        "kleinunternehmer": not regel,
         "jahr": jahr,
         "vorlaeufig": bool(jahr_meta["vorlaeufig"]),
         "quelle": jahr_meta["quelle"],
@@ -187,7 +209,7 @@ def summenblatt_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> byt
         ["EÜR-Summenblatt"],
         ["Gewerbe", data["gewerbe"]["name"]],
         ["Steuernummer", data["gewerbe"]["steuernummer"] or ""],
-        ["Kleinunternehmer §19 UStG", "ja"],
+        ["Kleinunternehmer §19 UStG", "ja" if data["kleinunternehmer"] else "nein (Regelbesteuerung, Ist-Versteuerung)"],
         ["Jahr", str(jahr)],
     ]
     if data["vorlaeufig"]:
@@ -209,10 +231,7 @@ def summenblatt_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> byt
 
 def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
     gewerbe = _gewerbe_or_404(conn, gewerbe_id)
-    if gewerbe["besteuerung"] != "kleinunternehmer":
-        raise BesteuerungNotSupportedError(
-            "Der Export ist aktuell nur für Kleinunternehmer (§19 UStG) verfügbar."
-        )
+    regel = best.ist_regel(conn, gewerbe_id, jahr)
     jahr_meta = conn.execute("SELECT * FROM euer_jahr WHERE jahr = ?", (jahr,)).fetchone()
     mapping_rows = conn.execute(
         "SELECT kategorie_id, zeile_nummer FROM euer_mapping WHERE jahr = ?", (jahr,)
@@ -234,11 +253,14 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
             "Privatanteil %",
             "Betrieblicher Betrag (EUR)",
         ]
+        # Regelbesteuerung: Steuer hinten anhängen (KU-Journale bleiben spaltengleich wie vor v34)
+        + (["USt-Satz %", "USt (EUR)", "Netto (EUR)", "Betrieblich netto (EUR)", "Betriebliche USt/Vorsteuer (EUR)"]
+           if regel else [])
     ]
 
     for r in conn.execute(
         """
-        SELECT b.datum, p.betrag_cent, p.privat_bp, b.beschreibung, p.beleg_details,
+        SELECT b.datum, p.betrag_cent, p.privat_bp, p.ust_bp, p.ust_cent, b.beschreibung, p.beleg_details,
                p.kategorie_id, k.name AS kat_name, k.abzug_quote
         FROM buchung_position p
         JOIN buchung b ON b.id = p.buchung_id
@@ -262,6 +284,13 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
                 _prozent_de(r["privat_bp"]) if r["privat_bp"] else "",
                 format_cent_de(betrieblich_cent(r["betrag_cent"], r["privat_bp"])),
             ]
+            + ([
+                _prozent_de(r["ust_bp"]) if r["ust_bp"] else "0",
+                format_cent_de(r["ust_cent"]),
+                format_cent_de(r["betrag_cent"] - r["ust_cent"]),
+                format_cent_de(betrieblich_netto_cent(r["betrag_cent"], r["ust_cent"], r["privat_bp"])),
+                format_cent_de(betrieblich_ust_cent(r["ust_cent"], r["privat_bp"])),
+            ] if regel else [])
         )
 
     # AfA als eigene Zeilen (Jahres-AfA-Betrag).
@@ -269,7 +298,7 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
         """
         SELECT a.anschaffungskosten_cent, a.anschaffungsdatum, a.nutzungsdauer_jahre,
                a.abgang_datum, a.afa_methode, a.degressiv_bp, a.linear_ab_jahr,
-               a.bezeichnung, a.kategorie_id, k.name AS kat_name
+               a.bezeichnung, a.kategorie_id, a.vorsteuer_cent, k.name AS kat_name
         FROM afa_buchung a JOIN kategorie k ON k.id = a.kategorie_id
         WHERE a.gewerbe_id = ?
         ORDER BY a.anschaffungsdatum, a.id
@@ -296,7 +325,15 @@ def journal_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
                 "",
                 format_cent_de(betrag),
             ]
+            + (["", "", format_cent_de(betrag), format_cent_de(betrag), ""] if regel else [])
         )
+        if regel and r["vorsteuer_cent"] and r["anschaffungsdatum"][:4] == str(jahr):
+            rows.append([
+                _date_de(r["anschaffungsdatum"]), gewerbe["name"], "Vorsteuer aus Anlagenkauf",
+                str(UST_ZEILEN_JE_JAHR.get(jahr, {}).get("vorsteuer", "")), format_cent_de(r["vorsteuer_cent"]), "100",
+                f"Vorsteuer {r['bezeichnung']}", "", "", format_cent_de(r["vorsteuer_cent"]),
+                "", format_cent_de(r["vorsteuer_cent"]), "0,00", "0,00", format_cent_de(r["vorsteuer_cent"]),
+            ])
 
     return _csv_to_bytes(rows)
 

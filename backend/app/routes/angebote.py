@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
+from ..services import rechnung_summen
 from ..services.angebot_pdf import build_angebot_pdf
 from ..services.fristen import add_days
 from ..services.mailer import MailNotConfiguredError, MailSendError, send_mail
@@ -43,8 +44,9 @@ def _valid_date(value: str) -> str:
 class APositionIn(BaseModel):
     beschreibung: str = Field(min_length=1, max_length=500)
     menge: float = Field(gt=0, le=100000)
-    einzelpreis_cent: int = Field(gt=0)
+    einzelpreis_cent: int = Field(gt=0)  # bei Regelbesteuerung netto
     art: Literal["normal", "optional"] = "normal"
+    ust_bp: int = Field(default=0, ge=0, le=1900)  # Steuersatz (nur Regelbesteuerung)
 
 
 class AngebotIn(BaseModel):
@@ -101,6 +103,13 @@ def _pruefe_positionen(positionen: list[APositionIn]) -> None:
         raise HTTPException(400, "Mindestens eine Position muss zur Angebotssumme zählen (nicht nur optionale).")
 
 
+def _steuer(db: sqlite3.Connection, gewerbe_id: int, datum: str, hinweis: str, positionen) -> str:
+    try:
+        return rechnung_summen.pruefe_steuer(db, gewerbe_id, datum, hinweis, positionen)
+    except rechnung_summen.SteuerFehler as e:
+        raise HTTPException(400, str(e))
+
+
 def _check(db: sqlite3.Connection, user: dict, angebot_id: int) -> sqlite3.Row:
     row = db.execute("SELECT * FROM angebot WHERE id = ?", (angebot_id,)).fetchone()
     if row is None:
@@ -114,9 +123,11 @@ def _row(db: sqlite3.Connection, angebot_id: int) -> dict:
     d["positionen"] = [
         dict(p) for p in db.execute("SELECT * FROM angebot_position WHERE angebot_id = ? ORDER BY id", (angebot_id,))
     ]
-    betrag = lambda p: round(p["menge"] * p["einzelpreis_cent"])
-    d["summe_cent"] = sum(betrag(p) for p in d["positionen"] if p["art"] == "normal")
-    d["optional_cent"] = sum(betrag(p) for p in d["positionen"] if p["art"] == "optional")
+    # Summen (brutto; bei Kleinunternehmern = Summe der Positionen), services/rechnung_summen
+    s = rechnung_summen.summen([p for p in d["positionen"] if p["art"] == "normal"])
+    d.update(summe_cent=s["brutto_cent"], netto_cent=s["netto_cent"], ust_cent=s["ust_cent"],
+             ust_je_satz=s["je_satz"], mit_ust=s["mit_ust"])
+    d["optional_cent"] = rechnung_summen.summen([p for p in d["positionen"] if p["art"] == "optional"])["brutto_cent"]
     # abgeleitet: abgelaufen = versendet ohne Antwort und Frist vorbei
     d["abgelaufen"] = d["status"] == "versendet" and d["gueltig_bis"] < dt.date.today().isoformat()
     rech = (
@@ -130,8 +141,8 @@ def _row(db: sqlite3.Connection, angebot_id: int) -> dict:
 def _positionen_schreiben(db: sqlite3.Connection, angebot_id: int, positionen: list[APositionIn]) -> None:
     db.execute("DELETE FROM angebot_position WHERE angebot_id = ?", (angebot_id,))
     db.executemany(
-        "INSERT INTO angebot_position (angebot_id, beschreibung, menge, einzelpreis_cent, art) VALUES (?, ?, ?, ?, ?)",
-        [(angebot_id, p.beschreibung.strip(), p.menge, p.einzelpreis_cent, p.art) for p in positionen],
+        "INSERT INTO angebot_position (angebot_id, beschreibung, menge, einzelpreis_cent, art, ust_bp) VALUES (?, ?, ?, ?, ?, ?)",
+        [(angebot_id, p.beschreibung.strip(), p.menge, p.einzelpreis_cent, p.art, p.ust_bp) for p in positionen],
     )
 
 
@@ -153,6 +164,7 @@ def liste(
 
 
 def _neu(db: sqlite3.Connection, gewerbe_id: int, datum: str, daten: dict, positionen: list[APositionIn]) -> int:
+    hinweis = _steuer(db, gewerbe_id, datum, daten.get("steuerhinweis") or "ku19", positionen)
     jahr = int(datum[:4])
     lauf = (
         db.execute(
@@ -170,7 +182,7 @@ def _neu(db: sqlite3.Connection, gewerbe_id: int, datum: str, daten: dict, posit
             gewerbe_id, jahr, lauf, f"AN-{jahr}-{lauf:04d}", datum, daten["gueltig_bis"],
             daten["empfaenger_name"].strip(), (daten.get("empfaenger_anschrift") or "").strip() or None,
             (daten.get("empfaenger_email") or "").strip() or None, (daten.get("einleitung") or "").strip() or None,
-            (daten.get("notiz") or "").strip() or None, daten.get("steuerhinweis") or "ku19",
+            (daten.get("notiz") or "").strip() or None, hinweis,
         ),
     )
     _positionen_schreiben(db, cur.lastrowid, positionen)
@@ -205,6 +217,12 @@ def aendern(
         gueltig = add_days(datum, GUELTIG_TAGE)  # Datum verschoben: Gültigkeit mitnehmen
     if gueltig < datum:
         raise HTTPException(400, "„Gültig bis“ liegt vor dem Angebotsdatum.")
+    if body.positionen is not None or body.steuerhinweis is not None:
+        body.steuerhinweis = _steuer(
+            db, cur["gewerbe_id"], datum, body.steuerhinweis or cur["steuerhinweis"],
+            body.positionen if body.positionen is not None else
+            [dict(p) for p in db.execute("SELECT * FROM angebot_position WHERE angebot_id = ?", (angebot_id,))],
+        )
     fields, values = ["datum = ?", "gueltig_bis = ?"], [datum, gueltig]
     for col, val in (("empfaenger_name", body.empfaenger_name), ("steuerhinweis", body.steuerhinweis)):
         if val is not None:
@@ -332,7 +350,8 @@ def kopieren(angebot_id: int, user: dict = Depends(get_current_user), db: sqlite
     heute = dt.date.today().isoformat()
     aid = _neu(
         db, a["gewerbe_id"], heute, {**a, "gueltig_bis": add_days(heute, GUELTIG_TAGE)},
-        [APositionIn(beschreibung=p["beschreibung"], menge=p["menge"], einzelpreis_cent=p["einzelpreis_cent"], art=p["art"]) for p in a["positionen"]],
+        [APositionIn(beschreibung=p["beschreibung"], menge=p["menge"], einzelpreis_cent=p["einzelpreis_cent"], art=p["art"],
+                     ust_bp=p["ust_bp"]) for p in a["positionen"]],
     )
     db.commit()
     return _row(db, aid)
@@ -362,18 +381,20 @@ def in_rechnung(
     if set(body.optional_ids) - optional:
         raise HTTPException(400, "Unbekannte optionale Position gewählt.")
     positionen = [
-        {"beschreibung": p["beschreibung"], "menge": p["menge"], "einzelpreis_cent": p["einzelpreis_cent"]}
+        {"beschreibung": p["beschreibung"], "menge": p["menge"], "einzelpreis_cent": p["einzelpreis_cent"],
+         "ust_bp": p["ust_bp"]}
         for p in a["positionen"]
         if p["art"] == "normal" or p["id"] in body.optional_ids
     ]
     datum = body.datum or dt.date.today().isoformat()
+    hinweis = _steuer(db, a["gewerbe_id"], datum, a["steuerhinweis"], positionen)
     rid = erstelle_rechnung(
         db,
         gewerbe_id=a["gewerbe_id"], datum=datum, leistungsdatum=None,
         empfaenger_name=a["empfaenger_name"], empfaenger_anschrift=a["empfaenger_anschrift"],
         empfaenger_email=a["empfaenger_email"],
         notiz=f"Bezug: Angebot {a['nummer']} vom {a['datum'][8:10]}.{a['datum'][5:7]}.{a['datum'][:4]}.",
-        steuerhinweis=a["steuerhinweis"], positionen=positionen,
+        steuerhinweis=hinweis, positionen=positionen,
     )
     upsert_kontakt(db, a["gewerbe_id"], a["empfaenger_name"], a["empfaenger_anschrift"], a["empfaenger_email"])
     db.execute(

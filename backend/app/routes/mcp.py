@@ -41,7 +41,8 @@ ANFRAGEN_PRO_MINUTE = 120
 TOKEN_PREFIX = "tabmcp_"
 
 ANWEISUNG = (
-    "Lesender Zugang zur Buchhaltung (vrwb_tab, Kleinunternehmer § 19 UStG, Einnahmen-Überschuss-Rechnung). "
+    "Lesender Zugang zur Buchhaltung (vrwb_tab, Einnahmen-Überschuss-Rechnung; je Gewerbe und Jahr Kleinunternehmer § 19 UStG "
+    "oder Regelbesteuerung — siehe gewerbe_liste.besteuerung_wechsel und kennzahlen.besteuerung). "
     "Beträge sind ganze Cent (…_cent), Brutto = Netto. Beginne mit gewerbe_liste, dann kennzahlen oder uebersicht. "
     "Kein Steuerrat — Zahlen nennen, nicht rechtlich bewerten. Es gibt keine schreibenden Werkzeuge."
 )
@@ -120,7 +121,7 @@ def _int(a: dict, name: str, pflicht: bool = True, standard: int | None = None) 
 
 def _w_gewerbe(db, user, a):
     return [
-        {k: g.get(k) for k in ("id", "name", "steuernummer", "besteuerung", "anschrift", "iban", "aktiv")}
+        {k: g.get(k) for k in ("id", "name", "steuernummer", "besteuerung", "besteuerung_wechsel", "anschrift", "iban", "aktiv")}
         for g in gewerbe.list_gewerbe(False, user, db)
     ]
 
@@ -181,7 +182,7 @@ def _w_abos(db, user, a):
         {
             "id": x["id"], "empfaenger_name": x["empfaenger_name"], "intervall": x["intervall"], "naechste_am": x["naechste_am"],
             "endet_am": x.get("endet_am"), "beendet": bool(x.get("beendet")), "aktiv": bool(x["aktiv"]), "auto_senden": bool(x["auto_senden"]), "summe_cent": x["summe_cent"], "notiz": x["notiz"],
-            "positionen": [{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")} for p in x["positionen"]],
+            "positionen": [{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent", "ust_bp")} for p in x["positionen"]],
         }
         for x in abos.list_abos(_int(a, "gewerbe_id"), user, db)
     ]
@@ -274,8 +275,11 @@ def _als_vorschlag(fn):
     return handler
 
 
-_POS = {"type": "array", "description": "Positionen: Liste aus {beschreibung, menge, einzelpreis_cent}. Ersetzt ALLE bisherigen Positionen.",
-        "items": {"type": "object", "properties": {"beschreibung": {"type": "string"}, "menge": {"type": "number"}, "einzelpreis_cent": {"type": "integer"}},
+_POS = {"type": "array", "description": "Positionen: Liste aus {beschreibung, menge, einzelpreis_cent[, ust_bp]}. Ersetzt ALLE bisherigen "
+                                       "Positionen. Bei Regelbesteuerung ist einzelpreis_cent netto und ust_bp der Steuersatz (1900, 700, 0); "
+                                       "Kleinunternehmer: ohne ust_bp.",
+        "items": {"type": "object", "properties": {"beschreibung": {"type": "string"}, "menge": {"type": "number"}, "einzelpreis_cent": {"type": "integer"},
+                                                   "ust_bp": {"type": "integer", "enum": [0, 700, 1900]}},
                   "required": ["beschreibung", "menge", "einzelpreis_cent"]}}
 _BEGR = {"type": "string", "description": "Kurze Begründung für den Inhaber (max. 500 Zeichen)"}
 
@@ -290,7 +294,7 @@ WERKZEUGE += [
      _als_vorschlag(vorschlaege.vorschlag_abo)),
     ("rechnungsentwurf_vorschlagen",
      "SCHLÄGT einen neuen Rechnungsentwurf VOR — legt selbst keine Rechnung an, versendet nie etwas. Der Inhaber prüft und übernimmt in Tab, "
-     "danach ist es ein Entwurf, den er selbst durchsieht und versendet. Beträge in Cent, Kleinunternehmer (brutto = netto).",
+     "danach ist es ein Entwurf, den er selbst durchsieht und versendet. Beträge in Cent; Kleinunternehmer ohne ust_bp, bei Regelbesteuerung Netto-Preise mit ust_bp.",
      _schema({"gewerbe_id": _GID, "empfaenger_name": {"type": "string"}, "positionen": _POS, "datum": {"type": "string", "description": "Rechnungsdatum JJJJ-MM-TT, Standard heute"},
               "zahlungsziel_tage": {"type": "integer"}, "leistungsdatum": {"type": "string"}, "notiz": {"type": "string"}, "bestellnummer": {"type": "string"},
               "empfaenger_anschrift": {"type": "string"}, "empfaenger_email": {"type": "string"}, "begruendung": _BEGR},

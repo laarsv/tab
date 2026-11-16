@@ -20,6 +20,7 @@ import sqlite3
 
 from .mailer import MailNotConfiguredError, MailSendError, send_mail
 from .e_rechnung import rechnungs_pdf
+from . import rechnung_summen
 from .rechnungen import erstelle_rechnung
 
 log = logging.getLogger("tab.abo")
@@ -71,6 +72,13 @@ def erstelle_rechnung_aus_abo(
     positionen = json.loads(abo["positionen_json"])
     for p in positionen:
         p["beschreibung"] = _ersetze_monat(p["beschreibung"], monat_str)
+    # Steuer gegen die Besteuerung im Jahr der neuen Rechnung prüfen. Passt sie nicht (z. B. Wechsel zur
+    # Regelbesteuerung, Abo noch ohne Steuersätze), entsteht die Rechnung trotzdem — als Entwurf, ohne Versand.
+    steuer_fehler = None
+    try:
+        hinweis = rechnung_summen.pruefe_steuer(conn, abo["gewerbe_id"], heute.isoformat(), abo["steuerhinweis"], positionen)
+    except rechnung_summen.SteuerFehler as e:
+        hinweis, steuer_fehler = abo["steuerhinweis"], f"Bitte prüfen: {e}"
 
     rid = erstelle_rechnung(
         conn,
@@ -81,16 +89,17 @@ def erstelle_rechnung_aus_abo(
         empfaenger_anschrift=abo["empfaenger_anschrift"],
         empfaenger_email=abo["empfaenger_email"],
         notiz=_ersetze_monat(abo["notiz"], monat_str),
-        steuerhinweis=abo["steuerhinweis"],
+        steuerhinweis=hinweis,
         positionen=positionen,
     )
     conn.commit()
     r = conn.execute("SELECT * FROM rechnung WHERE id = ?", (rid,)).fetchone()
 
     versendet = False
-    fehler = None
+    fehler = steuer_fehler
     darf_senden = (
-        abo["auto_senden"]
+        not steuer_fehler
+        and abo["auto_senden"]
         and (abo["empfaenger_email"] or "").strip()
         and (heute - stichtag).days <= AUTO_SENDEN_MAX_VERZUG_TAGE
     )
@@ -102,7 +111,7 @@ def erstelle_rechnung_aus_abo(
             pos_rows = conn.execute(
                 "SELECT * FROM rechnung_position WHERE rechnung_id = ? ORDER BY id", (rid,)
             ).fetchall()
-            summe = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in pos_rows)
+            summe = rechnung_summen.summen(pos_rows)["brutto_cent"]
             pdf = rechnungs_pdf(r, pos_rows, gewerbe)
             betreff = _ersetze_monat(abo["betreff"], monat_str) or f"Rechnung {r['nummer']}"
             text = _ersetze_monat(abo["mail_text"], monat_str) or (

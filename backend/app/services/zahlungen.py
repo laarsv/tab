@@ -15,18 +15,15 @@ from __future__ import annotations
 import datetime as dt
 import sqlite3
 
+from . import rechnung_summen
 from .fristen import add_days, naechster_werktag
 
 ARTEN = ("zahlung", "skonto", "ausfall")
 
 
 def summe_cent(conn: sqlite3.Connection, rechnung_id: int) -> int:
-    return sum(
-        round(p["menge"] * p["einzelpreis_cent"])
-        for p in conn.execute(
-            "SELECT menge, einzelpreis_cent FROM rechnung_position WHERE rechnung_id = ?", (rechnung_id,)
-        )
-    )
+    """Rechnungsbetrag (brutto; bei Kleinunternehmern = Summe der Positionen), services/rechnung_summen.py."""
+    return rechnung_summen.rechnung(conn, rechnung_id)["brutto_cent"]
 
 
 def zahlungen_zu(conn: sqlite3.Connection, rechnung_id: int) -> list[dict]:
@@ -133,17 +130,17 @@ def aktualisiere_status(conn: sqlite3.Connection, rechnung_id: int) -> None:
 def einnahme_buchen(
     conn: sqlite3.Connection, rechnung: sqlite3.Row | dict, datum: str, betrag_cent: int, teilzahlung: bool
 ) -> int:
-    """Einnahme-Buchung zu einer Zahlung (Kategorie nach Steuerhinweis, wie „Als Einnahme buchen“)."""
-    key = "einnahme_steuerfrei" if rechnung["steuerhinweis"] == "vers4nr11" else "einnahme_ku"
-    kat = conn.execute("SELECT id FROM kategorie WHERE key = ?", (key,)).fetchone()
+    """Einnahme-Buchung zu einer Zahlung (Kategorie nach Steuerhinweis bzw. je Steuersatz anteilig,
+    wie „Als Einnahme buchen“; rechnung_summen.zahlung_positionen)."""
     beschreibung = f"Rechnung {rechnung['nummer']} – {rechnung['empfaenger_name']}" + (" (Teilzahlung)" if teilzahlung else "")
     cur = conn.execute(
         "INSERT INTO buchung (gewerbe_id, datum, beschreibung) VALUES (?, ?, ?)",
         (rechnung["gewerbe_id"], datum, beschreibung),
     )
-    conn.execute(
-        "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent) VALUES (?, ?, ?)",
-        (cur.lastrowid, kat["id"], betrag_cent),
+    conn.executemany(
+        "INSERT INTO buchung_position (buchung_id, kategorie_id, betrag_cent, ust_bp, ust_cent) VALUES (?, ?, ?, ?, ?)",
+        [(cur.lastrowid, p["kategorie_id"], p["betrag_cent"], p["ust_bp"], p["ust_cent"])
+         for p in rechnung_summen.zahlung_positionen(conn, rechnung, betrag_cent, datum)],
     )
     conn.execute("UPDATE rechnung SET buchung_id = ? WHERE id = ?", (cur.lastrowid, rechnung["id"]))
     return cur.lastrowid

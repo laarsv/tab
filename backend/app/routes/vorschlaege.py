@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from ..auth.deps import check_gewerbe, nur_inhaber
 from ..db import _connect, get_db
+from ..services import rechnung_summen
 from . import abos, rechnungen
 
 router = APIRouter(prefix="/api/ki/vorschlaege", tags=["ki"])
@@ -57,9 +58,10 @@ def _menge(m) -> str:
 
 
 def _pos_text(positionen: list[dict]) -> str:
-    zeilen = [f"{_menge(p['menge'])} × {p['beschreibung']} à {_euro(p['einzelpreis_cent'])}" for p in positionen]
-    summe = sum(round(p["menge"] * p["einzelpreis_cent"]) for p in positionen)
-    return "\n".join(zeilen) + f"\nSumme {_euro(summe)}"
+    zeilen = [f"{_menge(p['menge'])} × {p['beschreibung']} à {_euro(p['einzelpreis_cent'])}"
+              + (f" zzgl. {p['ust_bp'] // 100} % USt" if p.get("ust_bp") else "") for p in positionen]
+    s = rechnung_summen.summen([{**p, "ust_bp": p.get("ust_bp") or 0} for p in positionen])
+    return "\n".join(zeilen) + f"\nSumme {_euro(s['brutto_cent'])}" + (" (brutto)" if s["mit_ust"] else "")
 
 
 def _fehler_text(e: ValidationError) -> str:
@@ -81,7 +83,8 @@ def _positionen(a: dict, name: str = "positionen") -> list[dict]:
     p = a.get(name)
     if not isinstance(p, list) or not p or len(p) > MAX_POSITIONEN or not all(isinstance(x, dict) for x in p):
         raise VorschlagFehler(f"„{name}“: 1 bis {MAX_POSITIONEN} Positionen mit beschreibung, menge, einzelpreis_cent.")
-    return [{k: x.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")} for x in p]
+    # ust_bp (Steuersatz) nur bei Regelbesteuerung; fehlt er, gilt 0
+    return [{**{k: x.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")}, "ust_bp": x.get("ust_bp") or 0} for x in p]
 
 
 def _id(a: dict, name: str) -> int:
@@ -124,7 +127,7 @@ def vorschlag_abo(db: sqlite3.Connection, user: dict, a: dict) -> dict:
         anzeige.append({"feld": "Status", "vorher": "aktiv" if row["aktiv"] else "pausiert", "nachher": "aktiv" if patch.aktiv else "pausiert"})
     if patch.positionen is not None:
         neu = [p.model_dump() for p in patch.positionen]
-        if neu != [{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")} for p in jetzt]:
+        if neu != [{**{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")}, "ust_bp": p.get("ust_bp") or 0} for p in jetzt]:
             anzeige.append({"feld": "Positionen", "vorher": _pos_text(jetzt), "nachher": _pos_text(neu)})
     if not anzeige:
         raise VorschlagFehler("Das entspricht schon dem aktuellen Stand — nichts zu ändern.")
@@ -195,7 +198,7 @@ def vorschlag_entwurf_aendern(db: sqlite3.Connection, user: dict, a: dict) -> di
     except ValidationError as e:
         raise VorschlagFehler(_fehler_text(e))
     basis = _entwurf_basis(db, row)
-    pos_jetzt = [dict(p) for p in db.execute("SELECT beschreibung, menge, einzelpreis_cent FROM rechnung_position WHERE rechnung_id = ? ORDER BY id", (rid,))]
+    pos_jetzt = [dict(p) for p in db.execute("SELECT beschreibung, menge, einzelpreis_cent, ust_bp FROM rechnung_position WHERE rechnung_id = ? ORDER BY id", (rid,))]
     anzeige = []
     for feld, schluessel, label in (("zahlungsziel_tage", "zahlungsziel_tage", "Zahlungsziel (Tage)"), ("notiz", "notiz", "Notiz"),
                                      ("bestellnummer", "bestellnummer", "Ihre Bestellnummer"), ("leistungsdatum", "leistungsdatum", "Leistungsdatum")):
@@ -204,7 +207,7 @@ def vorschlag_entwurf_aendern(db: sqlite3.Connection, user: dict, a: dict) -> di
             anzeige.append({"feld": label, "vorher": str(row[schluessel]) if row[schluessel] is not None else "—", "nachher": str(neu)})
     if patch.positionen is not None:
         neu = [p.model_dump() for p in patch.positionen]
-        if neu != [{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")} for p in pos_jetzt]:
+        if neu != [{**{k: p.get(k) for k in ("beschreibung", "menge", "einzelpreis_cent")}, "ust_bp": p.get("ust_bp") or 0} for p in pos_jetzt]:
             anzeige.append({"feld": "Positionen", "vorher": _pos_text(pos_jetzt), "nachher": _pos_text(neu)})
     if not anzeige:
         raise VorschlagFehler("Das entspricht schon dem aktuellen Stand — nichts zu ändern.")

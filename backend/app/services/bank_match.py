@@ -225,6 +225,7 @@ def dauerbeleg_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
             treffer.append(
                 {"id": d["id"], "bezeichnung": d["bezeichnung"], "kategorie_id": d["kategorie_id"],
                  "kategorie_name": d["kategorie_name"], "betrag_cent": d["betrag_cent"], "privat_bp": d["privat_bp"],
+                 "ust_bp": d["ust_bp"], "ust_cent": d["ust_cent"],
                  "termin": d["naechste_am"], "punkte": punkte, "gruende": gruende}
             )
     treffer.sort(key=lambda t: -t["punkte"])

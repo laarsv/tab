@@ -21,3 +21,17 @@ def privat_cent(betrag_cent: int, privat_bp: int) -> int:
 
 def betrieblich_cent(betrag_cent: int, privat_bp: int) -> int:
     return betrag_cent - privat_cent(betrag_cent, privat_bp)
+
+
+# Regelbesteuerung (EUER_KATEGORIEN.md §8): der Privatanteil gilt für Netto UND Steuer — nur der betriebliche
+# Teil der Vorsteuer ist abziehbar. Betrieblich brutto = betrieblich netto + betriebliche Steuer.
+BETRIEBLICH_UST_SQL = "(p.ust_cent - (p.ust_cent * p.privat_bp + 5000) / 10000)"
+BETRIEBLICH_NETTO_SQL = f"({BETRIEBLICH_SQL} - {BETRIEBLICH_UST_SQL})"
+
+
+def betrieblich_ust_cent(ust_cent: int, privat_bp: int) -> int:
+    return ust_cent - privat_cent(ust_cent, privat_bp)
+
+
+def betrieblich_netto_cent(betrag_cent: int, ust_cent: int, privat_bp: int) -> int:
+    return betrieblich_cent(betrag_cent, privat_bp) - betrieblich_ust_cent(ust_cent, privat_bp)

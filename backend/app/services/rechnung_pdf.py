@@ -13,6 +13,7 @@ from fpdf import FPDF
 from fpdf.enums import MethodReturnValue
 
 from .export import format_cent_de, _date_de
+from . import rechnung_summen
 from .fristen import add_days
 from .girocode import GIRO_MM, epc_payload, kontoinhaber, zeichne_qr
 from .logo import zeichne_logo
@@ -23,8 +24,10 @@ ROYAL = (41, 71, 201)    # royal
 LINE = (225, 228, 235)
 
 # Steuer-Hinweis (Pflichtangabe, warum keine USt ausgewiesen wird) — je Rechnung wählbar.
+# „regel“ = Regelbesteuerung, Umsatzsteuer wird ausgewiesen — kein Hinweistext (services/rechnung_summen.pruefe_steuer).
 STEUERHINWEISE = {
     "ku19": "Kein Ausweis von Umsatzsteuer, da Kleinunternehmer gemäß § 19 UStG.",
+    "regel": "",
     "vers4nr11": "Kein Ausweis von Umsatzsteuer: steuerfreie Leistung aus der Tätigkeit "
                  "als Versicherungsvertreter/-makler gemäß § 4 Nr. 11 UStG.",
 }
@@ -57,6 +60,32 @@ def _giro_payload(rechnung, gewerbe, summe_cent: int) -> str | None:
         betrag_cent=summe_cent,
         verwendungszweck=f"Rechnung {rechnung['nummer']}",
     )
+
+
+def _satz(p) -> int:
+    try:
+        return p["ust_bp"] or 0
+    except (KeyError, IndexError):
+        return 0
+
+
+def _satz_de(bp: int) -> str:
+    return f"{bp // 100} %" if bp % 100 == 0 else f"{bp / 100:.1f} %".replace(".", ",")
+
+
+def zeichne_steuerblock(pdf, summen: dict, *, links: float, breite: float, w_betrag: float) -> None:
+    """Netto-Summe und Umsatzsteuer je Satz rechtsbündig über dem Gesamtbetrag (Rechnung und Angebot)."""
+    pdf.set_font("helvetica", "", 9.5)
+    pdf.set_text_color(*INK)
+    zeilen = [("Summe netto", summen["netto_cent"])] + [
+        (f"zzgl. USt {_satz_de(g['ust_bp'])} auf {format_cent_de(g['netto_cent'])} EUR", g["ust_cent"])
+        for g in summen["je_satz"] if g["ust_bp"]
+    ]
+    for label, betrag in zeilen:
+        pdf.set_x(links)
+        pdf.cell(breite, 5.6, latin1(label))
+        pdf.cell(w_betrag, 5.6, format_cent_de(betrag) + " EUR", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(0.5)
 
 
 def _menge_de(menge: float) -> str:
@@ -107,6 +136,8 @@ def build_rechnung_pdf(
         meta.append(("Ihre Bestellnr.", rechnung["bestellnummer"]))
     if gewerbe["steuernummer"]:
         meta.append(("Steuernummer", gewerbe["steuernummer"]))
+    if "ust_id" in gewerbe.keys() and gewerbe["ust_id"]:
+        meta.append(("USt-IdNr.", gewerbe["ust_id"]))
     for label, wert in meta:
         pdf.set_xy(120, pdf.get_y())
         pdf.set_font("helvetica", "", 8)
@@ -124,11 +155,16 @@ def build_rechnung_pdf(
     pdf.cell(0, 8, f"Rechnung {rechnung['nummer']}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
-    # Positionstabelle
-    w_pos, w_menge, w_preis, w_summe = 96, 18, 27, 27
+    # Positionstabelle — bei Regelbesteuerung mit Spalte „USt“ und Netto-Preisen (rechnung_summen)
+    summen = rechnung_summen.summen(positionen)
+    mit_ust = summen["mit_ust"]
+    w_ust = 13 if mit_ust else 0
+    w_pos, w_menge, w_preis, w_summe = 96 - w_ust, 18, 27, 27
     pdf.set_font("helvetica", "B", 8)
     pdf.set_text_color(*MUTED)
     pdf.cell(w_pos, 6, "LEISTUNG")
+    if mit_ust:
+        pdf.cell(w_ust, 6, "USt", align="R")
     pdf.cell(w_menge, 6, "MENGE", align="R")
     pdf.cell(w_preis, 6, "EINZELPREIS", align="R")
     pdf.cell(w_summe, 6, "BETRAG", align="R", new_x="LMARGIN", new_y="NEXT")
@@ -136,11 +172,9 @@ def build_rechnung_pdf(
     pdf.line(22, pdf.get_y(), 190, pdf.get_y())
     pdf.ln(1.5)
 
-    summe = 0
     pdf.set_text_color(*INK)
     for p in positionen:
-        betrag = round(p["menge"] * p["einzelpreis_cent"])
-        summe += betrag
+        betrag = rechnung_summen.zeile_netto(p["menge"], p["einzelpreis_cent"])
         pdf.set_font("helvetica", "", 10)
         # Zeile als Ganzes auf eine Seite: passt sie nicht mehr, vorher umbrechen. Sonst bricht die
         # Bezeichnung um, und die Beträge landen auf der alten Seite (y0 gilt nur dort).
@@ -152,6 +186,8 @@ def build_rechnung_pdf(
         pdf.multi_cell(w_pos, 5.4, latin1(p["beschreibung"]))
         y1 = pdf.get_y()
         pdf.set_xy(22 + w_pos, y0)
+        if mit_ust:
+            pdf.cell(w_ust, 5.4, _satz_de(_satz(p)), align="R")
         pdf.cell(w_menge, 5.4, _menge_de(p["menge"]), align="R")
         pdf.cell(w_preis, 5.4, format_cent_de(p["einzelpreis_cent"]) + " EUR", align="R")
         pdf.cell(w_summe, 5.4, format_cent_de(betrag) + " EUR", align="R")
@@ -160,21 +196,25 @@ def build_rechnung_pdf(
         pdf.line(22, pdf.get_y(), 190, pdf.get_y())
         pdf.ln(1.5)
 
-    # Summe
+    # Summe (bei Regelbesteuerung: Netto, Steuer je Satz, Brutto)
+    summe = summen["brutto_cent"]
     pdf.ln(2)
+    if mit_ust:
+        zeichne_steuerblock(pdf, summen, links=22 + w_pos + w_ust + w_menge - 40, breite=w_preis + 40, w_betrag=w_summe)
     pdf.set_font("helvetica", "B", 11.5)
-    pdf.cell(w_pos + w_menge, 7, "")
+    pdf.cell(w_pos + w_ust + w_menge, 7, "")
     pdf.cell(w_preis, 7, "Gesamtbetrag")
     pdf.set_text_color(*ROYAL)
     pdf.cell(w_summe, 7, format_cent_de(summe) + " EUR", align="R", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*INK)
 
-    # Steuer-Hinweis (Pflicht: warum keine USt)
-    pdf.ln(3)
-    pdf.set_font("helvetica", "", 9)
-    pdf.set_text_color(*MUTED)
+    # Steuer-Hinweis (Pflicht: warum keine USt) — bei Regelbesteuerung nur für Positionen ohne USt
     hinweis = STEUERHINWEISE.get(rechnung["steuerhinweis"], STEUERHINWEISE["ku19"])
-    pdf.multi_cell(0, 5, hinweis)
+    if hinweis:
+        pdf.ln(3)
+        pdf.set_font("helvetica", "", 9)
+        pdf.set_text_color(*MUTED)
+        pdf.multi_cell(0, 5, ("Positionen mit 0 % USt: " if mit_ust else "") + hinweis)
 
     # Zahlungsinfo — rechts daneben der GiroCode (EPC-QR), wenn es etwas zu zahlen gibt
     pdf.ln(6)

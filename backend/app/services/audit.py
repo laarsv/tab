@@ -59,6 +59,7 @@ AUDIT_TABELLEN: dict[str, Callable[[str], str]] = {
     "rechnung_position": _gid_kind("rechnung", "rechnung_id"),
     "mahnung": _gid_kind("rechnung", "rechnung_id"),
     "jahr_abschluss": _gid_direkt,
+    "gewerbe_besteuerung": _gid_direkt,
     "bankkonto": _gid_direkt,
     "bank_import": _gid_direkt,
     "bank_umsatz": _gid_direkt,
@@ -185,7 +186,8 @@ def _sperr_trigger() -> dict[str, str]:
         "OR OLD.nutzungsdauer_jahre IS NOT NEW.nutzungsdauer_jahre "
         "OR OLD.afa_methode IS NOT NEW.afa_methode "
         "OR OLD.degressiv_bp IS NOT NEW.degressiv_bp "
-        "OR OLD.linear_ab_jahr IS NOT NEW.linear_ab_jahr)"
+        "OR OLD.linear_ab_jahr IS NOT NEW.linear_ab_jahr "
+        "OR OLD.vorsteuer_cent IS NOT NEW.vorsteuer_cent)"
     )
     neu(
         "tab_lock_afa_upd", "BEFORE UPDATE ON afa_buchung",
