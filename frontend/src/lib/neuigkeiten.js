@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 48,
+    datum: '2026-11-16',
+    titel: 'Vorauszahlungen mit Betrag',
+    text: 'Unter Fristen → Vorauszahlungen trägst du die Raten aus deinen Bescheiden ein, für Einkommensteuer und Gewerbesteuer. Jeder Termin steht dann als Frist mit Betrag in der Liste, im Zähler, in der Übersicht und im Kalender-Abo. Gezahlt? Abhaken.',
+    link: { to: '/fristen', label: 'Zu den Fristen' },
+  },
+  {
     id: 47,
     datum: '2026-11-16',
     titel: 'Konto verbinden statt Kontoauszug hochladen',

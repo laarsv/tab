@@ -960,6 +960,22 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE bankkonto ADD COLUMN abruf_ab TEXT;
         """,
     ),
+    Migration(
+        version=37,
+        sql="""
+        -- v37: Vorauszahlungen laut Bescheid (services/steuerfristen.py): Betrag je Termin, je Login (die Einkommensteuer
+        --      ist persönlich). art est = Einkommensteuer (10.3./6./9./12.), gewst = Gewerbesteuer (15.2./5./8./11.).
+        CREATE TABLE vorauszahlung (
+            email       TEXT    NOT NULL,
+            art         TEXT    NOT NULL CHECK (art IN ('est','gewst')),
+            jahr        INTEGER NOT NULL,
+            quartal     INTEGER NOT NULL CHECK (quartal BETWEEN 1 AND 4),
+            betrag_cent INTEGER NOT NULL CHECK (betrag_cent > 0),
+            updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (email, art, jahr, quartal)
+        );
+        """,
+    ),
 ]
 
 

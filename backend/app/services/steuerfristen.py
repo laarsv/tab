@@ -9,8 +9,9 @@ Erledigt); Fristen und Code sind eigenständig und auf das beschränkt, was Tab-
     Gewerbebetrieb gilt dieselbe Frist für die Gewerbesteuererklärung. Mit Steuerberatung gelten
     längere Fristen — die kennt Tab nicht. Erledigt markiert der Nutzer von Hand (Tab überträgt
     nichts ans Finanzamt).
-  * **Einkommensteuer-Vorauszahlung** 10.3./10.6./10.9./10.12. — nur Hinweis, nur wenn der Nutzer
-    sie einschaltet (ob und wie viel zu zahlen ist, steht im Vorauszahlungsbescheid).
+  * **Einkommensteuer-Vorauszahlung** 10.3./10.6./10.9./10.12. — als Hinweis ohne Betrag, wenn der Nutzer
+    sie einschaltet. Trägt er die Beträge aus dem Bescheid ein (Tabelle `vorauszahlung`, v37), wird daraus eine
+    abhakbare Frist mit Betrag — ebenso für die **Gewerbesteuer** 15.2./15.5./15.8./15.11.
   * **Umsatzsteuer** nur für Gewerbe mit Regelbesteuerung im jeweiligen Jahr (services/ust_voranmeldung.py):
     Voranmeldung je Monat/Quartal (10. nach Ablauf, mit Dauerfristverlängerung einen Monat später) und die
     Umsatzsteuererklärung (31. Juli des Folgejahres). Kleinunternehmer sehen davon nichts.
@@ -30,6 +31,25 @@ DRINGEND_TAGE = 14  # für den Zähler in der Seitenleiste
 
 ART_LABEL = {"erklaerung": "Erklärung", "vorauszahlung": "Vorauszahlung", "voranmeldung": "Voranmeldung"}
 EST_VORAUSZAHLUNG_TERMINE = ((3, 10), (6, 10), (9, 10), (12, 10))
+GEWST_VORAUSZAHLUNG_TERMINE = ((2, 15), (5, 15), (8, 15), (11, 15))
+VZ_TERMINE = {"est": EST_VORAUSZAHLUNG_TERMINE, "gewst": GEWST_VORAUSZAHLUNG_TERMINE}
+VZ_NAME = {"est": "Einkommensteuer-Vorauszahlung", "gewst": "Gewerbesteuer-Vorauszahlung"}
+VZ_DETAIL = {
+    "est": "Betrag laut Vorauszahlungsbescheid des Finanzamts (mit Solidaritätszuschlag und Kirchensteuer, falls "
+           "festgesetzt). Privat, keine Betriebsausgabe — zahlst du vom Geschäftskonto, die Abbuchung auf der Bank-Seite "
+           "als „Privat“ ignorieren.",
+    "gewst": "Betrag laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Die Gewerbesteuer ist keine "
+             "Betriebsausgabe (§ 4 Abs. 5b EStG); wie du sie in der EÜR angibst, klär mit der Steuerberatung.",
+}
+
+
+def vz_faellig(art: str, jahr: int, quartal: int) -> str:
+    monat, tag = VZ_TERMINE[art][quartal - 1]
+    return naechster_werktag(f"{jahr}-{monat:02d}-{tag:02d}")
+
+
+def _euro(cent: int) -> str:
+    return f"{cent / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _jahre_mit_daten(conn: sqlite3.Connection, gewerbe: list[sqlite3.Row]) -> dict[int, list[str]]:
@@ -98,8 +118,31 @@ def steuerfristen(
 
     items += _ust_fristen(conn, gewerbe, heute, horizont)
 
+    # Vorauszahlungen mit Betrag (laut Bescheid eingetragen): abhakbar; Offenes aus dem Vor- und laufenden Jahr bleibt.
+    est_jahre_mit_betrag: set[int] = set()
+    for r in conn.execute(
+        "SELECT art, jahr, quartal, betrag_cent FROM vorauszahlung WHERE email = ? AND jahr >= ?", (email, jahr_heute - 1)
+    ):
+        faellig = vz_faellig(r["art"], r["jahr"], r["quartal"])
+        if r["art"] == "est":
+            est_jahre_mit_betrag.add(r["jahr"])
+        if faellig > horizont:
+            continue
+        items.append({
+            "schluessel": f"vz:{r['art']}:{r['jahr']}-Q{r['quartal']}",
+            "art": "vorauszahlung",
+            "titel": f"{VZ_NAME[r['art']]} {r['quartal']}/{r['jahr']} · {_euro(r['betrag_cent'])}",
+            "detail": VZ_DETAIL[r["art"]],
+            "faellig_am": faellig,
+            "erledigbar": True,
+            "link": None,
+            "betrag_cent": r["betrag_cent"],
+        })
+
     if est_vorauszahlung:
         for jahr in (jahr_heute, jahr_heute + 1):
+            if jahr in est_jahre_mit_betrag:
+                continue  # Beträge eingetragen → die Fristen mit Betrag oben ersetzen den Hinweis
             for monat, tag in EST_VORAUSZAHLUNG_TERMINE:
                 faellig = naechster_werktag(f"{jahr}-{monat:02d}-{tag:02d}")
                 if not (heute <= faellig <= horizont):
@@ -239,7 +282,7 @@ def kalender_ics(items: list[dict], jetzt: dt.datetime | None = None) -> str:
             continue
         start = f["faellig_am"].replace("-", "")
         ende = add_days(f["faellig_am"], 1).replace("-", "")
-        titel = f["titel"] + (" (falls festgesetzt)" if f["art"] == "vorauszahlung" else "")
+        titel = f["titel"] + (" (falls festgesetzt)" if f["art"] == "vorauszahlung" and not f.get("betrag_cent") else "")
         zeilen += [
             "BEGIN:VEVENT",
             f"UID:{f['schluessel'].replace(':', '-')}@tab.vrwb.de",

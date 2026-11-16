@@ -6,7 +6,7 @@ import { SchalterZeile } from '../components/DialogParts.jsx';
 import { IconButton, IconCalendar, IconCircleCheck, IconDownload, IconRepeat } from '../components/Icons.jsx';
 import { Hinweis, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
-import { formatDateDE } from '../lib/format.js';
+import { centToInput, formatDateDE, formatEuro, parseEuroToCent } from '../lib/format.js';
 import { fristInWorten } from '../lib/fristWorte.js';
 
 // Fristen (Aufbau wie Haben): Überfällig · Nächste 30 Tage · Später · Kalender-Abo · Erledigt.
@@ -138,9 +138,9 @@ export default function Fristen() {
       />
 
       <Hinweis className="mt-5 text-xs">
-        Tab überträgt nichts ans Finanzamt — hake eine Frist ab, sobald du die Steuererklärung abgegeben hast. Mit
-        Steuerberatung gelten längere Fristen, die kennt Tab nicht. Eine USt-Voranmeldung gibt es hier nicht:
-        Kleinunternehmer geben keine ab.
+        Tab überträgt nichts ans Finanzamt — hake eine Frist ab, sobald du die Erklärung abgegeben oder die Zahlung
+        geleistet hast. Mit Steuerberatung gelten längere Abgabefristen, die kennt Tab nicht. Umsatzsteuer-Termine
+        erscheinen nur für Gewerbe mit Regelbesteuerung.
       </Hinweis>
 
       {items.length === 0 && (
@@ -161,10 +161,12 @@ export default function Fristen() {
       )}
       <Gruppe label="Später" fristen={spaeter} onErledigt={erledigt} kurz />
 
+      <Vorauszahlungen onChanged={async () => { await load(); reloadBadges?.(); }} />
+
       <SectionHead label="Anzeige" />
       <SchalterZeile
-        titel="Einkommensteuer-Vorauszahlungen anzeigen"
-        hinweis="10. März, Juni, September und Dezember — nur relevant, wenn das Finanzamt Vorauszahlungen festgesetzt hat."
+        titel="Einkommensteuer-Termine ohne Betrag anzeigen"
+        hinweis="10. März, Juni, September und Dezember als Hinweis, für Jahre ohne eingetragene Beträge."
         checked={data.einstellung.est_vorauszahlung}
         onChange={vorauszahlung}
       />
@@ -182,6 +184,122 @@ export default function Fristen() {
         </>
       )}
     </div>
+  );
+}
+
+// Vorauszahlungen laut Bescheid: Betrag je Termin eintragen → abhakbare Fristen mit Betrag (v37).
+const VZ_ARTEN = [
+  ['est', 'Einkommensteuer', 'Vorauszahlungsbescheid des Finanzamts — Einkommensteuer mit Soli und Kirchensteuer, falls festgesetzt.'],
+  ['gewst', 'Gewerbesteuer', 'Vorauszahlungsbescheid der Gemeinde.'],
+];
+
+function Vorauszahlungen({ onChanged }) {
+  const diesesJahr = new Date().getFullYear();
+  const [jahr, setJahr] = useState(diesesJahr);
+  const [daten, setDaten] = useState(null);
+  const [eingabe, setEingabe] = useState({ est: ['', '', '', ''], gewst: ['', '', '', ''] });
+  const [busy, setBusy] = useState(false);
+
+  function uebernehmen(d) {
+    setDaten(d);
+    setEingabe({
+      est: d.arten.est.map((c) => (c ? centToInput(c) : '')),
+      gewst: d.arten.gewst.map((c) => (c ? centToInput(c) : '')),
+    });
+  }
+
+  useEffect(() => {
+    api
+      .get('/api/fristen/vorauszahlungen', { params: { jahr } })
+      .then((r) => uebernehmen(r.data))
+      .catch((e) => toast.error(apiError(e)));
+  }, [jahr]);
+
+  function setzen(art, q, wert) {
+    setEingabe((e) => {
+      const neu = [...e[art]];
+      neu[q] = wert;
+      // Ersten Betrag eintippen füllt leere Quartale mit (Bescheide setzen meist vier gleiche Raten fest)
+      if (q === 0 && e[art].slice(1).every((x) => !x || x === e[art][0])) {
+        for (let i = 1; i < 4; i++) neu[i] = wert;
+      }
+      return { ...e, [art]: neu };
+    });
+  }
+
+  async function speichern(art) {
+    const betraege = eingabe[art].map((x) => (String(x).trim() ? parseEuroToCent(x) : null));
+    if (betraege.some((b, i) => String(eingabe[art][i]).trim() && (b === null || b < 0))) {
+      return toast.error('Bitte Beträge wie 1.234,00 eingeben.');
+    }
+    setBusy(true);
+    try {
+      const r = await api.put('/api/fristen/vorauszahlungen', { jahr, art, betraege });
+      uebernehmen(r.data);
+      toast.success('Gespeichert.');
+      await onChanged();
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const geaendert = (art) =>
+    daten && eingabe[art].some((x, i) => (String(x).trim() ? parseEuroToCent(x) : null) !== (daten.arten[art][i] ?? null));
+
+  return (
+    <>
+      <SectionHead label="Vorauszahlungen">
+        <div className="flex gap-1" role="group" aria-label="Jahr">
+          {[diesesJahr, diesesJahr + 1].map((j) => (
+            <button key={j} type="button" className={`${j === jahr ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setJahr(j)}>
+              {j}
+            </button>
+          ))}
+        </div>
+      </SectionHead>
+      <p className="max-w-[46rem] text-[13px] leading-snug text-ink/60">
+        Trag die Beträge aus deinen Bescheiden ein. Jeder Termin erscheint dann oben als Frist mit Betrag, im Zähler, in
+        der Übersicht und im Kalender-Abo — abhaken, sobald gezahlt.
+      </p>
+      {daten &&
+        VZ_ARTEN.map(([art, name, hinweis]) => (
+          <div key={art} className="mt-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div className="text-[15px] font-bold">
+                {name} {jahr}
+                {daten.summe_cent[art] > 0 && (
+                  <span className="ml-2 font-normal tabular-nums text-ink/60">Jahr: {formatEuro(daten.summe_cent[art])}</span>
+                )}
+              </div>
+              <span className="text-xs text-ink/60">{hinweis}</span>
+            </div>
+            <div className="mt-1 grid grid-cols-2 gap-x-5 gap-y-2 sm:grid-cols-4">
+              {[0, 1, 2, 3].map((q) => (
+                <label key={q} className="block">
+                  <span className="field-label tabular-nums">
+                    {formatDateDE(daten.termine[art][q])}
+                  </span>
+                  <input
+                    className="input tabular-nums"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={eingabe[art][q]}
+                    onChange={(e) => setzen(art, q, e.target.value)}
+                    aria-label={`${name} ${q + 1}. Rate ${jahr}`}
+                  />
+                </label>
+              ))}
+            </div>
+            {geaendert(art) && (
+              <button type="button" className="btn-primary btn-sm mt-2" disabled={busy} onClick={() => speichern(art)}>
+                Speichern
+              </button>
+            )}
+          </div>
+        ))}
+    </>
   );
 }
 

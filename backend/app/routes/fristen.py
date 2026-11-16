@@ -14,7 +14,7 @@ import secrets
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..auth.deps import get_current_user, ist_admin
 from ..db import get_db
@@ -23,6 +23,7 @@ from ..services.steuerfristen import (
     dringend_anzahl,
     kalender_ics,
     steuerfristen,
+    vz_faellig,
 )
 
 router = APIRouter(prefix="/api/fristen", tags=["fristen"])
@@ -127,6 +128,50 @@ def einstellung_setzen(
     )
     db.commit()
     return _einstellung(db, user["email"])
+
+
+# ── Vorauszahlungen laut Bescheid (v37) ─────────────────────────────────────
+
+def _vz(db: sqlite3.Connection, email: str, jahr: int) -> dict:
+    arten = {"est": [None] * 4, "gewst": [None] * 4}
+    for r in db.execute("SELECT art, quartal, betrag_cent FROM vorauszahlung WHERE email = ? AND jahr = ?", (email, jahr)):
+        arten[r["art"]][r["quartal"] - 1] = r["betrag_cent"]
+    termine = {a: [vz_faellig(a, jahr, q) for q in range(1, 5)] for a in arten}
+    return {
+        "jahr": jahr, "arten": arten, "termine": termine,
+        "summe_cent": {a: sum(x or 0 for x in v) for a, v in arten.items()},
+    }
+
+
+@router.get("/vorauszahlungen")
+def vorauszahlungen(jahr: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+    return _vz(db, user["email"], jahr)
+
+
+class VorauszahlungIn(BaseModel):
+    jahr: int = Field(ge=2020, le=2100)
+    art: str = Field(pattern="^(est|gewst)$")
+    betraege: list[int | None] = Field(min_length=4, max_length=4)  # Cent je Quartal, null/0 = keine
+
+
+@router.put("/vorauszahlungen")
+def vorauszahlungen_setzen(body: VorauszahlungIn, user: dict = Depends(get_current_user),
+                           db: sqlite3.Connection = Depends(get_db)):
+    for q, b in enumerate(body.betraege, start=1):
+        if b is not None and not (0 <= b <= 100_000_000):
+            raise HTTPException(400, "Betrag ungültig.")
+        if b:
+            db.execute(
+                "INSERT INTO vorauszahlung (email, art, jahr, quartal, betrag_cent) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(email, art, jahr, quartal) DO UPDATE SET betrag_cent = excluded.betrag_cent, "
+                "updated_at = datetime('now')",
+                (user["email"], body.art, body.jahr, q, b),
+            )
+        else:
+            db.execute("DELETE FROM vorauszahlung WHERE email = ? AND art = ? AND jahr = ? AND quartal = ?",
+                       (user["email"], body.art, body.jahr, q))
+    db.commit()
+    return _vz(db, user["email"], body.jahr)
 
 
 # ── Kalender-Abo ────────────────────────────────────────────────────────────
