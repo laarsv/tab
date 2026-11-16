@@ -333,7 +333,10 @@ export default function Layout() {
           {loading ? <PageSpinner /> : <Outlet context={ctx} />}
           <p className="mt-12 text-xs text-ink/60">
             Tab ist die bessere Excel-Liste für die EÜR (§19 UStG) und keine Steuerberatung — im Zweifel prüfen
-            lassen.
+            lassen. ·{' '}
+            <Link to="/datenschutz" className="underline hover:text-royal">
+              Datenschutz
+            </Link>
           </p>
         </div>
       </main>

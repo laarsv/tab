@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     @property
     def system_mail_konfiguriert(self) -> bool:
         return bool(self.SYSTEM_SMTP_HOST and self.SYSTEM_SMTP_USER and self.SYSTEM_SMTP_PASSWORT)
+    # ── Datenschutzseite (/datenschutz) ───────────────────────────────────────
+    # Verantwortlicher (Name + Anschrift, Zeilen mit \n) und Kontakt-E-Mail. Stehen nur in der .env, nie im Repo
+    # (das ist öffentlich). Leer = die Seite verweist auf das Impressum unter DATENSCHUTZ_IMPRESSUM_URL.
+    DATENSCHUTZ_VERANTWORTLICHER: str = ""
+    DATENSCHUTZ_EMAIL: str = ""
+    DATENSCHUTZ_IMPRESSUM_URL: str = "https://vrwb.de/impressum"
+
     # ── Bankabruf (Enable Banking, PSD2) ──────────────────────────────────────
     # App-ID aus dem Enable-Banking-Kontrollzentrum und der private Schlüssel (PEM) dazu. Ohne beides ist der
     # Bankabruf aus. Der Schlüssel liegt als Datei neben der Datenbank (nicht im Backup, nicht im Repo).

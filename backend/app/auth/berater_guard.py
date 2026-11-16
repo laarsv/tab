@@ -12,6 +12,7 @@ import re
 # Nur GET. Journal, Auswertung, Belege, festgeschriebene Rechnungen, Anlagen/Fahrten, Abschluss-Stand und Protokoll.
 LESEN = [
     r"/api/auth/(me|methoden)",
+    r"/api/rechtliches",
     r"/api/gewerbe",
     r"/api/kategorien",
     r"/api/meta/jahre",

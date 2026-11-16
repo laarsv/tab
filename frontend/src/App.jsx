@@ -13,6 +13,7 @@ import Fahrten from './pages/Fahrten.jsx';
 import Fristen from './pages/Fristen.jsx';
 import Umsatzsteuer from './pages/Umsatzsteuer.jsx';
 import BankVerbunden from './pages/BankVerbunden.jsx';
+import Datenschutz from './pages/Datenschutz.jsx';
 import Abschluss from './pages/Abschluss.jsx';
 import Bank from './pages/Bank.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
@@ -40,6 +41,7 @@ export default function App() {
   if (user?.rolle === 'steuerberatung') {
     return (
       <Routes>
+        <Route path="/datenschutz" element={<Datenschutz />} />
         <Route element={<BeraterLayout />}>
           <Route path="/berater" element={<Berater />} />
           <Route path="*" element={<Navigate to="/berater" replace />} />
@@ -50,6 +52,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/datenschutz" element={<Datenschutz />} />
       <Route path="/einladung/:token" element={<Einladung />} />
       <Route path="/oauth/freigabe" element={<OAuthFreigabe />} />
       <Route

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api, apiError, loginUrl } from '../api/client.js';
 import { PageSpinner } from '../components/Spinner.jsx';
@@ -270,6 +270,10 @@ export default function Login() {
           >
             vrwb<span className="text-royal-soft wordmark-cursor-blink">_</span>
           </a>
+          {' · '}
+          <Link to="/datenschutz" className="text-paper/70 underline hover:text-paper">
+            Datenschutz
+          </Link>
         </p>
       </div>
     </div>

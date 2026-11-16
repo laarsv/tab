@@ -744,6 +744,14 @@ der Mapping-Version des Jahres aufgelöst.
   (`ist_admin`), Domain-Nutzer nicht. Bei NEUEN Routen mit `gewerbe_id`/Objekt-IDs IMMER
   `check_gewerbe` einbauen. Ein Nutzer = eine E-Mail (Gmail vs. Workspace nicht mischen).
 
+## Datenschutzseite
+
+`/datenschutz` (`pages/Datenschutz.jsx`, öffentlich, auch für die Steuerberatung; verlinkt auf Login und im Fuß jeder
+Seite; Datenschutz-URL der Enable-Banking-App). Verantwortlicher + E-Mail kommen aus der `.env` (`DATENSCHUTZ_*`, über
+`GET /api/rechtliches`), nie ins Repo. **Ändert sich ein Datenfluss** (neuer externer Dienst, neue Art gespeicherter Daten,
+Sicherungen), den Text im selben Commit nachziehen und `STAND` anpassen. Die Seite verspricht „keine Inhalte von fremden
+Servern“ — keine externen Skripte, Schriften, Bilder (deshalb auch keine Bank-Logos im Verbinden-Dialog).
+
 ## Verfahrensdokumentation
 
 `docs/VERFAHRENSDOKUMENTATION.md` ist die **Vorlage** der GoBD-Verfahrensdokumentation (Belegwege, ersetzendes Scannen,

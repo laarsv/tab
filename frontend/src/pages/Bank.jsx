@@ -460,7 +460,8 @@ function VerbindenModal({ gewerbeId, onClose }) {
                   onClick={() => setGewaehlt(b)}
                   className={`flex w-full items-center gap-3 px-2 py-2 text-left text-[15px] outline-none hover:bg-royal/[0.06] focus-visible:bg-royal/[0.08] ${gewaehlt?.name === b.name ? 'bg-royal/[0.08] font-bold text-royal' : ''}`}
                 >
-                  {b.logo ? <img src={b.logo} alt="" className="h-6 w-6 shrink-0 object-contain" /> : <IconBank className="h-5 w-5 shrink-0 text-ink/60" />}
+                  {/* keine Bank-Logos: die lägen auf fremden Servern (Datenschutzseite: keine Inhalte Dritter) */}
+                  <IconBank className="h-5 w-5 shrink-0 text-ink/60" />
                   <span className="min-w-0 flex-1 truncate">{b.name}</span>
                   {b.beta && <span className="text-xs text-ink/60">Beta</span>}
                 </button>

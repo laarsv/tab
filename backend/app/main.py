@@ -42,6 +42,7 @@ from .routes import (
     oauth,
     passkeys,
     rechnungen,
+    rechtliches,
     uebersicht,
     umsatzsteuer,
     vorlagen,
@@ -177,6 +178,7 @@ app.include_router(vorschlaege.router)
 app.include_router(vorlagen.router)
 app.include_router(einstellungen.router)
 app.include_router(news.router)
+app.include_router(rechtliches.router)
 app.include_router(export.router)
 app.include_router(meta.router)
 app.include_router(umsatzsteuer.router)
