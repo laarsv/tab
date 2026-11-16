@@ -269,6 +269,8 @@ export default function Bank() {
           restAusbuchen={buchen.restAusbuchen}
           umsatzId={buchen.umsatzId}
           presetPrivatBp={buchen.privatBp}
+          presetUstBp={buchen.ustBp}
+          presetUstCent={buchen.ustCent}
           dauerbeleg={buchen.dauerbeleg}
           preBelege={buchen.preBelege}
           onClose={() => setBuchen(null)}
@@ -544,6 +546,8 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
                             beschreibung: d.bezeichnung,
                             kategorieId: d.kategorie_id,
                             privatBp: d.privat_bp,
+                            ustBp: d.ust_bp,
+                            ustCent: d.ust_cent,
                             dauerbeleg: { id: d.id, termin: d.termin },
                           })
                         }

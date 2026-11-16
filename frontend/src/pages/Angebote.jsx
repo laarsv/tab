@@ -3,7 +3,8 @@ import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
+import { DialogFuss, PositionenEditor, SchalterZeile, positionAusApi, positionenFuerSumme, satzVon } from '../components/DialogParts.jsx';
+import { hinweisFuer, istRegel, positionsSummen, steuerhinweisOptionen } from '../lib/besteuerung.js';
 import VorlagenModal from '../components/VorlagenModal.jsx';
 import { TextbausteinWahl } from '../components/Vorlagen.jsx';
 import Dropdown from '../components/Dropdown.jsx';
@@ -20,10 +21,6 @@ import { centToInput, formatDateDE, formatEuro, parseEuroToCent, todayISO } from
 
 const GUELTIG_TAGE = 30;
 const STANDARD_EINLEITUNG = 'vielen Dank für Ihre Anfrage. Gerne biete ich Ihnen die folgenden Leistungen an:';
-const STEUERHINWEIS_OPTIONS = [
-  { value: 'ku19', label: 'Kleinunternehmer § 19 UStG (Standard)' },
-  { value: 'vers4nr11', label: 'Steuerfrei § 4 Nr. 11 UStG (Versicherungsprovision)' },
-];
 
 // Zustand des Angebots: Farbe des Kreises + Wort. „Abgelaufen" ist abgeleitet (versendet, Frist vorbei).
 function zustand(a) {
@@ -50,11 +47,6 @@ async function openPdf(id) {
 }
 
 const mengeZahl = (s) => Number(String(s).replace(',', '.'));
-const positionBetrag = (p) => {
-  const preis = parseEuroToCent(p.preisInput);
-  const menge = mengeZahl(p.menge);
-  return preis > 0 && menge > 0 ? Math.round(menge * preis) : 0;
-};
 
 // Angebote (Aufbau wie Haben): schreiben, per Mail senden, Antwort festhalten, mit einem Klick
 // in einen Rechnungsentwurf umwandeln. Optionale Positionen zählen nicht zur Angebotssumme.
@@ -260,12 +252,7 @@ export default function Angebote() {
                             einleitung: a.einleitung || '',
                             notiz: a.notiz || '',
                             steuerhinweis: a.steuerhinweis || 'ku19',
-                            positionen: a.positionen.map((p) => ({
-                              beschreibung: p.beschreibung,
-                              menge: String(p.menge).replace('.', ','),
-                              preisInput: centToInput(p.einzelpreis_cent),
-                              optional: p.art === 'optional',
-                            })),
+                            positionen: a.positionen.map((p) => ({ ...positionAusApi(p), optional: p.art === 'optional' })),
                           })
                         }
                       />
@@ -343,6 +330,8 @@ export default function Angebote() {
 function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onSaved }) {
   const [busy, setBusy] = useState(false);
   const isEdit = Boolean(editing.id);
+  const { gewerbe: gewerbeListe } = useOutletContext() || {};
+  const gewerbeObj = (gewerbeListe || []).find((g) => String(g.id) === String(gewerbeId));
   const [gueltigEigen, setGueltigEigen] = useState(false); // Gültigkeit von Hand geändert → nicht mehr mitrechnen
   const [form, setForm] = useState(() => {
     const datum = editing.datum || todayISO();
@@ -359,14 +348,13 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
     };
   });
 
-  const { summe, optional } = useMemo(
-    () =>
-      form.positionen.reduce(
-        (s, p) => (p.optional ? { ...s, optional: s.optional + positionBetrag(p) } : { ...s, summe: s.summe + positionBetrag(p) }),
-        { summe: 0, optional: 0 },
-      ),
-    [form.positionen],
-  );
+  // Regelbesteuerung im Jahr des Angebotsdatums: Netto-Preise mit Steuersatz, Summen brutto
+  const regel = istRegel(gewerbeObj, String(form.datum).slice(0, 4));
+  const { summe, optional } = useMemo(() => {
+    const teil = (opt) =>
+      positionsSummen(positionenFuerSumme(form.positionen.filter((p) => Boolean(p.optional) === opt), regel)).brutto_cent;
+    return { summe: teil(false), optional: teil(true) };
+  }, [form.positionen, regel]);
 
   function setDatum(datum) {
     setForm((f) => ({ ...f, datum, gueltig_bis: gueltigEigen || !datum ? f.gueltig_bis : addDays(datum, GUELTIG_TAGE) }));
@@ -384,7 +372,10 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
       if (!p.beschreibung.trim()) return toast.error('Jede Position braucht eine Beschreibung.');
       if (!preis || preis <= 0) return toast.error(`Bitte gültigen Preis für „${p.beschreibung}" angeben.`);
       if (!Number.isFinite(menge) || menge <= 0) return toast.error('Bitte gültige Menge angeben.');
-      positionen.push({ beschreibung: p.beschreibung.trim(), menge, einzelpreis_cent: preis, art: p.optional ? 'optional' : 'normal' });
+      positionen.push({
+        beschreibung: p.beschreibung.trim(), menge, einzelpreis_cent: preis, art: p.optional ? 'optional' : 'normal',
+        ust_bp: satzVon(p, regel),
+      });
     }
     if (!positionen.some((p) => p.art === 'normal'))
       return toast.error('Mindestens eine Position muss zur Angebotssumme zählen (nicht nur optionale).');
@@ -396,7 +387,7 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
       empfaenger_email: form.empfaenger_email.trim() || null,
       einleitung: form.einleitung.trim() || null,
       notiz: form.notiz.trim() || null,
-      steuerhinweis: form.steuerhinweis,
+      steuerhinweis: hinweisFuer(form.steuerhinweis, regel),
       positionen,
     };
     setBusy(true);
@@ -502,14 +493,15 @@ function AngebotModal({ editing, setEditing, gewerbeId, jahr, kontakte = [], onS
           mitOptional
           platzhalter="Leistung, z. B. Konzept und Umsetzung"
           gewerbeId={gewerbeId}
+          regel={regel}
         />
 
         <div className="block">
-          <span className="field-label">Steuer-Hinweis (warum keine USt)</span>
+          <span className="field-label">{regel ? 'Steuer-Hinweis' : 'Steuer-Hinweis (warum keine USt)'}</span>
           <Dropdown
-            value={form.steuerhinweis}
+            value={hinweisFuer(form.steuerhinweis, regel)}
             onChange={(v) => setForm({ ...form, steuerhinweis: String(v) })}
-            options={STEUERHINWEIS_OPTIONS}
+            options={steuerhinweisOptionen(regel)}
           />
         </div>
         <div className="block">
@@ -597,7 +589,8 @@ function UmwandelnModal({ angebot: a, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const optionale = a.positionen.filter((p) => p.art === 'optional');
   const betrag = (p) => Math.round(p.menge * p.einzelpreis_cent);
-  const summe = a.summe_cent + optionale.filter((p) => gewaehlt.has(p.id)).reduce((s, p) => s + betrag(p), 0);
+  // Rechnungssumme (brutto, Steuer je Satz wie auf der Rechnung)
+  const summe = positionsSummen(a.positionen.filter((p) => p.art === 'normal' || gewaehlt.has(p.id))).brutto_cent;
 
   function schalte(id, an) {
     setGewaehlt((alt) => {

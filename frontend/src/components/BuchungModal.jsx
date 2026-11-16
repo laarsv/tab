@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from './Dropdown.jsx';
@@ -10,6 +11,7 @@ import { IconSparkles, IconX } from './Icons.jsx';
 import { openBeleg } from '../lib/belege.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 import { betrieblichCent, bpZuText, privatCent, textZuBp } from '../lib/privat.js';
+import { KU, OHNE_SATZ, SAETZE, artImJahr, ustAusBrutto } from '../lib/besteuerung.js';
 
 const QUELLE_LABEL = {
   'e-rechnung': 'E-Rechnung, exakt',
@@ -123,7 +125,14 @@ const HOMEOFFICE_MAX_CENT = 1260_00;
 const GWG_GRENZE_CENT = 800_00;
 
 function emptyPos() {
-  return { kategorie_id: '', betragInput: '', calc: {}, beleg_details: '', privatAn: false, privatInput: '' };
+  // ustBp/ustInput: nur bei Regelbesteuerung; ustInput leer = Steuer aus dem Satz (Server rechnet gleich)
+  return { kategorie_id: '', betragInput: '', calc: {}, beleg_details: '', privatAn: false, privatInput: '', ustBp: '', ustInput: '' };
+}
+
+// Steuersatz-Vorschlag einer Kategorie bei Regelbesteuerung (kategorie.ust_standard_bp)
+function standardSatz(kat) {
+  if (!kat || OHNE_SATZ.has(kat.key)) return '0';
+  return String(kat.ust_standard_bp ?? 1900);
 }
 
 // Gemeinsames Modal für Buchungen (Beleg-Kopf + 1..n Positionen).
@@ -134,6 +143,8 @@ function emptyPos() {
 // presetDatum/-Richtung + umsatzId: Zuordnung aus dem Bank-Import (verknüpft den Umsatz atomar).
 // presetPrivatBp: Privatanteil (Basispunkte) der ersten Position. dauerbeleg { id, termin }: bucht diesen
 // Termin eines Dauerbelegs (der Dauerbeleg rückt danach zum nächsten Termin).
+// presetUstBp/-UstCent: Steuer der ersten Position (Dauerbeleg). Regelbesteuerung (EUER_KATEGORIEN.md §8):
+// je Position Steuersatz + Steuerbetrag im Bruttobetrag; Art des Jahres aus dem Gewerbe (lib/besteuerung.js).
 export default function BuchungModal({
   buchung,
   preBelege = [],
@@ -150,12 +161,16 @@ export default function BuchungModal({
   restAusbuchen,
   umsatzId,
   presetPrivatBp,
+  presetUstBp,
+  presetUstCent,
   dauerbeleg,
   wizard,
   onClose,
   onSaved,
 }) {
   const isEdit = Boolean(buchung?.id);
+  const outlet = useOutletContext() || {};
+  const gewerbeObj = (outlet.gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   // Split-View: genau ein Eingangs-Beleg wird verbucht -> Dokument links, Felder rechts.
   const einBeleg = !isEdit && preBelege.length === 1 ? preBelege[0] : null;
   const katById = useMemo(() => Object.fromEntries(kategorien.map((k) => [String(k.id), k])), [kategorien]);
@@ -194,6 +209,8 @@ export default function BuchungModal({
           beleg_details: p.beleg_details || '',
           privatAn: (p.privat_bp || 0) > 0,
           privatInput: bpZuText(p.privat_bp || 0),
+          ustBp: p.ust_bp ? String(p.ust_bp) : p.ust_cent ? '' : '0',
+          ustInput: p.ust_cent ? centToInput(p.ust_cent) : '',
         }))
       : [
           {
@@ -201,6 +218,8 @@ export default function BuchungModal({
             ...(presetKategorieId ? { kategorie_id: String(presetKategorieId) } : {}),
             ...(presetBetragCent ? { betragInput: centToInput(presetBetragCent) } : {}),
             ...(presetPrivatBp ? { privatAn: true, privatInput: bpZuText(presetPrivatBp) } : {}),
+            ...(presetUstBp ? { ustBp: String(presetUstBp) } : {}),
+            ...(presetUstBp && presetUstCent ? { ustInput: centToInput(presetUstCent) } : {}),
           },
         ],
   );
@@ -284,7 +303,42 @@ export default function BuchungModal({
 
   // Jahr des Buchungsdatums — bestimmt jahresabhängige Rechner-Sätze (z. B. Entfernungspauschale)
   const buchungsJahr = Number(String(datum).slice(0, 4)) || new Date().getFullYear();
+  // Besteuerung im Jahr des Buchungsdatums: bei Regelbesteuerung Steuersatz je Position
+  const art = artImJahr(gewerbeObj, buchungsJahr);
+  const regel = art !== KU;
   const jahrMismatch = jahr && datum && String(datum).slice(0, 4) !== String(jahr);
+
+  // Kategorien, die es in diesem Jahr gibt (einnahme_ku nur Kleinunternehmer, USt-Kategorien nur Regelbesteuerung)
+  const optionenJahr = useMemo(
+    () => options.filter((o) => !katById[o.value]?.nur_besteuerung || katById[o.value].nur_besteuerung === art),
+    [options, katById, art],
+  );
+
+  // „Als Einnahme buchen“ aus einer Rechnung mit Umsatzsteuer: Zahlung anteilig je Steuersatz vorschlagen
+  useEffect(() => {
+    if (isEdit || !rechnungId || !regel) return undefined;
+    const betrag = parseEuroToCent(positionen[0]?.betragInput);
+    if (!betrag || positionen.length !== 1) return undefined;
+    let aktiv = true;
+    api
+      .get(`/api/rechnungen/${rechnungId}/einnahme-positionen`, { params: { betrag_cent: betrag, datum } })
+      .then((res) => {
+        if (!aktiv || !res.data?.length) return;
+        setPositionen(
+          res.data.map((x) => ({
+            ...emptyPos(),
+            kategorie_id: String(x.kategorie_id),
+            betragInput: centToInput(x.betrag_cent),
+            ustBp: String(x.ust_bp || 0),
+            ustInput: x.ust_cent ? centToInput(x.ust_cent) : '',
+          })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      aktiv = false;
+    };
+  }, [rechnungId, regel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setPos(i, patch) {
     setPositionen((arr) => arr.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
@@ -331,11 +385,23 @@ export default function BuchungModal({
         privatBp = textZuBp(p.privatInput);
         if (privatBp === null) return toast.error(`Privatanteil für „${kat.name}": bitte eine Zahl größer 0 bis 100 (%) angeben.`);
       }
+      const steuer = {};
+      if (regel && !OHNE_SATZ.has(kat.key)) {
+        const satz = Number(p.ustBp || standardSatz(kat));
+        steuer.ust_bp = satz;
+        if (satz && p.ustInput.trim()) {
+          const ust = parseEuroToCent(p.ustInput);
+          if (ust === null || ust < 0 || ust >= betrag)
+            return toast.error(`Umsatzsteuer für „${kat.name}": bitte einen Betrag kleiner als den Bruttobetrag angeben.`);
+          steuer.ust_cent = ust;
+        }
+      }
       payloadPos.push({
         kategorie_id: Number(p.kategorie_id),
         betrag_cent: betrag,
         beleg_details: kat.belegpflicht_extra ? p.beleg_details.trim() : null,
         privat_bp: privatBp,
+        ...steuer,
       });
     }
 
@@ -516,7 +582,13 @@ export default function BuchungModal({
             const betragCent = parseEuroToCent(p.betragInput);
             const warnGeschenke = kat?.key === 'geschenke' && betragCent > GESCHENKE_GRENZE_CENT;
             const warnHomeoffice = kat?.key === 'homeoffice_pauschale' && betragCent > HOMEOFFICE_MAX_CENT;
-            const warnGwg = isGwg && betragCent > GWG_GRENZE_CENT;
+            // Regelbesteuerung: Steuer der Position (eingegeben oder aus dem Satz) und Netto
+            const mitSatz = regel && kat && !OHNE_SATZ.has(kat.key);
+            const satzBp = mitSatz ? Number(p.ustBp || standardSatz(kat)) : 0;
+            const ustEingabe = p.ustInput.trim() ? parseEuroToCent(p.ustInput) : null;
+            const ustCent = mitSatz ? (ustEingabe ?? ustAusBrutto(betragCent || 0, satzBp)) : 0;
+            const nettoCent = (betragCent || 0) - ustCent;
+            const warnGwg = isGwg && (regel ? nettoCent : betragCent) > GWG_GRENZE_CENT;
             return (
               <div key={i} className="rounded-lg border border-ink/10 p-3 space-y-3">
                 <div className="flex items-start gap-2">
@@ -527,12 +599,13 @@ export default function BuchungModal({
                         setPos(i, {
                           kategorie_id: String(v),
                           calc: {},
+                          ...(regel && !p.ustInput ? { ustBp: standardSatz(katById[String(v)]) } : {}),
                           ...(!isEdit && !p.privatAn && !p.privatInput && gelernt[String(v)]
                             ? { privatAn: true, privatInput: bpZuText(gelernt[String(v)]) }
                             : {}),
                         })
                       }
-                      options={options}
+                      options={optionenJahr}
                       placeholder={richtung ? `${richtung === 'einnahme' ? 'Einnahme' : 'Ausgabe'}-Kategorie suchen…` : 'Kategorie suchen…'}
                       searchable
                     />
@@ -599,10 +672,37 @@ export default function BuchungModal({
                     className="input tabular-nums"
                     inputMode="decimal"
                     value={p.betragInput}
-                    onChange={(e) => setPos(i, { betragInput: e.target.value, calc: {} })}
+                    onChange={(e) => setPos(i, { betragInput: e.target.value, calc: {}, ustInput: '' })}
                     placeholder="0,00"
                   />
                 </label>
+
+                {mitSatz && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 items-end gap-x-3 gap-y-2">
+                    <div className="block">
+                      <span className="field-label">Steuersatz</span>
+                      <Dropdown
+                        value={String(satzBp)}
+                        onChange={(v) => setPos(i, { ustBp: String(v), ustInput: '' })}
+                        options={SAETZE}
+                      />
+                    </div>
+                    <label className="block">
+                      <span className="field-label">{kat.typ === 'einnahme' ? 'Umsatzsteuer' : 'Vorsteuer'} (€)</span>
+                      <input
+                        className="input tabular-nums"
+                        inputMode="decimal"
+                        value={p.ustInput}
+                        disabled={!satzBp}
+                        placeholder={centToInput(ustAusBrutto(betragCent || 0, satzBp)) || '0,00'}
+                        onChange={(e) => setPos(i, { ustInput: e.target.value })}
+                      />
+                    </label>
+                    <p className="col-span-2 sm:col-span-1 pb-2 text-[13px] tabular-nums leading-snug text-ink/70">
+                      netto {formatEuro(Math.max(0, nettoCent))}
+                    </p>
+                  </div>
+                )}
 
                 {kat?.typ === 'ausgabe' && (
                   <div className="space-y-2">
@@ -648,8 +748,21 @@ export default function BuchungModal({
 
                 {isGwg && (
                   <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
-                    GWG-Grenze: <strong>800 € inklusive USt</strong>. Als Kleinunternehmer kannst du keine
-                    Vorsteuer abziehen, deshalb zählt der Betrag auf der Rechnung. Darüber → AfA-Erfassung.
+                    {regel ? (
+                      <>GWG-Grenze: <strong>800 € netto</strong> (Regelbesteuerung, die Vorsteuer ziehst du ab). Darüber → AfA-Erfassung.</>
+                    ) : (
+                      <>
+                        GWG-Grenze: <strong>800 € inklusive USt</strong>. Als Kleinunternehmer kannst du keine
+                        Vorsteuer abziehen, deshalb zählt der Betrag auf der Rechnung. Darüber → AfA-Erfassung.
+                      </>
+                    )}
+                  </div>
+                )}
+                {regel && kat?.key === 'ust_zahlung' && (
+                  <div className="rounded-lg bg-royal-soft/15 border-l-4 border-royal-soft p-2.5 text-xs text-ink/80">
+                    Umsatzsteuer-Vorauszahlung oder Nachzahlung ans Finanzamt{kat.euer_zeile ? ` (Zeile ${kat.euer_zeile})` : ''}.
+                    <strong> 10-Tage-Regel:</strong> Die Zahlung für Dezember bzw. das 4. Quartal, die bis zum 10. Januar fällig
+                    ist und gezahlt wird, gehört ins Vorjahr — dann als Datum den 31.12. des Vorjahres eintragen.
                   </div>
                 )}
                 {warnGwg && (
@@ -671,6 +784,13 @@ export default function BuchungModal({
                     ausreichender E-Reichweite. Die laufenden Kfz-Kosten separat als „Kfz-Kosten
                     Betriebs-Kfz" buchen. Nicht abgedeckt: 0,03 %-Kürzung für Wege Wohnung–Betrieb,
                     Kostendeckelung, Fahrtenbuch — im Zweifel Steuerberater.
+                    {regel && (
+                      <>
+                        {' '}<strong>Umsatzsteuer:</strong> auf die Privatnutzung fällt USt an — vereinfacht 19 % auf 80 % des
+                        1 %-Werts (beim E-Auto vom vollen Listenpreis). Den Betrag oben brutto eintragen und die USt von Hand
+                        als Steuerbetrag.
+                      </>
+                    )}
                   </div>
                 )}
                 {warnGeschenke && (

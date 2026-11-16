@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 45,
+    datum: '2026-11-16',
+    titel: 'Umsatzsteuer, wenn du sie brauchst',
+    text: 'Fällt ein Gewerbe aus der Kleinunternehmerregelung, stellst du unter Gewerbe → Besteuerung ein, ab welchem Jahr die Regelbesteuerung gilt. In diesen Jahren buchst du je Position Steuersatz und Umsatzsteuer, Rechnungen, Angebote und Abos weisen die Umsatzsteuer aus (auch in der E-Rechnung), und das Summenblatt füllt die Umsatzsteuer- und Vorsteuer-Zeilen der Anlage EÜR. Als Kleinunternehmer ändert sich für dich nichts. Die Umsatzsteuer-Voranmeldung kommt noch.',
+    link: { to: '/gewerbe', label: 'Zu den Gewerben' },
+  },
+  {
     id: 44,
     datum: '2026-11-16',
     titel: 'Dauerbelege auch für Einnahmen',

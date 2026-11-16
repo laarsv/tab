@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { istRegel } from '../lib/besteuerung.js';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
@@ -322,7 +323,7 @@ export default function Buchungen() {
   if (loading) return <PageSpinner />;
 
   const heute = todayISO();
-  const besteuerung = aktives?.besteuerung === 'regelbesteuerung' ? 'Regelbesteuerung' : 'Kleinunternehmer';
+  const besteuerung = istRegel(aktives, jahr) ? 'Regelbesteuerung' : 'Kleinunternehmer';
 
   return (
     <div>

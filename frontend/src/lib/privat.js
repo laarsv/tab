@@ -23,3 +23,8 @@ export function textZuBp(text) {
   if (!Number.isFinite(n) || n <= 0 || n > 100) return null;
   return Math.round(n * 100);
 }
+
+// Regelbesteuerung: Privatanteil gilt für Netto und Steuer (nur der betriebliche Teil der Vorsteuer zählt).
+export function betrieblichUstCent(ustCent, bp) {
+  return ustCent - privatCent(ustCent, bp);
+}

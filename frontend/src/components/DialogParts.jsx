@@ -3,6 +3,8 @@ import { api, apiError } from '../api/client.js';
 import { IconBookmark, IconButton, IconPlus, IconX } from './Icons.jsx';
 import { ArtikelWahl, useVorlagen } from './Vorlagen.jsx';
 import { centToInput, formatEuro, parseEuroToCent } from '../lib/format.js';
+import { SAETZE, positionsSummen } from '../lib/besteuerung.js';
+import Dropdown from './Dropdown.jsx';
 
 // Bausteine für Dialoge im Recap-Stil (DESIGN.md §6): Schalter statt Häkchen, Fußzeile mit
 // Haarlinie, ruhige Gruppen, Positionen als getönte Flächen statt Rahmen.
@@ -62,8 +64,29 @@ export function DialogFuss({ links, children }) {
   );
 }
 
-export function leerePosition() {
-  return { beschreibung: '', menge: '1', preisInput: '' };
+export function leerePosition(regel = false) {
+  // satz: Steuersatz in Basispunkten als Text, nur bei Regelbesteuerung (Preise sind dann netto)
+  return { beschreibung: '', menge: '1', preisInput: '', satz: regel ? '1900' : '' };
+}
+
+// Positionen aus der API (ust_bp) für den Editor
+export function positionAusApi(p) {
+  return { beschreibung: p.beschreibung, menge: String(p.menge).replace('.', ','), preisInput: centToInput(p.einzelpreis_cent), satz: p.ust_bp ? String(p.ust_bp) : '0' };
+}
+
+// Steuersatz einer Editor-Position (Basispunkte): ohne Wahl bei Regelbesteuerung 19 %, sonst 0
+export function satzVon(p, regel) {
+  if (!regel) return 0;
+  return p.satz === '' || p.satz === undefined || p.satz === null ? 1900 : Number(p.satz) || 0;
+}
+
+// Editor-Positionen -> {menge, einzelpreis_cent, ust_bp} für Summen und Payload
+export function positionenFuerSumme(positionen, regel = true) {
+  return positionen.map((p) => ({
+    menge: Number(String(p.menge).replace(',', '.')) || 0,
+    einzelpreis_cent: parseEuroToCent(p.preisInput) || 0,
+    ust_bp: satzVon(p, regel),
+  }));
 }
 
 // Positionen einer Rechnung/eines Abos: je Position eine getönte Fläche (Beschreibung, Menge,
@@ -78,6 +101,7 @@ export function PositionenEditor({
   mitOptional = false,
   optionalCent = 0,
   gewerbeId = null, // mit Gewerbe: Artikelkatalog (Auswahl, Lesezeichen, Preis aus der Bezeichnung)
+  regel = false, // Regelbesteuerung: Netto-Preise + Steuersatz je Position, Summe netto/USt/brutto
 }) {
   const [artikel, setArtikel] = useVorlagen('/api/artikel', gewerbeId);
   const artikelZu = (text) => artikel.find((a) => a.bezeichnung.toLowerCase() === text.trim().toLowerCase());
@@ -93,7 +117,7 @@ export function PositionenEditor({
   }
 
   function artikelEinfuegen(a) {
-    const neu = { beschreibung: a.bezeichnung, menge: '1', preisInput: centToInput(a.preis_cent) };
+    const neu = { beschreibung: a.bezeichnung, menge: '1', preisInput: centToInput(a.preis_cent), satz: regel ? '1900' : '' };
     const nurLeer = positionen.length === 1 && !positionen[0].beschreibung.trim() && !positionen[0].preisInput?.trim();
     onChange(nurLeer ? [neu] : [...positionen, neu]);
   }
@@ -145,7 +169,7 @@ export function PositionenEditor({
               />
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={regel ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-3'}>
             <label className="block">
               <span className="field-label">Menge</span>
               <input
@@ -156,7 +180,7 @@ export function PositionenEditor({
               />
             </label>
             <label className="block">
-              <span className="field-label">Einzelpreis (€)</span>
+              <span className="field-label">{regel ? 'Einzelpreis netto (€)' : 'Einzelpreis (€)'}</span>
               <input
                 className="input tabular-nums"
                 inputMode="decimal"
@@ -165,6 +189,12 @@ export function PositionenEditor({
                 onChange={(e) => setPos(i, { preisInput: e.target.value })}
               />
             </label>
+            {regel && (
+              <div className="block">
+                <span className="field-label">USt</span>
+                <Dropdown value={String(satzVon(p, true))} onChange={(v) => setPos(i, { satz: String(v) })} options={SAETZE} />
+              </div>
+            )}
           </div>
           {mitOptional && (
             <div className="flex items-center gap-3 pt-0.5">
@@ -182,13 +212,18 @@ export function PositionenEditor({
       ))}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...positionen, leerePosition()])}>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...positionen, leerePosition(regel)])}>
             <IconPlus className="mr-1 h-3.5 w-3.5" /> Position
           </button>
           {gewerbeId && <ArtikelWahl artikel={artikel} onWahl={artikelEinfuegen} />}
         </div>
-        <span className="text-sm tabular-nums text-ink/60">
-          {mitOptional ? 'Angebotssumme' : 'Summe'} {formatEuro(summeCent)}
+        <span className="text-sm tabular-nums text-ink/60 text-right">
+          {regel && (() => {
+            const s = positionsSummen(positionenFuerSumme(positionen.filter((p) => !mitOptional || !p.optional)));
+            return `netto ${formatEuro(s.netto_cent)} · USt ${formatEuro(s.ust_cent)} · `;
+          })()}
+          {mitOptional ? 'Angebotssumme' : 'Summe'}{' '}
+          {formatEuro(regel ? positionsSummen(positionenFuerSumme(positionen.filter((p) => !mitOptional || !p.optional))).brutto_cent : summeCent)}
           {mitOptional && optionalCent > 0 && ` · optional ${formatEuro(optionalCent)}`}
         </span>
       </div>

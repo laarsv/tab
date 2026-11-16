@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { istRegel } from '../lib/besteuerung.js';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Dropdown from '../components/Dropdown.jsx';
@@ -229,6 +230,7 @@ function toEdit(a) {
     abgang: Boolean(a.abgang_datum),
     abgang_datum: a.abgang_datum || '',
     beschreibung: a.beschreibung || '',
+    vorsteuerInput: a.vorsteuer_cent ? centToInput(a.vorsteuer_cent) : '',
   };
 }
 
@@ -255,6 +257,13 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
   const bp = textZuBp(editing.bpInput);
   const linearAb = editing.linearAb ? Number(editing.linearAb) : null;
   const kosten = parseEuroToCent(editing.kostenInput);
+  // Regelbesteuerung im Anschaffungsjahr: Anschaffungskosten netto, Vorsteuer aus dem Kauf separat
+  const { gewerbe: gewerbeListe } = useOutletContext() || {};
+  const regel = istRegel(
+    (gewerbeListe || []).find((g) => String(g.id) === String(gewerbeId)),
+    String(editing.anschaffungsdatum || '').slice(0, 4),
+  );
+  const vorsteuer = regel && editing.vorsteuerInput?.trim() ? parseEuroToCent(editing.vorsteuerInput) : 0;
 
   // Welche Methoden für dieses Datum und diese Nutzungsdauer zulässig sind (entscheidet das Backend)
   useEffect(() => {
@@ -336,6 +345,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
     if (methode === 'degressiv' && bp === null) return toast.error('Bitte den degressiven Satz in % angeben.');
     if (methode === 'degressiv' && editing.linearAb && !Number.isInteger(linearAb)) return toast.error('„Linear ab Jahr“ ist keine gültige Jahreszahl.');
     if (editing.abgang && !editing.abgang_datum) return toast.error('Bitte Abgangsdatum angeben.');
+    if (vorsteuer === null || vorsteuer < 0) return toast.error('Vorsteuer: bitte einen gültigen Betrag angeben.');
 
     const body = {
       gewerbe_id: Number(gewerbeId),
@@ -349,6 +359,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
       linear_ab_jahr: methode === 'degressiv' ? linearAb : null,
       abgang_datum: editing.abgang ? editing.abgang_datum : null,
       beschreibung: editing.beschreibung.trim() || null,
+      vorsteuer_cent: vorsteuer || 0,
     };
     setBusy(true);
     try {
@@ -389,7 +400,7 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
-            <span className="field-label">Anschaffungskosten brutto (€)</span>
+            <span className="field-label">{regel ? 'Anschaffungskosten netto (€)' : 'Anschaffungskosten brutto (€)'}</span>
             <input
               className="input tabular-nums"
               inputMode="decimal"
@@ -407,6 +418,19 @@ function AfaModal({ editing, setEditing, afaKategorien, gewerbeId, onSaved }) {
               onChange={(e) => setEditing({ ...editing, anschaffungsdatum: e.target.value })}
             />
           </label>
+          {regel && (
+            <label className="block">
+              <span className="field-label">Vorsteuer aus dem Kauf (€)</span>
+              <input
+                className="input tabular-nums"
+                inputMode="decimal"
+                value={editing.vorsteuerInput || ''}
+                onChange={(e) => setEditing({ ...editing, vorsteuerInput: e.target.value })}
+                placeholder="0,00"
+              />
+              <span className="mt-1 block text-xs text-ink/60">Zählt im Anschaffungsjahr in der Vorsteuer-Zeile.</span>
+            </label>
+          )}
         </div>
 
         {afaKategorien.length > 1 && (

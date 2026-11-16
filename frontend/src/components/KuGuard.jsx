@@ -9,7 +9,7 @@ export default function KuGuard({ k }) {
         Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
         Anlagenverkäufe, §19 Abs. 2 UStG) überschreiten die laufende Grenze von{' '}
         {formatEuro(k.ku_grenze_laufend_cent)}. Der KU-Status entfällt — bitte Steuerberater
-        kontaktieren. Tab deckt die Regelbesteuerung nicht ab.
+        kontaktieren. Die Regelbesteuerung stellst du unter Gewerbe → Besteuerung ein.
       </Hinweis>
     );
   }
@@ -18,7 +18,8 @@ export default function KuGuard({ k }) {
       <Hinweis ton="warn" titel="Vorjahresgrenze überschritten">
         Die KU-relevanten Einnahmen {formatEuro(k.ku_umsatz_cent)} (ohne steuerfreie Courtage und
         Anlagenverkäufe) liegen über {formatEuro(k.ku_grenze_vorjahr_cent)}. Für das Folgejahr ggf.
-        kein KU mehr — im Blick behalten, im Zweifel Steuerberater fragen.
+        kein KU mehr — im Zweifel Steuerberater fragen; den Wechsel ab dem Folgejahr trägst du unter
+        Gewerbe → Besteuerung ein.
       </Hinweis>
     );
   }

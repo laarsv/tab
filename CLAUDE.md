@@ -4,7 +4,8 @@ Arbeitsanweisungen für Claude Code in diesem Repo. Kurz halten, beim Ändern ak
 
 ## Was ist Tab
 
-Schlanke EÜR-Buchhaltung für Einzelunternehmer mit **Kleinunternehmerregelung (§19 UStG)**.
+Schlanke EÜR-Buchhaltung für Einzelunternehmer mit **Kleinunternehmerregelung (§19 UStG)**; **Regelbesteuerung**
+(Ist-Versteuerung) ist je Gewerbe ab einem Jahr zuschaltbar (v34, siehe „Regelbesteuerung“).
 Belege erfassen → Kategorien → am Jahresende **EÜR-Summenblatt pro Anlage-EÜR-Zeile** +
 **Beleg-Journal (CSV)** exportieren. Kein ELSTER-Direktversand, **kein Bankabruf** (kein PSD2) — Kontoauszüge nur als
 Datei (CAMT.053/CSV, siehe Bank-Import); Belege manuell, per Mail oder Handy-Teilen. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
@@ -73,7 +74,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`.
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -85,9 +86,9 @@ der Mapping-Version des Jahres aufgelöst.
 
 ## Kritische Fachregeln (nicht brechen)
 
-- **KU = brutto.** Zeilen **15, 17** sowie Vorsteuer und an das Finanzamt gezahlte USt werden NIE
-  befüllt — das sind **2025: 15, 17, 57, 58**, **2026: 15, 17, 58, 59** (`NIE_BEFUELLT_JE_JAHR`
-  in `seed.py`, Guard im Export; 2026 ist Z57 „Übrige Schuldzinsen" und ganz normal befüllbar).
+- **KU = brutto.** In Kleinunternehmer-Jahren werden Zeilen **15, 17, 18** sowie Vorsteuer und an das Finanzamt
+  gezahlte USt NIE befüllt — **2025: 15, 17, 18, 57, 58**, **2026: 15, 17, 18, 58, 59** (`NIE_BEFUELLT_JE_JAHR`
+  in `seed.py`, Guard im Export nur für KU-Jahre; 2026 ist Z57 „Übrige Schuldzinsen" und ganz normal befüllbar).
   **Zeile 16** wird genutzt (steuerfreie Courtage §4 Nr. 11).
 - **Zeilennummern wandern jährlich:** `ZEILEN_<jahr>`/`MAPPING_<jahr>` in `seed.py` sind je Jahr
   getrennt (nie ein Jahr aus dem anderen ableiten). 2026 hat eine neue Zeile 27 (Rücklage
@@ -167,8 +168,27 @@ der Mapping-Version des Jahres aufgelöst.
   in den Eingang (Dateien bleiben); nur DELETE `/belege/{id}` entfernt die Datei. **Uploads ins Backup.**
 - **Mehrere Positionen je Buchung:** Buchung = Beleg-Kopf, `buchung_position` = Kategorie-Splits.
   Export/Kennzahlen aggregieren über Positionen. Kategorie-Dropdown ist durchsuchbar (`searchable`).
-- **KU-Status:** `gewerbe.besteuerung`. Export ist **KU-only** — bei `regelbesteuerung` liefert er
-  bewusst 400 (`BesteuerungNotSupportedError`), kein falscher KU-Export.
+- **Regelbesteuerung (v34, `EUER_KATEGORIEN.md` §8 ist die Spec, `services/besteuerung.py`, `services/rechnung_summen.py`,
+  `lib/besteuerung.js`):** Besteuerung gilt **je Gewerbe und Kalenderjahr** — `gewerbe_besteuerung(ab_jahr, art)`, letzter
+  Eintrag ≤ Jahr, ohne Eintrag KU; `besteuerung.art()` ist die einzige Quelle (`gewerbe.besteuerung` = nur Stand im
+  laufenden Jahr für Anzeige/MCP, beim Start nachgezogen). Wechsel über `PUT/DELETE /api/gewerbe/{id}/besteuerung` (Gewerbe-Dialog
+  „Besteuerung“), nie für abgeschlossene Jahre, nie wenn Buchungen des betroffenen Jahres nicht passen (409). Im Änderungsprotokoll.
+  **Buchung:** `betrag_cent` bleibt **brutto** (Zahlungsfluss, Bank, Journal unverändert); je Position `ust_bp` (1900/700/0) +
+  `ust_cent` (Steuer im Brutto, ohne Angabe aus dem Satz, `ust_aus_brutto`). `buchungen.pruefe_ust` prüft je Jahr des Buchungsdatums:
+  KU → keine Steuer, nur KU-Kategorien; Regel → `einnahme_ku` gesperrt, neue Kategorien `einnahme_ust` (Z15), `ust_erstattung` (Z18),
+  `ust_zahlung` (2025 Z58 / 2026 Z59) ohne Satz (`OHNE_SATZ`). `kategorie.ust_standard_bp` = Vorschlag im Fenster.
+  **Export:** Regel-Jahr → netto (betrieblich) in die Kategorie-Zeile, USt der Einnahmen → Z17, betriebliche Vorsteuer (Privatanteil gilt
+  auch für die Steuer, Bewirtung 70 % nur vom Netto, Vorsteuer 100 %) + `afa_buchung.vorsteuer_cent` im Kaufjahr → Vorsteuer-Zeile
+  (`seed.UST_ZEILEN_JE_JAHR`); Journal bekommt hinten USt-Spalten (KU-Journale spaltengleich wie vorher). Kennzahlen bleiben Zahlungsfluss
+  (= EÜR-Gewinn bei Ist-Versteuerung) plus `ust_cent`/`vorsteuer_cent`. Siegel: Steuerfelder nur im Hash, wenn gesetzt.
+  **Rechnungen/Angebote/Abos:** Positionspreise in Regel-Jahren **netto** + `ust_bp`; Summe über `rechnung_summen.summen()` (Steuer je Satz
+  auf die Netto-Summe, EN 16931) — einzige Stelle, die Positionen summiert (`zahlungen.summe_cent` = brutto). Steuerhinweis `regel` (kein
+  Text); 0-%-Positionen brauchen `vers4nr11` (`pruefe_steuer`). PDF mit Spalte USt, Netto/USt je Satz/Brutto, USt-IdNr.; E-Rechnung Kategorie
+  S je Satz (+ E für 0 %), Seller VA. Zahlung auf eine Rechnung mit mehreren Sätzen wird **anteilig je Satz** gebucht
+  (`rechnung_summen.zahlung_positionen`, auch `GET /api/rechnungen/{id}/einnahme-positionen` fürs Buchungsfenster und Bank-Automatik).
+  Abo im falschen Steuer-Stand → Rechnung entsteht als Entwurf mit Fehlerhinweis, kein Auto-Versand. Gegen eine Kopie der Prod-DB geprüft:
+  KU-Summenblätter, Journale, Siegel, E-Rechnungen identisch. **Nicht gebaut:** USt-Voranmeldung (Kennzahlen/ELSTER), Soll-Versteuerung,
+  § 13b, innergemeinschaftlich, § 15a, Wechsel innerhalb eines Jahres, USt-Fristen, Steuer aus der Beleg-Erkennung, Bilanz.
 - **PDF:** kein Server-PDF, sondern Druck-Ansicht (`window.print()` + `@media print` /
   `.print-area` in `index.css`) auf der Export-Seite.
 - **Export-Downloads:** Summenblatt/Journal-CSV, **Jahres-Archiv** `/api/export/belege.zip`
@@ -709,7 +729,6 @@ keine generischen Aliase), `scripts/deploy.sh`. Frontend baut mit getracktem
 
 ## Noch offen / nicht gebaut
 
-- **Regelbesteuerung / USt** — Flag (`besteuerung`) existiert, aber USt-Aufschlüsselung,
-  Vorsteuer, Zeilen 15/17 + Vorsteuer/USt-Zahllast und der Export dafür fehlen. Braucht eine eigene Mapping-Spec
-  (analog `EUER_KATEGORIEN.md`) bevor man Steuer-Zeilen festlegt — nicht raten.
-- Weiterhin außen vor: Multi-User/Mandant, Bankabruf, ELSTER-Direktversand, USt-Voranmeldung.
+- **USt-Voranmeldung** (Kennzahlen 81/86/66/83 je Monat/Quartal, Fristen) — Grundlage (Regelbesteuerung) steht, die
+  Voranmeldung selbst fehlt. Ebenso Bilanzierung (doppelte Buchführung, E-Bilanz) und der Bankabruf (Enable Banking).
+- Weiterhin außen vor: Multi-User/Mandant, Bankabruf, ELSTER-Direktversand.

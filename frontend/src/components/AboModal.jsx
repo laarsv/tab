@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
-import { DialogFuss, PositionenEditor, SchalterZeile } from './DialogParts.jsx';
+import { DialogFuss, PositionenEditor, SchalterZeile, positionAusApi, positionenFuerSumme, satzVon } from './DialogParts.jsx';
+import { hinweisFuer, istRegel, positionsSummen, steuerhinweisOptionen } from '../lib/besteuerung.js';
 import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 import { Hinweis } from './PageParts.jsx';
@@ -14,10 +15,6 @@ const INTERVALL_OPTIONS = [
   { value: 'jaehrlich', label: 'jährlich' },
 ];
 
-const STEUERHINWEIS_OPTIONS = [
-  { value: 'ku19', label: 'Kleinunternehmer § 19 UStG (Standard)' },
-  { value: 'vers4nr11', label: 'Steuerfrei § 4 Nr. 11 UStG (Versicherungsprovision)' },
-];
 
 function ersterDesNaechstenMonats() {
   const d = new Date();
@@ -32,7 +29,7 @@ function emptyPos() {
 
 // Wiederkehrende Rechnung (Abo) anlegen/bearbeiten. prefill: aus einer bestehenden
 // Rechnung („Wiederholen…"); abo: bestehendes Abo bearbeiten.
-export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailKonfiguriert, onClose, onSaved }) {
+export default function AboModal({ abo, prefill, gewerbeId, gewerbeObj = null, kontakte = [], mailKonfiguriert, onClose, onSaved }) {
   const isEdit = Boolean(abo?.id);
   const src = abo || prefill || {};
   const [form, setForm] = useState(() => ({
@@ -52,23 +49,16 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
     betreff: abo?.betreff || '',
     mail_text: abo?.mail_text || '',
     positionen: (src.positionen || []).length
-      ? src.positionen.map((p) => ({
-          beschreibung: p.beschreibung,
-          menge: String(p.menge).replace('.', ','),
-          preisInput: centToInput(p.einzelpreis_cent),
-        }))
+      ? src.positionen.map(positionAusApi)
       : [emptyPos()],
   }));
   const [busy, setBusy] = useState(false);
 
+  // Regelbesteuerung im Jahr des nächsten Termins: Netto-Preise mit Steuersatz, Summe brutto
+  const regel = istRegel(gewerbeObj, String(form.naechste_am).slice(0, 4));
   const total = useMemo(
-    () =>
-      form.positionen.reduce((s, p) => {
-        const preis = parseEuroToCent(p.preisInput);
-        const menge = Number(String(p.menge).replace(',', '.'));
-        return s + (preis > 0 && menge > 0 ? Math.round(menge * preis) : 0);
-      }, 0),
-    [form.positionen],
+    () => positionsSummen(positionenFuerSumme(form.positionen, regel)).brutto_cent,
+    [form.positionen, regel],
   );
 
   async function save(e) {
@@ -85,14 +75,14 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
       if (!p.beschreibung.trim()) return toast.error('Jede Position braucht eine Beschreibung.');
       if (!preis || preis <= 0 || !Number.isFinite(menge) || menge <= 0)
         return toast.error('Bitte Menge und Preis prüfen.');
-      payloadPos.push({ beschreibung: p.beschreibung.trim(), menge, einzelpreis_cent: preis });
+      payloadPos.push({ beschreibung: p.beschreibung.trim(), menge, einzelpreis_cent: preis, ust_bp: satzVon(p, regel) });
     }
     const body = {
       empfaenger_name: form.empfaenger_name.trim(),
       empfaenger_anschrift: form.empfaenger_anschrift.trim() || null,
       empfaenger_email: form.empfaenger_email.trim() || null,
       notiz: form.notiz.trim() || null,
-      steuerhinweis: form.steuerhinweis,
+      steuerhinweis: hinweisFuer(form.steuerhinweis, regel),
       intervall: form.intervall,
       naechste_am: form.naechste_am,
       endet_am: form.endet_am || null,
@@ -201,6 +191,7 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
           summeCent={total}
           platzhalter="z. B. Betreuung {monat}"
           gewerbeId={gewerbeId}
+          regel={regel}
         />
         <Hinweis className="text-xs">
           Platzhalter <code>{'{monat}'}</code> wird durch den Abrechnungsmonat ersetzt (z. B. „Betreuung 08/2026") —
@@ -210,8 +201,8 @@ export default function AboModal({ abo, prefill, gewerbeId, kontakte = [], mailK
 
         <div className="block">
           <span className="field-label">Steuer-Hinweis</span>
-          <Dropdown value={form.steuerhinweis} onChange={(v) => setForm({ ...form, steuerhinweis: String(v) })}
-            options={STEUERHINWEIS_OPTIONS} />
+          <Dropdown value={hinweisFuer(form.steuerhinweis, regel)} onChange={(v) => setForm({ ...form, steuerhinweis: String(v) })}
+            options={steuerhinweisOptionen(regel)} />
         </div>
 
         <SchalterZeile

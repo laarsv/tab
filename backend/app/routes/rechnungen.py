@@ -493,6 +493,26 @@ def _pdf_bytes(db: sqlite3.Connection, rechnung_id: int) -> tuple[bytes, dict]:
     return rechnungs_pdf(r, r["positionen"], g), r
 
 
+@router.get("/{rechnung_id}/einnahme-positionen")
+def einnahme_positionen(
+    rechnung_id: int,
+    betrag_cent: int,
+    datum: str,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Vorschlag für „Als Einnahme buchen“: Positionen für eine Zahlung über `betrag_cent` am `datum` —
+    bei Regelbesteuerung anteilig je Steuersatz (services/rechnung_summen.zahlung_positionen)."""
+    r = _check_rechnung(db, user, rechnung_id)
+    try:
+        _valid_date(datum)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if betrag_cent <= 0:
+        raise HTTPException(400, "Betrag muss größer 0 sein.")
+    return rechnung_summen.zahlung_positionen(db, r, betrag_cent, datum)
+
+
 @router.get("/{rechnung_id}/pdf")
 def rechnung_pdf(
     rechnung_id: int,

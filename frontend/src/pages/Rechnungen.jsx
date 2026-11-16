@@ -8,7 +8,8 @@ import KontakteModal from '../components/KontakteModal.jsx';
 import VorlagenModal from '../components/VorlagenModal.jsx';
 import { TextbausteinWahl } from '../components/Vorlagen.jsx';
 import BuchungModal from '../components/BuchungModal.jsx';
-import { DialogFuss, PositionenEditor, SchalterZeile } from '../components/DialogParts.jsx';
+import { DialogFuss, PositionenEditor, SchalterZeile, positionAusApi, positionenFuerSumme, satzVon } from '../components/DialogParts.jsx';
+import { hinweisFuer, istRegel, positionsSummen, steuerhinweisOptionen } from '../lib/besteuerung.js';
 import Dropdown from '../components/Dropdown.jsx';
 import {
   IconBan,
@@ -66,15 +67,6 @@ const INTERVALL = {
   vierteljaehrlich: 'vierteljährlich',
   jaehrlich: 'jährlich',
 };
-
-// Warum keine USt auf der Rechnung steht — je Rechnung wählbar.
-const STEUERHINWEIS_OPTIONS = [
-  { value: 'ku19', label: 'Kleinunternehmer § 19 UStG (Standard)' },
-  {
-    value: 'vers4nr11',
-    label: 'Steuerfrei § 4 Nr. 11 UStG (Versicherungsprovision)',
-  },
-];
 
 function emptyRPos() {
   return { beschreibung: '', menge: '1', preisInput: '' };
@@ -432,11 +424,7 @@ export default function Rechnungen({ tab = 'alle' }) {
       zahlungsziel_tage: r.zahlungsziel_tage,
       skonto_prozent: r.skonto_prozent,
       skonto_tage: r.skonto_tage,
-      positionen: r.positionen.map((p) => ({
-        beschreibung: p.beschreibung,
-        menge: String(p.menge).replace('.', ','),
-        preisInput: centToInput(p.einzelpreis_cent),
-      })),
+      positionen: r.positionen.map(positionAusApi),
     });
   }
 
@@ -826,6 +814,7 @@ export default function Rechnungen({ tab = 'alle' }) {
           abo={aboModal.abo}
           prefill={aboModal.prefill}
           gewerbeId={gewerbeId}
+          gewerbeObj={(gewerbe || []).find((g) => String(g.id) === String(gewerbeId))}
           kontakte={kontakte}
           mailKonfiguriert={Boolean(mail?.konfiguriert)}
           onClose={() => setAboModal(null)}
@@ -879,6 +868,8 @@ function RechnungModal({
 }) {
   const [busy, setBusy] = useState(false);
   const isEdit = Boolean(editing.id);
+  const { gewerbe: gewerbeListe } = useOutletContext() || {};
+  const gewerbeObj = (gewerbeListe || []).find((g) => String(g.id) === String(gewerbeId));
   const [form, setForm] = useState(() => ({
     datum: editing.datum || todayISO(),
     leistungsdatum: editing.leistungsdatum || '',
@@ -898,14 +889,14 @@ function RechnungModal({
     auto_senden: false,
   }));
 
+  // Regelbesteuerung im Jahr des Rechnungsdatums: Netto-Preise mit Steuersatz, Summe brutto
+  const regel = istRegel(gewerbeObj, String(form.datum).slice(0, 4));
   const total = useMemo(
     () =>
-      form.positionen.reduce((s, p) => {
-        const preis = parseEuroToCent(p.preisInput);
-        const menge = Number(String(p.menge).replace(',', '.'));
-        return s + (preis > 0 && menge > 0 ? Math.round(menge * preis) : 0);
-      }, 0),
-    [form.positionen],
+      positionsSummen(
+        positionenFuerSumme(form.positionen, regel).filter((p) => p.einzelpreis_cent > 0 && p.menge > 0),
+      ).brutto_cent,
+    [form.positionen, regel],
   );
 
   // Zahlungsziel in Tagen; Fälligkeit = Rechnungsdatum + Ziel, auf einen Werktag verschoben (§ 193 BGB).
@@ -925,14 +916,7 @@ function RechnungModal({
         : zielGueltig && skontoT > ziel
           ? 'Frist länger als das Zahlungsziel'
           : null;
-  const skontoBetrag = (() => {
-    const summe = form.positionen.reduce((s, p) => {
-      const preis = parseEuroToCent(p.preisInput);
-      const menge = Number(String(p.menge).replace(',', '.'));
-      return s + (preis > 0 && menge > 0 ? Math.round(menge * preis) : 0);
-    }, 0);
-    return skontoP && !skontoFehler ? Math.floor((summe * Math.round(skontoP * 100) + 5000) / 10000) : 0;
-  })();
+  const skontoBetrag = skontoP && !skontoFehler ? Math.floor((total * Math.round(skontoP * 100) + 5000) / 10000) : 0;
 
   // Gemeinsamer Payload für Speichern + Vorschau; null = Validierungsfehler (getoastet).
   function baueBody() {
@@ -968,6 +952,7 @@ function RechnungModal({
         beschreibung: p.beschreibung.trim(),
         menge,
         einzelpreis_cent: preis,
+        ust_bp: satzVon(p, regel),
       });
     }
     return {
@@ -978,7 +963,7 @@ function RechnungModal({
       empfaenger_email: form.empfaenger_email.trim() || null,
       notiz: form.notiz.trim() || null,
       bestellnummer: form.bestellnummer.trim(),
-      steuerhinweis: form.steuerhinweis,
+      steuerhinweis: hinweisFuer(form.steuerhinweis, regel),
       zahlungsziel_tage: ziel,
       skonto_prozent: skontoP,
       skonto_tage: skontoT,
@@ -1208,14 +1193,15 @@ function RechnungModal({
           summeCent={total}
           platzhalter="Leistung, z. B. Beratung März 2026"
           gewerbeId={gewerbeId}
+          regel={regel}
         />
 
         <div className="block">
-          <span className="field-label">Steuer-Hinweis (warum keine USt)</span>
+          <span className="field-label">{regel ? 'Steuer-Hinweis' : 'Steuer-Hinweis (warum keine USt)'}</span>
           <Dropdown
-            value={form.steuerhinweis}
+            value={hinweisFuer(form.steuerhinweis, regel)}
             onChange={(v) => setForm({ ...form, steuerhinweis: String(v) })}
-            options={STEUERHINWEIS_OPTIONS}
+            options={steuerhinweisOptionen(regel)}
           />
         </div>
 

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
-import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus } from '../components/Icons.jsx';
+import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus, IconTrash } from '../components/Icons.jsx';
+import Dropdown from '../components/Dropdown.jsx';
+import { ART_LABEL, KU, REGEL, artImJahr } from '../lib/besteuerung.js';
 import { DialogFuss, Gruppe, SchalterZeile } from '../components/DialogParts.jsx';
 import LogoFeld from '../components/LogoFeld.jsx';
 import Modal from '../components/Modal.jsx';
-import { Leer, PageHeader, PUNKT, Row, Zustand } from '../components/PageParts.jsx';
+import { Leer, PageHeader, PUNKT, Row } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { centToInput, parseEuroToCent } from '../lib/format.js';
 
@@ -24,6 +26,89 @@ function ganzeZahl(text, min, max) {
   const s = String(text ?? '').trim();
   const n = Number(s);
   return s !== '' && Number.isInteger(n) && n >= min && n <= max ? n : undefined;
+}
+
+// Besteuerung je Jahr (Regelbesteuerung als Option, EUER_KATEGORIEN.md §8): Liste der Wechsel + neuer Wechsel.
+// Ein Wechsel gilt ab dem 1.1. des Jahres; der Server lehnt abgeschlossene Jahre und unpassende Buchungen ab.
+function BesteuerungFeld({ gewerbe, onChanged }) {
+  const diesesJahr = new Date().getFullYear();
+  const aktuell = artImJahr(gewerbe, diesesJahr);
+  const [abJahr, setAbJahr] = useState(String(diesesJahr + 1));
+  const [art, setArt] = useState(aktuell === KU ? REGEL : KU);
+  const [busy, setBusy] = useState(false);
+  const wechsel = gewerbe.besteuerung_wechsel || [];
+
+  async function setzen() {
+    const j = Number(abJahr);
+    if (!Number.isInteger(j) || j < 2000 || j > 2100) return toast.error('Bitte ein Jahr angeben, z. B. ' + (diesesJahr + 1) + '.');
+    if (artImJahr(gewerbe, j) === art) return toast.error(`${j} gilt schon ${ART_LABEL[art]}.`);
+    setBusy(true);
+    try {
+      const res = await api.put(`/api/gewerbe/${gewerbe.id}/besteuerung`, { ab_jahr: j, art });
+      toast.success(`Ab 1.1.${j}: ${ART_LABEL[art]}.`);
+      onChanged(res.data);
+    } catch (e) {
+      toast.error(apiError(e), { duration: 8000 });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function entfernen(w) {
+    if (!window.confirm(`Wechsel „ab ${w.ab_jahr}: ${ART_LABEL[w.art]}“ entfernen?`)) return;
+    try {
+      const res = await api.delete(`/api/gewerbe/${gewerbe.id}/besteuerung/${w.ab_jahr}`);
+      onChanged(res.data);
+    } catch (e) {
+      toast.error(apiError(e), { duration: 8000 });
+    }
+  }
+
+  return (
+    <Gruppe titel="Besteuerung" className="border-t border-ink/[0.08] pt-4">
+      <p className="text-[13.5px] leading-snug text-ink/80">
+        {diesesJahr}: <strong>{ART_LABEL[aktuell]}</strong>
+        {aktuell === KU ? ' — alles brutto, keine Umsatzsteuer.' : ' — Buchungen und Rechnungen mit Umsatzsteuer.'}
+      </p>
+      {wechsel.length > 0 && (
+        <ul className="divide-y divide-ink/[0.06]">
+          {wechsel.map((w) => (
+            <li key={w.ab_jahr} className="flex items-center gap-2 py-1.5 text-[13.5px]">
+              <span className="flex-1 tabular-nums">
+                ab 1.1.{w.ab_jahr}: {ART_LABEL[w.art]}
+              </span>
+              <IconButton icon={IconTrash} variant="danger" label="Wechsel entfernen" onClick={() => entfernen(w)} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_auto] items-end gap-2">
+        <label className="block">
+          <span className="field-label">Ab Jahr</span>
+          <input className="input tabular-nums" inputMode="numeric" value={abJahr} onChange={(e) => setAbJahr(e.target.value)} />
+        </label>
+        <div className="block">
+          <span className="field-label">Besteuerung</span>
+          <Dropdown
+            value={art}
+            onChange={(v) => setArt(String(v))}
+            options={[
+              { value: REGEL, label: ART_LABEL[REGEL] },
+              { value: KU, label: ART_LABEL[KU] },
+            ]}
+          />
+        </div>
+        <button type="button" className="btn-outline btn-sm mb-0.5" disabled={busy} onClick={setzen}>
+          Übernehmen
+        </button>
+      </div>
+      <p className="text-xs leading-snug text-ink/60">
+        Ein Wechsel gilt immer ab dem 1. Januar. Bei Regelbesteuerung buchst du Steuersatz und Umsatzsteuer je Position,
+        Rechnungen weisen die Umsatzsteuer aus, und die Anlage EÜR bekommt die Umsatzsteuer-Zeilen. Ob und ab wann du
+        wechseln musst, klär mit deiner Steuerberatung.
+      </p>
+    </Gruppe>
+  );
 }
 
 const bpZuText = (bp) => (bp === null || bp === undefined ? '' : (bp / 100).toFixed(2).replace('.', ','));
@@ -56,7 +141,8 @@ export default function Gewerbe() {
     const body = {
       name: editing.name?.trim(),
       steuernummer: editing.steuernummer?.trim() || null,
-      besteuerung: editing.besteuerung || 'kleinunternehmer',
+      ...(editing.id ? {} : { besteuerung: editing.besteuerung || 'kleinunternehmer' }),
+      ust_id: editing.ust_id?.trim() || null,
       anschrift: editing.anschrift?.trim() || null,
       iban: editing.iban?.trim() || null,
       kontoinhaber: editing.kontoinhaber?.trim() || null,
@@ -138,6 +224,7 @@ export default function Gewerbe() {
       name: '',
       steuernummer: '',
       besteuerung: 'kleinunternehmer',
+      ust_id: '',
       anschrift: '',
       iban: '',
       kontoinhaber: '',
@@ -165,11 +252,17 @@ export default function Gewerbe() {
               muted={!g.aktiv}
               sub={
                 <>
-                  {g.besteuerung === 'regelbesteuerung' ? (
-                    <Zustand ton="warn">Regelbesteuerung</Zustand>
-                  ) : (
-                    <span>Kleinunternehmer §19</span>
-                  )}
+                  {(() => {
+                    const j = new Date().getFullYear();
+                    const jetzt = artImJahr(g, j);
+                    const naechster = (g.besteuerung_wechsel || []).find((w) => w.ab_jahr > j);
+                    return (
+                      <span>
+                        {jetzt === KU ? 'Kleinunternehmer §19' : 'Regelbesteuerung'}
+                        {naechster && ` · ab ${naechster.ab_jahr} ${ART_LABEL[naechster.art]}`}
+                      </span>
+                    );
+                  })()}
                   {PUNKT}
                   <span>{g.steuernummer ? `St.-Nr. ${g.steuernummer}` : 'keine Steuernummer'}</span>
                   {!g.aktiv && (
@@ -191,6 +284,8 @@ export default function Gewerbe() {
                         name: g.name,
                         steuernummer: g.steuernummer || '',
                         besteuerung: g.besteuerung || 'kleinunternehmer',
+                        besteuerung_wechsel: g.besteuerung_wechsel || [],
+                        ust_id: g.ust_id || '',
                         anschrift: g.anschrift || '',
                         iban: g.iban || '',
                         kontoinhaber: g.kontoinhaber || '',
@@ -304,14 +399,36 @@ export default function Gewerbe() {
               </Gruppe>
             )}
 
-            <SchalterZeile
-              titel="Kleinunternehmer §19 UStG"
-              hinweis="An = alles brutto, EÜR-Export verfügbar. Aus (Regelbesteuerung) wird der Export noch nicht unterstützt."
-              checked={(editing.besteuerung || 'kleinunternehmer') === 'kleinunternehmer'}
-              onChange={(an) =>
-                setEditing({ ...editing, besteuerung: an ? 'kleinunternehmer' : 'regelbesteuerung' })
-              }
-            />
+            {editing.id ? (
+              <BesteuerungFeld
+                gewerbe={editing}
+                onChanged={(g) => {
+                  setEditing((e) => ({ ...e, besteuerung: g.besteuerung, besteuerung_wechsel: g.besteuerung_wechsel || [] }));
+                  load();
+                  reloadGewerbe();
+                }}
+              />
+            ) : (
+              <SchalterZeile
+                titel="Kleinunternehmer §19 UStG"
+                hinweis="An = alles brutto, keine Umsatzsteuer. Aus = Regelbesteuerung ab diesem Jahr (später unter „Besteuerung“ änderbar)."
+                checked={(editing.besteuerung || 'kleinunternehmer') === 'kleinunternehmer'}
+                onChange={(an) =>
+                  setEditing({ ...editing, besteuerung: an ? 'kleinunternehmer' : 'regelbesteuerung' })
+                }
+              />
+            )}
+            <label className="block sm:max-w-xs">
+              <span className="field-label">USt-IdNr. (optional)</span>
+              <input
+                className="input"
+                value={editing.ust_id}
+                maxLength={20}
+                onChange={(e) => setEditing({ ...editing, ust_id: e.target.value })}
+                placeholder="DE123456789"
+              />
+              <span className="mt-1 block text-xs text-ink/60">Steht auf Rechnungen und in der E-Rechnung, wenn ausgefüllt.</span>
+            </label>
 
             {editing.id && (
               <Gruppe titel="Zahlung & Mahnwesen" className="border-t border-ink/[0.08] pt-4">

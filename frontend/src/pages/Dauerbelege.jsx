@@ -13,6 +13,7 @@ import { Hinweis, KeinGewerbe, Leer, PageHeader, PUNKT, Row, SectionHead, Zustan
 import { PageSpinner } from '../components/Spinner.jsx';
 import { centToInput, formatDateDE, formatEuro, parseEuroToCent, todayISO } from '../lib/format.js';
 import { betrieblichCent, bpZuText, privatCent, textZuBp } from '../lib/privat.js';
+import { OHNE_SATZ, SAETZE, istRegel, satzText, ustAusBrutto } from '../lib/besteuerung.js';
 
 const INTERVALLE = [
   { value: 'monatlich', label: 'monatlich' },
@@ -33,7 +34,8 @@ const betragText = (d) => `${istEinnahme(d) ? '+' : '−'}${formatEuro(d.betrag_
 // fällig und mit einem Klick zur Buchung — Tab bucht nie von selbst, damit nichts doppelt oder falsch
 // im Jahr landet. Änderungen an der Vorlage gelten für künftige Termine.
 export default function Dauerbelege() {
-  const { gewerbeId, jahr, reloadBadges } = useOutletContext();
+  const { gewerbeId, jahr, reloadBadges, gewerbe } = useOutletContext();
+  const gewerbeObj = (gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   const [items, setItems] = useState([]);
   const [kategorien, setKategorien] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -226,6 +228,14 @@ export default function Dauerbelege() {
                     </span>
                   </>
                 )}
+                {d.ust_bp > 0 && (
+                  <>
+                    {PUNKT}
+                    <span className="tabular-nums">
+                      {satzText(d.ust_bp)} USt {formatEuro(d.ust_cent)}
+                    </span>
+                  </>
+                )}
                 {d.buchungen_anzahl > 0 && (
                   <>
                     {PUNKT}
@@ -260,6 +270,7 @@ export default function Dauerbelege() {
         <DauerbelegModal
           editing={editing}
           gewerbeId={gewerbeId}
+          gewerbeObj={gewerbeObj}
           kategorien={kategorien}
           onClose={() => setEditing(null)}
           onSaved={danach}
@@ -277,6 +288,8 @@ export default function Dauerbelege() {
           presetDatum={buchen.termin}
           presetRichtung={istEinnahme(buchen.d) ? 'einnahme' : 'ausgabe'}
           presetPrivatBp={buchen.d.privat_bp}
+          presetUstBp={buchen.d.ust_bp}
+          presetUstCent={buchen.d.ust_cent}
           dauerbeleg={{ id: buchen.d.id, termin: buchen.termin }}
           onClose={() => setBuchen(null)}
           onSaved={danach}
@@ -286,7 +299,7 @@ export default function Dauerbelege() {
   );
 }
 
-function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
+function DauerbelegModal({ editing, gewerbeId, gewerbeObj, kategorien, onClose, onSaved }) {
   const isEdit = Boolean(editing.id);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(() => ({
@@ -297,10 +310,20 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
     privatAn: (editing.privat_bp || 0) > 0,
     privatInput: bpZuText(editing.privat_bp || 0),
     richtung: editing.kategorie_typ === 'einnahme' ? 'einnahme' : 'ausgabe',
+    ustBp: editing.ust_bp ? String(editing.ust_bp) : '',
+    ustInput: editing.ust_cent ? centToInput(editing.ust_cent) : '',
     intervall: editing.intervall || 'monatlich',
     naechste_am: editing.naechste_am || todayISO(),
     endet_am: editing.endet_am || '',
   }));
+
+  const einnahme = form.richtung === 'einnahme';
+  const kat = kategorien.find((k) => String(k.id) === form.kategorie_id);
+  const katKey = kat?.key;
+  // Regelbesteuerung im Jahr des (nächsten) Termins: Steuersatz + Steuer der Vorlage
+  const regel = istRegel(gewerbeObj, String(form.naechste_am).slice(0, 4));
+  const mitSatz = regel && kat && !OHNE_SATZ.has(kat.key);
+  const satzBp = mitSatz ? Number(form.ustBp || (kat.ust_standard_bp ?? 1900)) : 0;
 
   // nur, was ein Dauerbeleg sein kann: Kategorie der gewählten Richtung, ohne AfA und ohne Pflicht-Details
   // (Bewirtung, Geschenke)
@@ -308,11 +331,10 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
     () =>
       kategorien
         .filter((k) => k.typ === form.richtung && !k.ist_afa && !k.belegpflicht_extra)
+        .filter((k) => !k.nur_besteuerung || k.nur_besteuerung === (regel ? 'regelbesteuerung' : 'kleinunternehmer'))
         .map((k) => ({ value: String(k.id), label: k.name })),
-    [kategorien, form.richtung],
+    [kategorien, form.richtung, regel],
   );
-  const einnahme = form.richtung === 'einnahme';
-  const katKey = kategorien.find((k) => String(k.id) === form.kategorie_id)?.key;
 
   function richtungWechseln(richtung) {
     if (richtung === form.richtung) return;
@@ -336,6 +358,8 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
       kategorie_id: Number(form.kategorie_id),
       betrag_cent: betrag,
       privat_bp: bp || 0,
+      ust_bp: satzBp,
+      ...(satzBp && form.ustInput.trim() ? { ust_cent: parseEuroToCent(form.ustInput) } : {}),
       intervall: form.intervall,
       naechste_am: form.naechste_am,
       endet_am: form.endet_am || null,
@@ -405,6 +429,26 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
             <Dropdown value={form.intervall} onChange={(v) => setForm({ ...form, intervall: String(v) })} options={INTERVALLE} />
           </div>
         </div>
+
+        {mitSatz && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 items-end gap-x-5 gap-y-2">
+            <div className="block">
+              <span className="field-label">Steuersatz</span>
+              <Dropdown value={String(satzBp)} onChange={(v) => setForm({ ...form, ustBp: String(v), ustInput: '' })} options={SAETZE} />
+            </div>
+            <label className="block">
+              <span className="field-label">{einnahme ? 'Umsatzsteuer' : 'Vorsteuer'} (€)</span>
+              <input
+                className="input tabular-nums"
+                inputMode="decimal"
+                value={form.ustInput}
+                disabled={!satzBp}
+                placeholder={centToInput(ustAusBrutto(betrag || 0, satzBp)) || '0,00'}
+                onChange={(e) => setForm({ ...form, ustInput: e.target.value })}
+              />
+            </label>
+          </div>
+        )}
 
         {katKey === 'kfz_privatnutzung' && (
           <Hinweis className="text-xs">
