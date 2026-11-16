@@ -79,6 +79,8 @@ export default function Datenschutz() {
           <p>
             Beim Aufruf werden technisch notwendige Angaben protokolliert (IP-Adresse, Zeitpunkt, aufgerufene Adresse,
             Browser). Sie dienen dem sicheren Betrieb und der Fehlersuche und werden nicht mit anderen Daten zusammengeführt.
+            Das Zugriffsprotokoll wird täglich gewechselt und nach 7 Tagen gelöscht; die Fehlerprotokolle der Anwendung sind in
+            der Größe begrenzt und werden laufend überschrieben.
             Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse am sicheren Betrieb).
           </p>
         </Abschnitt>

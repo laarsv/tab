@@ -25,7 +25,12 @@ tab.vrwb.de {
     }
 
     log {
-        output file /var/log/caddy/tab.vrwb.de.log
+        # Datenschutz (tab.vrwb.de/datenschutz): täglich rotieren, nach 7 Tagen löschen
+        output file /var/log/caddy/tab.vrwb.de.log {
+            roll_interval 1d
+            roll_keep 7
+            roll_keep_for 7d
+        }
         format json
     }
 }
