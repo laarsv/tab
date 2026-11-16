@@ -1,4 +1,5 @@
-"""Dauerbelege: Vorlagen für Ausgaben in festen Abständen (Miete, Versicherung, Leasing, Abos).
+"""Dauerbelege: Vorlagen für Ausgaben und Einnahmen in festen Abständen (Miete, Versicherung, Leasing, Abos;
+auf der Einnahmen-Seite z. B. die Privatnutzung des Betriebs-Kfz nach der 1 %-Regelung oder eine Untervermietung).
 
 Aufbau nach Haben (Vorlage einmal anlegen, Termine entstehen fällig, Änderungen gelten für künftige
 Termine, Pausieren/Beenden, nie von selbst buchen), eigenständig auf Tabs EÜR zugeschnitten:
@@ -69,18 +70,25 @@ class DauerPatch(BaseModel):
         return _valid_date(v) if v is not None else v
 
 
-def _pruefe_kategorie(db: sqlite3.Connection, kategorie_id: int) -> None:
+def _pruefe_kategorie(db: sqlite3.Connection, kategorie_id: int) -> sqlite3.Row:
     k = db.execute("SELECT * FROM kategorie WHERE id = ?", (kategorie_id,)).fetchone()
     if k is None:
         raise HTTPException(404, "Kategorie nicht gefunden.")
-    if k["typ"] != "ausgabe":
-        raise HTTPException(400, "Ein Dauerbeleg ist eine Ausgabe — bitte eine Ausgabe-Kategorie wählen.")
+    if k["typ"] not in ("ausgabe", "einnahme"):
+        raise HTTPException(400, "Diese Kategorie passt nicht zu einem Dauerbeleg.")
     if k["ist_afa"]:
         raise HTTPException(400, "AfA-Kategorien gehören in die AfA-Erfassung, nicht in einen Dauerbeleg.")
     if k["belegpflicht_extra"]:
         raise HTTPException(
             400, f"Für „{k['name']}“ sind Beleg-Details Pflicht — das passt nicht zu einem Dauerbeleg. Bitte einzeln buchen."
         )
+    return k
+
+
+def _pruefe_privat(k: sqlite3.Row, privat_bp: int) -> None:
+    """Privatanteil gibt es nur bei Ausgaben (wie bei der Buchung selbst)."""
+    if privat_bp and k["typ"] != "ausgabe":
+        raise HTTPException(400, "Einen Privatanteil gibt es nur bei Ausgaben.")
 
 
 def _check(db: sqlite3.Connection, user: dict, dauerbeleg_id: int) -> sqlite3.Row:
@@ -93,7 +101,7 @@ def _check(db: sqlite3.Connection, user: dict, dauerbeleg_id: int) -> sqlite3.Ro
 
 def _row(db: sqlite3.Connection, dauerbeleg_id: int, heute: str) -> dict:
     r = db.execute(
-        "SELECT d.*, k.name AS kategorie_name, "
+        "SELECT d.*, k.name AS kategorie_name, k.typ AS kategorie_typ, "
         "(SELECT COUNT(*) FROM buchung b WHERE b.dauerbeleg_id = d.id) AS buchungen_anzahl, "
         "(SELECT MAX(b.datum) FROM buchung b WHERE b.dauerbeleg_id = d.id) AS letzte_buchung "
         "FROM dauerbeleg d JOIN kategorie k ON k.id = d.kategorie_id WHERE d.id = ?",
@@ -130,7 +138,7 @@ def faellig(gewerbe_id: int, user: dict = Depends(get_current_user), db: sqlite3
 @router.post("", status_code=201)
 def anlegen(body: DauerIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     check_gewerbe(db, user, body.gewerbe_id)
-    _pruefe_kategorie(db, body.kategorie_id)
+    _pruefe_privat(_pruefe_kategorie(db, body.kategorie_id), body.privat_bp)
     if body.endet_am and body.endet_am < body.naechste_am:
         raise HTTPException(400, "„Endet nach dem“ liegt vor dem ersten Termin.")
     cur = db.execute(
@@ -152,8 +160,9 @@ def aendern(
 ):
     """Änderungen gelten für künftige Termine; schon gebuchte Buchungen bleiben, wie sie sind."""
     cur = _check(db, user, dauerbeleg_id)
-    if body.kategorie_id is not None:
-        _pruefe_kategorie(db, body.kategorie_id)
+    if body.kategorie_id is not None or body.privat_bp is not None:
+        k = _pruefe_kategorie(db, body.kategorie_id if body.kategorie_id is not None else cur["kategorie_id"])
+        _pruefe_privat(k, body.privat_bp if body.privat_bp is not None else cur["privat_bp"])
     fields, values = [], []
     for col in ("bezeichnung", "kategorie_id", "betrag_cent", "privat_bp", "intervall"):
         val = getattr(body, col)

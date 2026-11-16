@@ -193,19 +193,21 @@ SCHWELLE_DAUERBELEG = 70
 
 
 def dauerbeleg_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
-    """Dauerbelege, deren nächster Termin zu dieser Abbuchung passt: Betrag exakt (50) plus Bezeichnung im
+    """Dauerbelege, deren nächster Termin zu diesem Umsatz passt (Abbuchung -> Ausgabe-Vorlage, Eingang ->
+    Einnahme-Vorlage): Betrag exakt (50) plus Bezeichnung im
     Verwendungszweck (30) und/oder Termin binnen 7 Tagen (20) — erst ab 70 Punkten. Von selbst bucht nur die
     automatische Zuordnung, und nur bei 100 Punkten (services/auto_zuordnung.py); sonst:
     „Buchen“ öffnet das Buchungsfenster, das den Umsatz und den Termin zusammen verbucht."""
-    if u["betrag_cent"] >= 0:
+    if u["betrag_cent"] == 0:
         return []
-    betrag = -u["betrag_cent"]
+    betrag = abs(u["betrag_cent"])
+    typ = "einnahme" if u["betrag_cent"] > 0 else "ausgabe"
     tag = dt.date.fromisoformat(u["datum"])
     treffer = []
     for d in conn.execute(
         "SELECT d.*, k.name AS kategorie_name FROM dauerbeleg d JOIN kategorie k ON k.id = d.kategorie_id "
-        "WHERE d.gewerbe_id = ? AND d.aktiv = 1 AND d.betrag_cent = ?",
-        (u["gewerbe_id"], betrag),
+        "WHERE d.gewerbe_id = ? AND d.aktiv = 1 AND d.betrag_cent = ? AND k.typ = ?",
+        (u["gewerbe_id"], betrag, typ),
     ):
         if dauerbelege.ist_beendet(d):
             continue

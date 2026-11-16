@@ -21,8 +21,15 @@ const INTERVALLE = [
   { value: 'jaehrlich', label: 'jährlich' },
 ];
 const INTERVALL_LABEL = Object.fromEntries(INTERVALLE.map((i) => [i.value, i.label]));
+const RICHTUNGEN = [
+  { value: 'ausgabe', label: 'Ausgabe' },
+  { value: 'einnahme', label: 'Einnahme' },
+];
+const istEinnahme = (d) => d.kategorie_typ === 'einnahme';
+const betragText = (d) => `${istEinnahme(d) ? '+' : '−'}${formatEuro(d.betrag_cent)}`;
 
-// Dauerbelege (Aufbau wie Haben): Miete, Versicherung, Leasing, Abos einmal anlegen. Jeder Termin wird
+// Dauerbelege (Aufbau wie Haben): Miete, Versicherung, Leasing, Abos einmal anlegen — oder feste
+// Einnahmen wie die Privatnutzung des Betriebs-Kfz (1 %-Regelung). Jeder Termin wird
 // fällig und mit einem Klick zur Buchung — Tab bucht nie von selbst, damit nichts doppelt oder falsch
 // im Jahr landet. Änderungen an der Vorlage gelten für künftige Termine.
 export default function Dauerbelege() {
@@ -120,7 +127,7 @@ export default function Dauerbelege() {
 
   return (
     <div>
-      <PageHeader title="Dauerbelege" sub="Miete, Versicherung, Leasing, Abos — einmal anlegen, jeden Termin mit einem Klick buchen">
+      <PageHeader title="Dauerbelege" sub="Miete, Leasing, Abos oder die 1 %-Regelung — einmal anlegen, jeden Termin mit einem Klick buchen">
         <button className="btn-primary" onClick={() => setEditing({})}>
           <IconPlus className="mr-1 h-4 w-4" /> Dauerbeleg
         </button>
@@ -159,7 +166,7 @@ export default function Dauerbelege() {
                     <span>{d.kategorie_name}</span>
                   </>
                 }
-                amount={`−${formatEuro(d.betrag_cent)}`}
+                amount={betragText(d)}
                 actions={
                   <>
                     <IconButton
@@ -180,14 +187,15 @@ export default function Dauerbelege() {
       <SectionHead label="Alle Dauerbelege" count={items.length} />
       {items.length === 0 ? (
         <Leer>
-          Noch keine Dauerbelege. Lege Miete, Versicherung, Leasing oder ein Abo einmal an — Tab zeigt dir jeden
-          Termin als fällig, und du buchst ihn mit einem Klick (oder ordnest die Abbuchung im Bank-Import zu).
+          Noch keine Dauerbelege. Lege Miete, Versicherung, Leasing oder ein Abo einmal an — oder eine feste Einnahme
+          wie die Privatnutzung des Firmenwagens (1 %-Regelung). Tab zeigt dir jeden Termin als fällig, und du buchst
+          ihn mit einem Klick (oder ordnest den Umsatz im Bank-Import zu).
         </Leer>
       ) : (
         items.map((d) => (
           <Row
             key={d.id}
-            kind="out"
+            kind={istEinnahme(d) ? 'in' : 'out'}
             icon={IconRepeat}
             muted={!d.aktiv || d.beendet}
             title={d.bezeichnung}
@@ -226,7 +234,7 @@ export default function Dauerbelege() {
                 )}
               </>
             }
-            amount={`−${formatEuro(d.betrag_cent)}`}
+            amount={betragText(d)}
             actions={
               <>
                 <IconButton icon={IconPencil} label="Bearbeiten" onClick={() => setEditing(d)} />
@@ -267,7 +275,7 @@ export default function Dauerbelege() {
           presetBetragCent={buchen.d.betrag_cent}
           presetBeschreibung={buchen.d.bezeichnung}
           presetDatum={buchen.termin}
-          presetRichtung="ausgabe"
+          presetRichtung={istEinnahme(buchen.d) ? 'einnahme' : 'ausgabe'}
           presetPrivatBp={buchen.d.privat_bp}
           dauerbeleg={{ id: buchen.d.id, termin: buchen.termin }}
           onClose={() => setBuchen(null)}
@@ -288,29 +296,39 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
     betragInput: editing.betrag_cent ? centToInput(editing.betrag_cent) : '',
     privatAn: (editing.privat_bp || 0) > 0,
     privatInput: bpZuText(editing.privat_bp || 0),
+    richtung: editing.kategorie_typ === 'einnahme' ? 'einnahme' : 'ausgabe',
     intervall: editing.intervall || 'monatlich',
     naechste_am: editing.naechste_am || todayISO(),
     endet_am: editing.endet_am || '',
   }));
 
-  // nur, was ein Dauerbeleg sein kann: Ausgabe ohne AfA und ohne Pflicht-Details (Bewirtung, Geschenke)
+  // nur, was ein Dauerbeleg sein kann: Kategorie der gewählten Richtung, ohne AfA und ohne Pflicht-Details
+  // (Bewirtung, Geschenke)
   const options = useMemo(
     () =>
       kategorien
-        .filter((k) => k.typ === 'ausgabe' && !k.ist_afa && !k.belegpflicht_extra)
+        .filter((k) => k.typ === form.richtung && !k.ist_afa && !k.belegpflicht_extra)
         .map((k) => ({ value: String(k.id), label: k.name })),
-    [kategorien],
+    [kategorien, form.richtung],
   );
+  const einnahme = form.richtung === 'einnahme';
+  const katKey = kategorien.find((k) => String(k.id) === form.kategorie_id)?.key;
+
+  function richtungWechseln(richtung) {
+    if (richtung === form.richtung) return;
+    // Kategorie passt nicht mehr zur Richtung; Privatanteil gibt es nur bei Ausgaben
+    setForm({ ...form, richtung, kategorie_id: '', privatAn: richtung === 'ausgabe' ? form.privatAn : false });
+  }
 
   const betrag = parseEuroToCent(form.betragInput);
-  const bp = form.privatAn ? textZuBp(form.privatInput) : 0;
+  const bp = form.privatAn && !einnahme ? textZuBp(form.privatInput) : 0;
 
   async function save(e) {
     e.preventDefault();
     if (!form.bezeichnung.trim()) return toast.error('Bitte eine Bezeichnung angeben, z. B. „Miete Büro".');
     if (!form.kategorie_id) return toast.error('Bitte eine Kategorie wählen.');
     if (!betrag || betrag <= 0) return toast.error('Bitte einen gültigen Betrag angeben.');
-    if (form.privatAn && bp === null) return toast.error('Privatanteil: bitte eine Zahl größer 0 bis 100 (%) angeben.');
+    if (form.privatAn && !einnahme && bp === null) return toast.error('Privatanteil: bitte eine Zahl größer 0 bis 100 (%) angeben.');
     if (form.endet_am && form.endet_am < form.naechste_am) return toast.error('„Endet nach dem" liegt vor dem Termin.');
     const body = {
       bezeichnung: form.bezeichnung.trim(),
@@ -353,17 +371,21 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
             className="input"
             autoFocus
             value={form.bezeichnung}
-            placeholder="z. B. Miete Büro, Haftpflicht, Handyvertrag"
+            placeholder={einnahme ? 'z. B. Privatnutzung Firmenwagen' : 'z. B. Miete Büro, Haftpflicht, Handyvertrag'}
             onChange={(e) => setForm({ ...form, bezeichnung: e.target.value })}
           />
         </label>
+        <div className="block">
+          <span className="field-label">Art</span>
+          <Dropdown value={form.richtung} onChange={(v) => richtungWechseln(String(v))} options={RICHTUNGEN} />
+        </div>
         <div className="block">
           <span className="field-label">Kategorie</span>
           <Dropdown
             value={form.kategorie_id}
             onChange={(v) => setForm({ ...form, kategorie_id: String(v) })}
             options={options}
-            placeholder="Ausgabe-Kategorie suchen…"
+            placeholder={einnahme ? 'Einnahme-Kategorie suchen…' : 'Ausgabe-Kategorie suchen…'}
             searchable
           />
         </div>
@@ -384,6 +406,15 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
           </div>
         </div>
 
+        {katKey === 'kfz_privatnutzung' && (
+          <Hinweis className="text-xs">
+            <strong>1 %-Regelung:</strong> Betrag je Monat = 1 % des Bruttolistenpreises, beim E-Auto ein Viertel, beim
+            Plug-in-Hybrid die Hälfte davon — erst den (geviertelten) Listenpreis auf volle 100 € abrunden. Beispiel
+            E-Auto, Listenpreis 43.970 €: ein Viertel 10.992,50 €, abgerundet 10.900 €, davon 1 % = 109 € im Monat.
+          </Hinweis>
+        )}
+
+        {!einnahme && (
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <Schalter checked={form.privatAn} onChange={(an) => setForm({ ...form, privatAn: an })} label="Auch privat genutzt" />
@@ -412,6 +443,7 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
             </div>
           )}
         </div>
+        )}
 
         <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
           <label className="block">
@@ -433,7 +465,8 @@ function DauerbelegModal({ editing, gewerbeId, kategorien, onClose, onSaved }) {
 
         <Hinweis className="text-xs">
           Ein Termin ist <strong>fällig</strong>, sobald sein Datum erreicht ist. Du buchst ihn mit einem Klick —
-          oder ordnest die Abbuchung im Bank-Import zu. Tab bucht nie von selbst. Liegt der erste Termin in der
+          oder ordnest den Umsatz im Bank-Import zu. Von selbst bucht Tab nur, wenn die automatische Zuordnung einen
+          Kontoumsatz eindeutig erkennt. Liegt der erste Termin in der
           Vergangenheit, holst du die verpassten Termine mit „Alle buchen" nach.
           {isEdit && ' Setzt du den nächsten Termin zurück, bleibt der Tag im Monat erhalten (der 31. fällt in kurzen Monaten auf den Monatsletzten).'}
         </Hinweis>

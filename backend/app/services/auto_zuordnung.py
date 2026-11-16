@@ -234,8 +234,8 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
                     offen_rech = match.offene_rechnungen(conn, gewerbe_id)
                     continue
 
-        # 3) Abbuchung -> Dauerbeleg-Termin
-        if u["betrag_cent"] < 0:
+        # 3) Umsatz -> Dauerbeleg-Termin (Abbuchung -> Ausgabe-, Eingang -> Einnahme-Vorlage)
+        if u["betrag_cent"] != 0:
             t = [x for x in match.dauerbeleg_treffer(conn, u) if x["punkte"] >= 100]
             if len(t) == 1:
                 d = t[0]

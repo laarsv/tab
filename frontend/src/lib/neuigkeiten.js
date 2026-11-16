@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 44,
+    datum: '2026-11-16',
+    titel: 'Dauerbelege auch für Einnahmen',
+    text: 'Dauerbelege gibt es jetzt auch für feste Einnahmen. Wähle im Dauerbeleg unter „Art“ Einnahme, zum Beispiel für die Privatnutzung des Firmenwagens nach der 1 %-Regelung: Tab zeigt den Betrag jeden Monat als fällig, und du buchst ihn mit einem Klick. Zahlungseingänge auf dem Konto ordnet Tab der passenden Einnahme-Vorlage zu.',
+    link: { to: '/dauerbelege', label: 'Zu den Dauerbelegen' },
+  },
+  {
     id: 43,
     datum: '2026-11-15',
     titel: 'Bankumsätze ordnen sich selbst zu',

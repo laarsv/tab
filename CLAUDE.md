@@ -465,7 +465,9 @@ der Mapping-Version des Jahres aufgelöst.
 - **Dauerbelege (`/dauerbelege`, `pages/Dauerbelege.jsx`, `routes/dauerbelege.py`, `services/dauerbelege.py`,
   v24):** Aufbau nach Haben (Vorlage einmal, Termine fällig, Änderungen nur für künftige Termine,
   Pausieren/Beenden, **bucht nie von selbst** — Ausnahme: die automatische Zuordnung eines Bankumsatzes bei 100 Punkten, siehe Bank-Import). Vorlage: Bezeichnung (wird die Buchungsbeschreibung),
-  Ausgabe-Kategorie (nicht AfA, nicht `belegpflicht_extra`), Betrag brutto, Privatanteil, Rhythmus
+  Ausgabe- **oder Einnahme-Kategorie** (nicht AfA, nicht `belegpflicht_extra`; Einnahme z. B. `kfz_privatnutzung` für die
+  1 %-Regelung — `kategorie_typ` in der API, Formular-Feld „Art“, Privatanteil nur bei Ausgaben → sonst 400; Bank-Vorschlag und
+  automatische Zuordnung: Abbuchung → Ausgabe-Vorlage, Eingang → Einnahme-Vorlage), Betrag brutto, Privatanteil, Rhythmus
   (monatlich/vierteljährlich/halbjährlich/jährlich), `naechste_am` = nächster **offener** Termin, `endet_am`,
   `aktiv`, Notiz. **Zeiger statt Termin-Tabelle:** „fällig“ = `naechste_am` ≤ heute (nachzuholende Termine
   werden nacheinander angezeigt, höchstens 60); `anker_tag` hält den Tag im Monat (31. → Monatsende und
