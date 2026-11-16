@@ -230,7 +230,7 @@ export default function Bank() {
             <div className="min-w-[16rem] flex-1">
               <SchalterZeile
                 titel="Automatisch zuordnen"
-                hinweis="Nur eindeutige Treffer: bezahlte Rechnungen, fällige Dauerbelege, schon vorhandene Buchungen und Belege aus dem Eingang mit bekannter Kategorie. Läuft nach jedem Import und stündlich."
+                hinweis="Nur eindeutige Treffer: bezahlte Rechnungen, fällige Dauerbelege, schon vorhandene Buchungen, Belege aus dem Eingang mit bekannter Kategorie und Steuer-Vorauszahlungen mit eingetragenem Betrag. Läuft nach jedem Import und stündlich."
                 checked={daten.automatik}
                 onChange={automatikSchalten}
               />
@@ -504,10 +504,14 @@ function VerbindenModal({ gewerbeId, onClose }) {
 // Ergebnis der automatischen Zuordnung als Meldung (nach Import oder „Jetzt zuordnen“)
 function autoMeldung(r, auchWennNichts = false) {
   if (!r) return;
-  const n = (r.verknuepft || 0) + (r.gebucht || 0);
+  const n = (r.verknuepft || 0) + (r.gebucht || 0) + (r.erkannt || 0);
   if (n > 0) {
-    const teile = [r.gebucht ? `${r.gebucht} gebucht` : null, r.verknuepft ? `${r.verknuepft} mit vorhandenen Buchungen verknüpft` : null];
-    toast.success(`Automatisch zugeordnet: ${teile.filter(Boolean).join(', ')}. Unter „Zugeordnet“ steht jeweils der Grund.`, {
+    const teile = [
+      r.gebucht ? `${r.gebucht} gebucht` : null,
+      r.verknuepft ? `${r.verknuepft} mit vorhandenen Buchungen verknüpft` : null,
+      r.erkannt ? `${r.erkannt} Steuer-Vorauszahlung${r.erkannt > 1 ? 'en' : ''} erkannt und abgehakt` : null,
+    ];
+    toast.success(`Automatisch: ${teile.filter(Boolean).join(', ')}. Am Umsatz steht jeweils der Grund.`, {
       duration: 9000,
     });
   } else if (auchWennNichts) {
@@ -536,7 +540,10 @@ function UmsatzZeile({ u, onOeffnen }) {
           ) : status === 'zugeordnet' ? (
             <Zustand ton="pos">{u.auto_grund ? (u.auto_buchung ? 'Automatisch gebucht' : 'Automatisch zugeordnet') : 'Gebucht'}</Zustand>
           ) : (
-            <Zustand>Ignoriert{u.ignoriert_grund ? ` · ${u.ignoriert_grund}` : ''}</Zustand>
+            <Zustand ton={u.auto_frist ? 'pos' : 'leise'}>
+              {u.auto_frist ? 'Automatisch erkannt' : 'Ignoriert'}
+              {u.ignoriert_grund ? ` · ${u.ignoriert_grund}` : ''}
+            </Zustand>
           )}
           {PUNKT}
           <span className="tabular-nums">{formatDateDE(u.datum)}</span>
@@ -676,7 +683,24 @@ function UmsatzModal({ umsatz, konten, onClose, onBuchen, onChanged }) {
           </>
         )}
 
-        {umsatz.status_effektiv === 'ignoriert' && (
+        {umsatz.status_effektiv === 'ignoriert' && umsatz.auto_frist && (
+          <>
+            <Hinweis>
+              Automatisch erkannt: {umsatz.auto_grund}. Der Umsatz zählt nicht als Betriebsausgabe und ist deshalb ignoriert.
+              „Rückgängig“ öffnet ihn und die Frist wieder; danach ordnet Tab diesen Umsatz nicht mehr selbst zu.
+            </Hinweis>
+            <DialogFuss>
+              <button className="btn-ghost" onClick={onClose}>
+                Schließen
+              </button>
+              <button className="btn-outline" disabled={busy} onClick={() => aufrufen('auto-rueckgaengig')}>
+                Rückgängig
+              </button>
+            </DialogFuss>
+          </>
+        )}
+
+        {umsatz.status_effektiv === 'ignoriert' && !umsatz.auto_frist && (
           <>
             <Hinweis>Ignoriert{umsatz.ignoriert_grund ? `: ${umsatz.ignoriert_grund}` : ''} — zählt nicht als offen.</Hinweis>
             <DialogFuss>

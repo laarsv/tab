@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import logging
 import secrets
 import sqlite3
 
@@ -171,7 +172,17 @@ def vorauszahlungen_setzen(body: VorauszahlungIn, user: dict = Depends(get_curre
             db.execute("DELETE FROM vorauszahlung WHERE email = ? AND art = ? AND jahr = ? AND quartal = ?",
                        (user["email"], body.art, body.jahr, q))
     db.commit()
-    return _vz(db, user["email"], body.jahr)
+    # Schon bezahlte Raten gleich auf dem Konto suchen (sonst erst beim nächsten Stundenlauf)
+    from ..services import auto_zuordnung as auto  # Zirkel vermeiden
+
+    erkannt = 0
+    for g in _gewerbe(db, user["email"]):
+        try:
+            erkannt += auto.lauf(db, g["id"], user, bilder=False).get("erkannt", 0)
+        except Exception:
+            db.rollback()
+            logging.getLogger("tab.auto_zuordnung").exception("Lauf nach Vorauszahlungen fehlgeschlagen")
+    return {**_vz(db, user["email"], body.jahr), "erkannt": erkannt}
 
 
 # ── Kalender-Abo ────────────────────────────────────────────────────────────

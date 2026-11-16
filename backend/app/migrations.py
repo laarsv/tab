@@ -976,6 +976,14 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=38,
+        sql="""
+        -- v38: Zahlung ans Finanzamt/die Gemeinde automatisch erkannt (services/auto_zuordnung.py, Regel 0): der Umsatz
+        --      wird ignoriert und die Vorauszahlungs-Frist abgehakt; auto_frist = deren Schlüssel (für „Rückgängig“).
+        ALTER TABLE bank_umsatz ADD COLUMN auto_frist TEXT;
+        """,
+    ),
 ]
 
 

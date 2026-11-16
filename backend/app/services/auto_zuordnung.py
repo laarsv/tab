@@ -1,5 +1,10 @@
 """Automatische Zuordnung von Bankumsätzen — nur, wenn der Treffer eindeutig ist.
 
+  0. Vorauszahlung   Abbuchung = eingetragene, noch offene Rate (Tabelle `vorauszahlung`, Fristen-Seite) mit exakt
+                     diesem Betrag, Datum ± 30 Tage um die Fälligkeit UND Finanzamt/Finanzkasse (Einkommensteuer) bzw.
+                     Stadt/Gemeinde/Gewerbesteuer (Gewerbesteuer) in Gegenpartei oder Zweck, genau eine Rate
+                     -> Umsatz ignorieren (keine Betriebsausgabe) und die Frist abhaken; `auto_frist` merkt sich welche
+
 Tab bucht hier selbst, aber ausschließlich über die vorhandenen Wege (`create_buchung`, `zuordnen`), also mit
 denselben Prüfungen, der Jahres-Sperre und dem Änderungsprotokoll. Alles, was nicht eindeutig ist, bleibt offen
 und erscheint wie bisher mit Vorschlägen auf der Bank-Seite. Reihenfolge je Umsatz:
@@ -43,6 +48,40 @@ MAX_BELEGE = 60
 MAX_BILDER = 40  # Fotos brauchen Texterkennung (Sekunden je Bild)
 BELEG_FENSTER_TAGE = 21  # Umsatz höchstens 21 Tage nach dem Belegdatum …
 BELEG_VORLAUF_TAGE = 3   # … oder bis zu 3 Tage davor
+
+
+VZ_FENSTER_TAGE = 30
+VZ_WORTE = {
+    "est": ("finanzamt", "finanzkasse", "oberkasse", "hauptkasse", "landeskasse", "steuerverwaltung", "bundeskasse"),
+    "gewst": ("stadtkasse", "gemeindekasse", "kreiskasse", "stadtverwaltung", "gemeinde", "stadt ", "gewerbesteuer",
+              "gewst"),
+}
+
+
+def vorauszahlung_treffer(conn: sqlite3.Connection, u: dict, email: str) -> list[dict]:
+    """Offene Vorauszahlungs-Raten, zu denen die Abbuchung passt (Betrag exakt, Datum, Empfänger)."""
+    from .steuerfristen import VZ_NAME, vz_faellig  # Zirkel vermeiden
+
+    if u["betrag_cent"] >= 0 or not email:
+        return []
+    text = f" {(u.get('gegenpartei') or '')} {(u.get('verwendungszweck') or '')} ".lower()
+    datum = dt.date.fromisoformat(u["datum"])
+    erledigt = {r["schluessel"] for r in conn.execute("SELECT schluessel FROM frist_erledigt WHERE email = ?", (email,))}
+    belegt = {r["auto_frist"] for r in conn.execute("SELECT auto_frist FROM bank_umsatz WHERE auto_frist IS NOT NULL")}
+    out = []
+    for r in conn.execute(
+        "SELECT art, jahr, quartal, betrag_cent FROM vorauszahlung WHERE email = ? AND betrag_cent = ? AND jahr BETWEEN ? AND ?",
+        (email, -u["betrag_cent"], datum.year - 1, datum.year + 1),
+    ):
+        key = f"vz:{r['art']}:{r['jahr']}-Q{r['quartal']}"
+        if key in erledigt or key in belegt or not any(w in text for w in VZ_WORTE[r["art"]]):
+            continue
+        faellig = vz_faellig(r["art"], r["jahr"], r["quartal"])
+        if abs((dt.date.fromisoformat(faellig) - datum).days) > VZ_FENSTER_TAGE:
+            continue
+        out.append({"schluessel": key, "faellig_am": faellig,
+                    "name": f"{VZ_NAME[r['art']]} {r['quartal']}/{r['jahr']}", "art": r["art"]})
+    return out
 
 
 def _offene_umsaetze(conn: sqlite3.Connection, gewerbe_id: int) -> list[dict]:
@@ -204,6 +243,27 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
         return True
 
     for u in umsaetze:
+        # 0) Vorauszahlung ans Finanzamt / die Gemeinde -> ignorieren + Frist abhaken
+        t = vorauszahlung_treffer(conn, u, user.get("email"))
+        if len(t) == 1:
+            v = t[0]
+            grund = f"{v['name']} (fällig {v['faellig_am']}): Betrag, Datum und Empfänger passen — Frist abgehakt"
+            conn.execute(
+                "UPDATE bank_umsatz SET status = 'ignoriert', ignoriert_grund = ?, auto_grund = ?, auto_buchung = 0, "
+                "auto_frist = ? WHERE id = ?",
+                (f"{v['name']} (keine Betriebsausgabe)", grund[:300], v["schluessel"], u["id"]),
+            )
+            conn.execute(
+                "INSERT INTO frist_erledigt (email, schluessel, erledigt_am) VALUES (?, ?, ?) "
+                "ON CONFLICT(email, schluessel) DO NOTHING",
+                (user["email"], v["schluessel"], u["datum"]),
+            )
+            conn.commit()
+            zugeordnet.add(u["id"])
+            ergebnis["erkannt"] = ergebnis.get("erkannt", 0) + 1
+            ergebnis["details"].append({"umsatz_id": u["id"], "grund": grund, "neu": False})
+            continue
+
         # 1) schon gebucht -> nur verknüpfen
         t = [x for x in match.buchung_treffer(conn, u) if x["punkte"] >= SCHWELLE_SCHON_GEBUCHT]
         if len(t) == 1:
@@ -282,6 +342,18 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
 def rueckgaengig(conn: sqlite3.Connection, umsatz: dict) -> None:
     """Automatische Zuordnung zurücknehmen: neu angelegte Buchung löschen (mit der Zahlung auf der Rechnung
     und dem Dauerbeleg-Zeiger), sonst nur die Verknüpfung lösen. Danach nie wieder automatisch."""
+    if umsatz.get("auto_frist"):  # erkannte Vorauszahlung: Frist wieder öffnen, Umsatz wieder offen
+        owner = conn.execute("SELECT owner_email FROM gewerbe WHERE id = ?", (umsatz["gewerbe_id"],)).fetchone()
+        if owner and owner["owner_email"]:
+            conn.execute("DELETE FROM frist_erledigt WHERE email = ? AND schluessel = ?",
+                         (owner["owner_email"], umsatz["auto_frist"]))
+        conn.execute(
+            "UPDATE bank_umsatz SET status = 'offen', ignoriert_grund = NULL, auto_grund = NULL, auto_frist = NULL, "
+            "auto_aus = 1 WHERE id = ?",
+            (umsatz["id"],),
+        )
+        conn.commit()
+        return
     bid = umsatz["buchung_id"]
     if bid and umsatz["auto_buchung"]:
         b = conn.execute("SELECT * FROM buchung WHERE id = ?", (bid,)).fetchone()

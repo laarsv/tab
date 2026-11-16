@@ -236,7 +236,11 @@ function Vorauszahlungen({ onChanged }) {
     try {
       const r = await api.put('/api/fristen/vorauszahlungen', { jahr, art, betraege });
       uebernehmen(r.data);
-      toast.success('Gespeichert.');
+      toast.success(
+        r.data.erkannt
+          ? `Gespeichert. ${r.data.erkannt} Zahlung${r.data.erkannt > 1 ? 'en' : ''} auf dem Konto gefunden und abgehakt.`
+          : 'Gespeichert.',
+      );
       await onChanged();
     } catch (e) {
       toast.error(apiError(e));

@@ -339,7 +339,10 @@ def ignorieren(
 @router.post("/umsaetze/{umsatz_id}/oeffnen")
 def wieder_oeffnen(umsatz_id: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
     """Ignoriert → offen, oder Verknüpfung mit der Buchung lösen (die Buchung bleibt bestehen)."""
-    _umsatz(db, user, umsatz_id)
+    u = _umsatz(db, user, umsatz_id)
+    if u.get("auto_frist"):  # automatisch erkannte Vorauszahlung: auch die Frist wieder öffnen
+        auto.rueckgaengig(db, u)
+        return {"ok": True}
     db.execute(
         "UPDATE bank_umsatz SET status = 'offen', ignoriert_grund = NULL, buchung_id = NULL, zugeordnet_am = NULL, "
         "auto_grund = NULL, auto_buchung = 0, auto_aus = CASE WHEN buchung_id IS NOT NULL THEN 1 ELSE auto_aus END "
