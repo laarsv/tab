@@ -216,6 +216,13 @@ Die im früheren Programm geführten Jahre **[ausfüllen]** werden vor Ende des 
 exportiert (Belege, Buchungen, Rechnungen, Auswertungen, DATEV-/CSV-Export) und wie 7.1 aufbewahrt.
 **[ausfüllen: Exportdatum, Ablageort]**
 
+Tab kann einen DATEV-Export (Buchungsstapel mit Belegbildern, Kontoumsätze, Kontakte) einmalig übernehmen. Dabei
+werden die Buchungen auf den Zahlungsfluss umgerechnet (Zahlungstag, Konten der Rechnung), die Belegbilder an die
+Buchungen gehängt und die Kontoumsätze zugeordnet; die bereits erklärten Jahre werden danach in Tab abgeschlossen und
+versiegelt. Die unveränderten Exportdateien, die Auswertungen des früheren Programms (EÜR, Anlagenverzeichnis) und die
+Prüfsummen liegen im Belegspeicher unter `archiv/` und sind damit Teil der Datensicherung (4.2). Maßgeblich für die
+erklärten Jahre bleiben die Auswertungen des früheren Programms; Abweichungen der Tab-Zuordnung sind dort dokumentiert.
+
 ---
 
 ## 8. Mitgeltende Unterlagen
@@ -233,3 +240,4 @@ exportiert (Belege, Buchungen, Rechnungen, Auswertungen, DATEV-/CSV-Export) und 
 | 15.11.2026 | 1 | Erste Fassung |
 | 15.11.2026 | 2 | Automatische Zuordnung von Bankumsätzen (2.3) |
 | 16.11.2026 | 3 | Bankabruf über Enable Banking als zweiter Weg für Bankumsätze (2.3) |
+| 16.11.2026 | 4 | Übernahme von Altdaten aus einem DATEV-Export (7.3) |
