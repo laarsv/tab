@@ -993,6 +993,22 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE gewerbe ADD COLUMN datev_skr TEXT NOT NULL DEFAULT '03' CHECK (datev_skr IN ('03','04'));
         """,
     ),
+    Migration(
+        version=40,
+        sql="""
+        -- v40: Herkunft übernommener Fremddaten (lexware_import.py): je Zeile des Fremdexports bzw. je Belegbild ein
+        --      stabiler Schlüssel, damit ein späterer Nachimport nur Neues übernimmt. buchung_id NULL = gesehen, aber
+        --      bewusst nicht übernommen (z. B. Privat, AfA).
+        CREATE TABLE fremd_import (
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            quelle      TEXT    NOT NULL,
+            schluessel  TEXT    NOT NULL,
+            buchung_id  INTEGER REFERENCES buchung(id) ON DELETE SET NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (gewerbe_id, quelle, schluessel)
+        );
+        """,
+    ),
 ]
 
 

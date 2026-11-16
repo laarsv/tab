@@ -68,6 +68,8 @@ def main(argv=None) -> int:
                     help="KONTO=KATEGORIE:AB_JAHR, z. B. 320=kfz_kosten:2025 (Leasing auf dem Anlagenkonto)")
     ap.add_argument("--anlagen", help="JSON mit den Anlagen zum Stichtag (siehe datev_import.anlagen_uebernehmen)")
     ap.add_argument("--anlagen-stichtag", default=None)
+    ap.add_argument("--herkunft-nachtragen", action="store_true",
+                    help="nur einmal: Schlüssel eines Imports von vor v40 nachtragen (gleiche Dateien und Optionen)")
     ap.add_argument("--ausfuehren", action="store_true")
     a = ap.parse_args(argv)
 
@@ -110,16 +112,36 @@ def main(argv=None) -> int:
     if g is None or g["owner_email"] != a.email:
         print("Gewerbe gehört nicht zu dieser E-Mail.", file=sys.stderr)
         return 2
-    if conn.execute("SELECT 1 FROM beleg WHERE gewerbe_id = ? AND original_name LIKE 'Lexware %'", (a.gewerbe,)).fetchone():
-        print("Für dieses Gewerbe wurde schon aus Lexware importiert — Abbruch.", file=sys.stderr)
+    bekannt = {r["schluessel"] for r in conn.execute(
+        "SELECT schluessel FROM fremd_import WHERE gewerbe_id = ? AND quelle = 'lexware'", (a.gewerbe,))}
+    schon_importiert = conn.execute(
+        "SELECT 1 FROM beleg WHERE gewerbe_id = ? AND original_name LIKE 'Lexware %'", (a.gewerbe,)).fetchone()
+    if a.herkunft_nachtragen:
+        return herkunft_nachtragen(conn, a, zeilen, buchungen, a.ausfuehren)
+    if schon_importiert and not bekannt:
+        print("Für dieses Gewerbe wurde schon importiert, aber ohne Schlüssel — erst --herkunft-nachtragen.", file=sys.stderr)
         return 2
+
+    # Nachimport: nur Buchungen, deren Lexware-Zeilen noch unbekannt sind; Belege nur, wenn noch nicht übernommen
+    ref_schluessel = {z.ref: z.schluessel for z in zeilen}
+    if bekannt:
+        neu, gemischt = [], []
+        for b in buchungen:
+            alt = [r for r in b.zeilen if ref_schluessel[r] in bekannt]
+            (neu if not alt else gemischt if len(alt) < len(b.zeilen) else []).append(b)
+        print(f"Nachimport: {len(neu)} neue Buchungen, {len(gemischt)} teils schon übernommen (ausgelassen, bitte prüfen)")
+        for b in gemischt:
+            print("   teils bekannt:", b.datum, b.text[:60], b.positionen)
+        buchungen = neu
+        dateien = {g: p for g, p in dateien.items() if f"guid:{g}" not in bekannt}
     if not a.ausfuehren:
         print("Probelauf — nichts geschrieben.")
         return 0
 
     try:
         erg = di.ausfuehren(conn, gewerbe_id=a.gewerbe, buchungen=buchungen, dateien=dateien)
-        print({k: v for k, v in erg.items() if k != "ref"})
+        _herkunft_speichern(conn, a.gewerbe, zeilen, bekannt, erg["ref"], erg["guids"])
+        print({k: v for k, v in erg.items() if k not in ("ref", "guids")})
         bz = di.bank_zeilen(zeilen, konto_iban, erg["ref"])
         bank = di.bank_importieren(
             conn, gewerbe_id=a.gewerbe, umsaetze=umsaetze, bzeilen=bz, ref_buchung=erg["ref"], kontonamen=kontonamen,
@@ -147,6 +169,55 @@ def main(argv=None) -> int:
         conn.commit()
         print("Abgeschlossen:", jahre)
     return 0
+
+
+def _herkunft_speichern(conn, gewerbe_id: int, zeilen, bekannt: set[str], ref_buchung: dict, guids: dict) -> None:
+    for z in zeilen:
+        if z.schluessel not in bekannt:
+            conn.execute("INSERT OR IGNORE INTO fremd_import (gewerbe_id, quelle, schluessel, buchung_id) VALUES (?, 'lexware', ?, ?)",
+                         (gewerbe_id, z.schluessel, ref_buchung.get(z.ref)))
+    for g, bid in guids.items():
+        conn.execute("INSERT OR IGNORE INTO fremd_import (gewerbe_id, quelle, schluessel, buchung_id) VALUES (?, 'lexware', ?, ?)",
+                     (gewerbe_id, f"guid:{g}", bid))
+
+
+def herkunft_nachtragen(conn, a, zeilen, buchungen, schreiben: bool) -> int:
+    """Für einen Import von vor v40: die damals angelegten Buchungen in derselben Reihenfolge wiederfinden (fortlaufende
+    IDs ab der ersten) und die Schlüssel nachtragen. Bricht ab, wenn auch nur eine Buchung nicht passt."""
+    erste = buchungen[0]
+    kand = conn.execute(
+        "SELECT id FROM buchung WHERE gewerbe_id = ? AND datum = ? AND beschreibung LIKE ? ORDER BY id",
+        (a.gewerbe, erste.datum, erste.text[:200].replace("%", "_") + "%")).fetchall()
+    for k in kand:
+        start = k["id"]
+        ok = True
+        for i, b in enumerate(buchungen):
+            r = conn.execute("SELECT datum, beschreibung FROM buchung WHERE id = ? AND gewerbe_id = ?", (start + i, a.gewerbe)).fetchone()
+            if r is None or r["datum"] != b.datum or not (r["beschreibung"] or "").startswith(b.text[:200]):
+                ok = False
+                break
+        if ok:
+            ref = {}
+            for i, b in enumerate(buchungen):
+                for z in b.zeilen:
+                    ref[z] = start + i
+            guids = {}
+            # Belege: je Buchung die GUIDs, die beim Import an ihr hingen (erste Buchung je GUID)
+            vergeben = set()
+            for i, b in enumerate(buchungen):
+                for g in b.guids:
+                    if g not in vergeben:
+                        vergeben.add(g)
+                        guids[g] = start + i
+            print(f"Gefunden: Buchungen {start}–{start + len(buchungen) - 1}, {len(guids)} Belege")
+            if schreiben:
+                _herkunft_speichern(conn, a.gewerbe, zeilen, set(), ref, guids)
+                conn.commit()
+                print("Schlüssel nachgetragen:", conn.execute(
+                    "SELECT COUNT(*) FROM fremd_import WHERE gewerbe_id = ?", (a.gewerbe,)).fetchone()[0])
+            return 0
+    print("Die importierten Buchungen ließen sich nicht eindeutig wiederfinden — nichts nachgetragen.", file=sys.stderr)
+    return 2
 
 
 def kontakte(conn, gewerbe_id: int, ordner: str) -> dict:

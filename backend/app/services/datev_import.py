@@ -110,6 +110,7 @@ class Zeile:
     beleg: str
     text: str
     guid: str | None
+    schluessel: str = ""   # stabil über Exporte hinweg (für den Nachimport, Tabelle fremd_import)
 
     @property
     def ref(self) -> int:
@@ -143,16 +144,21 @@ def lesen(data: bytes, jahr: int) -> list[Zeile]:
     if not rows or rows[0][0] != "EXTF" or rows[0][3] != "Buchungsstapel":
         raise ValueError("Kein DATEV-Buchungsstapel (EXTF).")
     out = []
+    gesehen: dict[str, int] = {}
     for i, r in enumerate(rows[2:]):
         if not r or not r[0]:
             continue
+        basis = hashlib.sha1("|".join([str(jahr), r[0], r[1], r[6], r[7], r[9], r[10], r[13], r[19]]).encode("utf-8")).hexdigest()
+        n = gesehen.get(basis, 0)
+        gesehen[basis] = n + 1
         konto, gegen = r[6].lstrip("0") or "0", r[7].lstrip("0") or "0"
         soll, haben = (konto, gegen) if r[1] == "S" else (gegen, konto)
         tt, mm = r[9][:2], r[9][2:4]
         guid = None
         if r[19].startswith("BEDI"):
             guid = r[19].split('"')[1] if '"' in r[19] else r[19][5:].strip()
-        out.append(Zeile(jahr, i, _cent(r[0]), soll, haben, f"{jahr}-{mm}-{tt}", r[10].strip(), r[13].strip(), guid))
+        out.append(Zeile(jahr, i, _cent(r[0]), soll, haben, f"{jahr}-{mm}-{tt}", r[10].strip(), r[13].strip(), guid,
+                         f"{basis}:{n}"))
     return out
 
 
@@ -322,7 +328,7 @@ def ausfuehren(conn: sqlite3.Connection, *, gewerbe_id: int, buchungen: list[Buc
     """Buchungen + Belege anlegen (ohne Commit). `dateien`: GUID → Pfad der Belegdatei."""
     kat = {r["key"]: (r["id"], r["belegpflicht_extra"]) for r in conn.execute("SELECT id, key, belegpflicht_extra FROM kategorie")}
     vergeben: dict[str, str] = {}   # GUID → Datum der Buchung, an der der Beleg hängt
-    erg = {"buchungen": 0, "positionen": 0, "belege": 0, "bytes": 0, "ref": {}}
+    erg = {"buchungen": 0, "positionen": 0, "belege": 0, "bytes": 0, "ref": {}, "guids": {}}
     os.makedirs(settings.UPLOAD_ROOT, exist_ok=True)
     for b in buchungen:
         verweise = [vergeben[g] for g in b.guids if g in vergeben]
@@ -357,6 +363,7 @@ def ausfuehren(conn: sqlite3.Connection, *, gewerbe_id: int, buchungen: list[Buc
                 (gewerbe_id, bid, name[:150], stored, len(data)),
             )
             vergeben[g] = b.datum
+            erg["guids"][g] = bid
             erg["belege"] += 1
             erg["bytes"] += len(data)
     return erg
