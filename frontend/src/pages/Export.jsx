@@ -40,11 +40,22 @@ export default function Export() {
     load();
   }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // DATEV: Einstellungen da? Hinweise zur Kontierung?
+  const [datev, setDatev] = useState(null);
+  useEffect(() => {
+    if (!gewerbeId) return;
+    api
+      .get('/api/export/datev', { params: { gewerbe_id: gewerbeId, jahr } })
+      .then((r) => setDatev(r.data))
+      .catch(() => setDatev(null));
+  }, [gewerbeId, jahr]);
+
   const DOWNLOADS = {
     summenblatt: { url: '/api/export/summenblatt.csv', name: () => `euer-summenblatt-${slug()}-${jahr}.csv` },
     journal: { url: '/api/export/journal.csv', name: () => `beleg-journal-${slug()}-${jahr}.csv` },
     archiv: { url: '/api/export/belege.zip', name: () => `euer-archiv-${slug()}-${jahr}.zip` },
     backup: { url: '/api/export/backup.zip', name: () => 'tab-backup.zip', noParams: true },
+    datev: { url: '/api/export/datev.csv', name: () => `EXTF_Buchungsstapel_${slug()}_${jahr}.csv` },
   };
 
   function slug() {
@@ -95,6 +106,18 @@ export default function Export() {
       text: 'Jede Buchung mit Kategorie und Zeile — zum Gegenprüfen, auch durch den Steuerberater.',
       disabled: laedt,
       run: () => download('journal'),
+    },
+    {
+      key: 'datev',
+      icon: IconFileText,
+      titel: 'DATEV-Buchungsstapel',
+      text: datev
+        ? datev.bereit
+          ? `${datev.zeilen} Buchungszeilen im ${datev.skr === '04' ? 'SKR04' : 'SKR03'} — für die Steuerberatung (DATEV-Format EXTF).`
+          : datev.fehler
+        : 'Für die Steuerberatung (DATEV-Format EXTF).',
+      disabled: laedt || !datev?.bereit,
+      run: () => download('datev'),
     },
     {
       key: 'druck',
@@ -152,6 +175,15 @@ export default function Export() {
 
       <div className="no-print">
         <SectionHead label="Herunterladen" />
+        {datev?.hinweise?.length > 0 && (
+          <Hinweis ton="warn" titel="DATEV-Export: bitte prüfen" className="mb-2">
+            <ul className="list-disc pl-5">
+              {datev.hinweise.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
+            </ul>
+          </Hinweis>
+        )}
         {AKTIONEN.map((a) => (
           <Row
             key={a.key}

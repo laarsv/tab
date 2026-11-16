@@ -984,6 +984,15 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE bank_umsatz ADD COLUMN auto_frist TEXT;
         """,
     ),
+    Migration(
+        version=39,
+        sql="""
+        -- v39: DATEV-Export (services/datev.py): Berater-/Mandantennummer der Steuerberatung und Kontenrahmen je Gewerbe.
+        ALTER TABLE gewerbe ADD COLUMN datev_berater INTEGER;
+        ALTER TABLE gewerbe ADD COLUMN datev_mandant INTEGER;
+        ALTER TABLE gewerbe ADD COLUMN datev_skr TEXT NOT NULL DEFAULT '03' CHECK (datev_skr IN ('03','04'));
+        """,
+    ),
 ]
 
 

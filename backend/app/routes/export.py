@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from ..auth.deps import check_gewerbe, get_current_user, ist_admin
 from ..db import get_db
+from ..services import datev
 from ..services.export import (
     BesteuerungNotSupportedError,
     MappingMissingError,
@@ -77,6 +78,34 @@ def journal_download(
         content=data,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="beleg-journal-{name}-{jahr}.csv"'},
+    )
+
+
+@router.get("/datev")
+def datev_pruefen(gewerbe_id: int, jahr: int, user: dict = Depends(get_current_user),
+                  db: sqlite3.Connection = Depends(get_db)):
+    """Vorab: fehlen Einstellungen? Wie viele Zeilen, welche Hinweise?"""
+    g = check_gewerbe(db, user, gewerbe_id)
+    try:
+        datev.einstellungen(g)
+        st = datev.stapel(db, gewerbe_id, jahr)
+    except datev.DatevFehler as e:
+        return {"bereit": False, "fehler": str(e), "skr": g["datev_skr"]}
+    return {"bereit": True, "zeilen": len(st.zeilen), "hinweise": st.hinweise[:50], "skr": st.skr}
+
+
+@router.get("/datev.csv")
+def datev_download(gewerbe_id: int, jahr: int, user: dict = Depends(get_current_user),
+                   db: sqlite3.Connection = Depends(get_db)):
+    g = check_gewerbe(db, user, gewerbe_id)
+    try:
+        data = datev.buchungsstapel_csv(db, gewerbe_id, jahr)
+    except datev.DatevFehler as e:
+        raise HTTPException(400, str(e))
+    return Response(
+        content=data,
+        media_type="text/csv; charset=windows-1252",
+        headers={"Content-Disposition": f'attachment; filename="EXTF_Buchungsstapel_{_slug(g["name"])}_{jahr}.csv"'},
     )
 
 

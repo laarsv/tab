@@ -25,7 +25,7 @@ LESEN = [
     r"/api/fahrten",
     r"/api/rechnungen",
     r"/api/rechnungen/\d+/pdf",
-    r"/api/export/(summenblatt|summenblatt\.csv|journal\.csv|belege\.zip)",
+    r"/api/export/(summenblatt|summenblatt\.csv|journal\.csv|belege\.zip|datev|datev\.csv)",
     r"/api/umsatzsteuer",
     r"/api/umsatzsteuer/zeitraum",
     r"/api/umsatzsteuer/voranmeldungen\.csv",

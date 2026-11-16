@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 49,
+    datum: '2026-11-16',
+    titel: 'DATEV-Export für die Steuerberatung',
+    text: 'Auf der Export-Seite gibt es jetzt den DATEV-Buchungsstapel: alle Buchungen eines Jahres im Format, das die Steuerberatung direkt in DATEV einliest, mit Konten im SKR03 oder SKR04. Vorher im Gewerbe unter „DATEV“ Berater- und Mandantennummer eintragen — die nennt dir deine Steuerberatung.',
+    link: { to: '/export', label: 'Zum Export' },
+  },
+  {
     id: 48,
     datum: '2026-11-16',
     titel: 'Vorauszahlungen mit Betrag',

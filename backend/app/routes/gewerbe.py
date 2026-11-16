@@ -49,6 +49,10 @@ class GewerbePatch(BaseModel):
     # Umsatzsteuer-Voranmeldung (v35)
     ustva_zeitraum: str | None = Field(default=None, pattern="^(monat|quartal|jahr)$")
     ustva_dauerfrist: bool | None = None
+    # DATEV-Export (v39); explizit null = löschen -> model_fields_set
+    datev_berater: int | None = Field(default=None, ge=1001, le=9999999)
+    datev_mandant: int | None = Field(default=None, ge=1, le=99999)
+    datev_skr: str | None = Field(default=None, pattern="^(03|04)$")
     # Zahlung & Mahnwesen (v17)
     zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)
     mahn_frist_tage: int | None = Field(default=None, ge=1, le=90)
@@ -148,6 +152,11 @@ def update_gewerbe(
         fields.append("ust_id = ?"); values.append(body.ust_id.strip().upper().replace(" ", "") or None)
     if body.ustva_zeitraum is not None:
         fields.append("ustva_zeitraum = ?"); values.append(body.ustva_zeitraum)
+    for col in ("datev_berater", "datev_mandant"):
+        if col in body.model_fields_set:
+            fields.append(f"{col} = ?"); values.append(getattr(body, col))
+    if body.datev_skr is not None:
+        fields.append("datev_skr = ?"); values.append(body.datev_skr)
     if body.ustva_dauerfrist is not None:
         fields.append("ustva_dauerfrist = ?"); values.append(1 if body.ustva_dauerfrist else 0)
     for col, val in [

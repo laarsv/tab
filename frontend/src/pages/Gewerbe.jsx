@@ -208,6 +208,13 @@ export default function Gewerbe() {
       body.mahn_gebuehr_2_cent = gebuehren[1];
       body.mahn_gebuehr_3_cent = gebuehren[2];
       body.basiszinssatz_bp = basis;
+      const berater = editing.datev_berater?.trim() ? ganzeZahl(editing.datev_berater, 1001, 9999999) : null;
+      const mandant = editing.datev_mandant?.trim() ? ganzeZahl(editing.datev_mandant, 1, 99999) : null;
+      if (berater === undefined) return toast.error('DATEV-Beraternummer: 4 bis 7 Ziffern.');
+      if (mandant === undefined) return toast.error('DATEV-Mandantennummer: 1 bis 5 Ziffern.');
+      body.datev_berater = berater;
+      body.datev_mandant = mandant;
+      body.datev_skr = editing.datev_skr || '03';
     }
     try {
       if (editing.id) {
@@ -328,6 +335,9 @@ export default function Gewerbe() {
                         besteuerung_wechsel: g.besteuerung_wechsel || [],
                         ustva_zeitraum: g.ustva_zeitraum || 'quartal',
                         ustva_dauerfrist: Boolean(g.ustva_dauerfrist),
+                        datev_berater: g.datev_berater ? String(g.datev_berater) : '',
+                        datev_mandant: g.datev_mandant ? String(g.datev_mandant) : '',
+                        datev_skr: g.datev_skr || '03',
                         ust_id: g.ust_id || '',
                         anschrift: g.anschrift || '',
                         iban: g.iban || '',
@@ -472,6 +482,46 @@ export default function Gewerbe() {
               />
               <span className="mt-1 block text-xs text-ink/60">Steht auf Rechnungen und in der E-Rechnung, wenn ausgefüllt.</span>
             </label>
+
+            {editing.id && (
+              <Gruppe titel="DATEV" className="border-t border-ink/[0.08] pt-4">
+                <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="field-label">Beraternummer</span>
+                    <input
+                      className="input tabular-nums"
+                      inputMode="numeric"
+                      value={editing.datev_berater}
+                      onChange={(e) => setEditing({ ...editing, datev_berater: e.target.value })}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="field-label">Mandantennummer</span>
+                    <input
+                      className="input tabular-nums"
+                      inputMode="numeric"
+                      value={editing.datev_mandant}
+                      onChange={(e) => setEditing({ ...editing, datev_mandant: e.target.value })}
+                    />
+                  </label>
+                  <div className="block">
+                    <span className="field-label">Kontenrahmen</span>
+                    <Dropdown
+                      value={editing.datev_skr}
+                      onChange={(v) => setEditing({ ...editing, datev_skr: String(v) })}
+                      options={[
+                        { value: '03', label: 'SKR03' },
+                        { value: '04', label: 'SKR04' },
+                      ]}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs leading-snug text-ink/60">
+                  Für den DATEV-Export auf der Export-Seite. Berater- und Mandantennummer und den Kontenrahmen nennt dir deine
+                  Steuerberatung.
+                </p>
+              </Gruppe>
+            )}
 
             {editing.id && (
               <Gruppe titel="Zahlung & Mahnwesen" className="border-t border-ink/[0.08] pt-4">
