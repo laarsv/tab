@@ -263,8 +263,36 @@ Steuerhinweis. Eine Zahlung auf eine Rechnung mit mehreren Sätzen wird **anteil
 **KU-Jahre bleiben unverändert:** alle Positionen ohne USt, Zeilen 15, 17, 18 und Vorsteuer/USt-Zahlung bleiben leer
 (`NIE_BEFUELLT_JE_JAHR`, Guard im Export).
 
-**Nicht abgedeckt:** Soll-Versteuerung, USt-Voranmeldung (folgt), § 13b als Leistungsempfänger, innergemeinschaftliche
+**Nicht abgedeckt:** Soll-Versteuerung, § 13b als Leistungsempfänger, innergemeinschaftliche
 Lieferungen/Erwerbe, Differenzbesteuerung, Vorsteuer-Berichtigung § 15a, Wechsel innerhalb eines Jahres.
+
+## 9. Umsatzsteuer-Voranmeldung (nur Regelbesteuerung)
+
+Tab rechnet die Werte für das ELSTER-Formular, übermittelt nichts. Quelle der Zahlen sind dieselben Buchungspositionen wie
+für §8, deshalb passt die Summe der Voranmeldungen (bis auf Rundung je Anmeldung) zu Z17 − Vorsteuer-Zeile.
+
+| Kz | Inhalt | Quelle in Tab |
+|----|--------|---------------|
+| 81 | Bemessungsgrundlage 19 % (volle Euro, abgerundet); Steuer = 19 % davon | Einnahmen mit `ust_bp` 1900: Brutto − USt |
+| 86 | Bemessungsgrundlage 7 %; Steuer = 7 % davon | Einnahmen mit `ust_bp` 700 |
+| 35/36 | andere Steuersätze: Bemessung / gebuchte Steuer | Einnahmen mit anderem Satz |
+| 48 | steuerfreie Umsätze ohne Vorsteuerabzug (§ 4 Nr. 8–29) | `einnahme_steuerfrei` (Courtage § 4 Nr. 11) |
+| 66 | Vorsteuer (Euro und Cent) | betrieblicher Teil von `ust_cent` der Ausgaben + `afa_buchung.vorsteuer_cent` im Anschaffungsmonat |
+| 83 | verbleibende Vorauszahlung / Überschuss | Steuer 81 + 86 + 36 − 66 |
+
+- **Zeitraum** je Gewerbe: monatlich, vierteljährlich oder keiner (befreit). Faustregel § 18 Abs. 2 UStG: Vorjahres-
+  Steuer > 9.000 € monatlich, ≤ 9.000 € vierteljährlich, ≤ 2.000 € kann das Finanzamt befreien — maßgeblich ist das
+  Finanzamt, Tab prüft das nicht.
+- **Frist:** 10. Tag nach Ablauf des Zeitraums, mit Dauerfristverlängerung (§ 46 UStDV) einen Monat später; Wochenende/
+  bundesweiter Feiertag → nächster Werktag. Umsatzsteuererklärung: 31.7. des Folgejahres (ohne Steuerberatung).
+- **Ist-Versteuerung:** Umsätze zählen im Zeitraum der Zahlung (Buchungsdatum). Die Vorsteuer zählt in Tab ebenfalls am
+  Buchungsdatum — vereinfacht, streng gilt der Zeitraum, in dem Rechnung und Leistung vorliegen.
+- **Nicht gezählt:** `ust_zahlung`/`ust_erstattung` (Zahlungen ans/vom Finanzamt), Einnahmen ohne Satz außer
+  `einnahme_steuerfrei` (Hinweis im Zeitraum).
+- **Hinweis statt Rechnung:** Wer steuerfreie Umsätze (Kz 48) und Vorsteuer hat, muss die Vorsteuer aufteilen
+  (§ 15 Abs. 2/4 UStG) — Tab zeigt den Hinweis, teilt nicht auf.
+- **Nicht abgedeckt:** Sondervorauszahlung (Kz 39), § 13b (Kz 46/47, 84/85, 67), innergemeinschaftliche Lieferungen/
+  Erwerbe (Kz 41/44/49/89/93/61), Einfuhrumsatzsteuer (62), § 15a (64), berichtigte Anmeldung (Kz 10), ELSTER-Versand.
 
 ---
 

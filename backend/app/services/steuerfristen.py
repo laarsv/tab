@@ -11,14 +11,16 @@ Erledigt); Fristen und Code sind eigenständig und auf das beschränkt, was Tab-
     nichts ans Finanzamt).
   * **Einkommensteuer-Vorauszahlung** 10.3./10.6./10.9./10.12. — nur Hinweis, nur wenn der Nutzer
     sie einschaltet (ob und wie viel zu zahlen ist, steht im Vorauszahlungsbescheid).
-  * Die USt-Voranmeldung fehlt bewusst: Kleinunternehmer geben keine ab, Regelbesteuerung
-    unterstützt Tab nicht.
+  * **Umsatzsteuer** nur für Gewerbe mit Regelbesteuerung im jeweiligen Jahr (services/ust_voranmeldung.py):
+    Voranmeldung je Monat/Quartal (10. nach Ablauf, mit Dauerfristverlängerung einen Monat später) und die
+    Umsatzsteuererklärung (31. Juli des Folgejahres). Kleinunternehmer sehen davon nichts.
 """
 from __future__ import annotations
 
 import datetime as dt
 import sqlite3
 
+from . import ust_voranmeldung as ustva
 from .fristen import add_days, naechster_werktag, tage_zwischen
 
 FRUEHESTES_JAHR = 2024  # davor galten verlängerte Sonderfristen, die Tab nicht abbildet
@@ -26,7 +28,7 @@ HORIZONT_TAGE = 366
 BALD_TAGE = 30
 DRINGEND_TAGE = 14  # für den Zähler in der Seitenleiste
 
-ART_LABEL = {"erklaerung": "Erklärung", "vorauszahlung": "Vorauszahlung"}
+ART_LABEL = {"erklaerung": "Erklärung", "vorauszahlung": "Vorauszahlung", "voranmeldung": "Voranmeldung"}
 EST_VORAUSZAHLUNG_TERMINE = ((3, 10), (6, 10), (9, 10), (12, 10))
 
 
@@ -94,6 +96,8 @@ def steuerfristen(
             }
         )
 
+    items += _ust_fristen(conn, gewerbe, heute, horizont)
+
     if est_vorauszahlung:
         for jahr in (jahr_heute, jahr_heute + 1):
             for monat, tag in EST_VORAUSZAHLUNG_TERMINE:
@@ -128,6 +132,52 @@ def steuerfristen(
             f["status"] = "offen"
         f["art_label"] = ART_LABEL[f["art"]]
     items.sort(key=lambda f: (f["faellig_am"], f["schluessel"]))
+    return items
+
+
+def _ust_fristen(conn: sqlite3.Connection, gewerbe: list[sqlite3.Row], heute: str, horizont: str) -> list[dict]:
+    """Voranmeldungen und Umsatzsteuererklärung je Gewerbe mit Regelbesteuerung. Zeiträume, deren Ende noch nicht
+    erreicht ist, erscheinen erst, wenn ihre Frist im Horizont liegt; Offenes bleibt stehen, bis es erledigt ist."""
+    items: list[dict] = []
+    jahr_heute = int(heute[:4])
+    for g in gewerbe:
+        keys = g.keys()
+        zeitraum = g["ustva_zeitraum"] if "ustva_zeitraum" in keys else "quartal"
+        dauerfrist = bool(g["ustva_dauerfrist"]) if "ustva_dauerfrist" in keys else False
+        for jahr in ustva.regel_jahre(conn, g["id"], jahr_heute + 1):
+            if zeitraum in ("monat", "quartal"):
+                for z in ustva.zeitraeume(jahr, zeitraum):
+                    faellig = ustva.abgabefrist(z["bis"], dauerfrist)
+                    if faellig > horizont or z["von"] > heute:
+                        continue
+                    items.append({
+                        "schluessel": ustva.frist_schluessel(g["id"], z["key"]),
+                        "art": "voranmeldung",
+                        "titel": f"Umsatzsteuer-Voranmeldung {z['label']} · {g['name']}",
+                        "detail": (
+                            f"Über ELSTER übermitteln und die Zahllast bis zum selben Tag zahlen. Die Werte stehen in "
+                            f"Tab unter „Umsatzsteuer“"
+                            + (" (mit Dauerfristverlängerung)." if dauerfrist else ".")
+                        ),
+                        "faellig_am": faellig,
+                        "erledigbar": True,
+                        "link": "/umsatzsteuer",
+                    })
+            if jahr <= jahr_heute:
+                faellig = ustva.jahreserklaerung_frist(jahr)
+                if faellig <= horizont:
+                    items.append({
+                        "schluessel": ustva.jahreserklaerung_schluessel(g["id"], jahr),
+                        "art": "erklaerung",
+                        "titel": f"Umsatzsteuererklärung {jahr} · {g['name']}",
+                        "detail": (
+                            f"Abgabe bis {faellig[8:10]}.{faellig[5:7]}.{faellig[:4]} ohne Steuerberatung (31. Juli des "
+                            "Folgejahres). Die Summe der Voranmeldungen steht in Tab unter „Umsatzsteuer“."
+                        ),
+                        "faellig_am": faellig,
+                        "erledigbar": True,
+                        "link": "/umsatzsteuer",
+                    })
     return items
 
 

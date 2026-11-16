@@ -10,6 +10,7 @@ import {
   IconChecklist,
   IconChevronDown,
   IconDownload,
+  IconFileText,
   IconGrid,
   IconInfo,
   IconList,
@@ -37,6 +38,9 @@ const NAV = [
   { to: '/fristen', label: 'Fristen', icon: IconCalendar, badge: 'fristen' },
   { to: '/afa', label: 'Abschreibungen', icon: IconTrendDown },
 ];
+
+// Nur, wenn das gewählte Gewerbe im gewählten Jahr regelbesteuert ist (Layout).
+const UST_NAV = { to: '/umsatzsteuer', label: 'Umsatzsteuer', icon: IconFileText };
 
 const WEITERE = [
   { to: '/export', label: 'Export', icon: IconDownload },
@@ -164,6 +168,7 @@ export default function Sidebar({
   fristenDringend = 0,
   bankOffen = 0,
   dauerFaellig = 0,
+  ustSichtbar = false,
   onNavigate,
   onNeueBuchung,
   onUpload,
@@ -255,7 +260,7 @@ export default function Sidebar({
       )}
 
       <div className="mt-2 space-y-0.5">
-        {NAV.map((n) => (
+        {(ustSichtbar ? NAV.flatMap((n) => (n.to === '/fristen' ? [n, UST_NAV] : [n])) : NAV).map((n) => (
           <NavItem
             key={n.to}
             item={n}

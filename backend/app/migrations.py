@@ -920,6 +920,16 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE gewerbe ADD COLUMN ust_id TEXT;
         """,
     ),
+    Migration(
+        version=35,
+        sql="""
+        -- v35: Umsatzsteuer-Voranmeldung (services/ust_voranmeldung.py). Zeitraum je Gewerbe: monat | quartal | jahr
+        --      (jahr = befreit, nur Jahreserklärung); Dauerfristverlängerung verschiebt die Abgabe um einen Monat.
+        ALTER TABLE gewerbe ADD COLUMN ustva_zeitraum TEXT NOT NULL DEFAULT 'quartal'
+            CHECK (ustva_zeitraum IN ('monat','quartal','jahr'));
+        ALTER TABLE gewerbe ADD COLUMN ustva_dauerfrist INTEGER NOT NULL DEFAULT 0;
+        """,
+    ),
 ]
 
 

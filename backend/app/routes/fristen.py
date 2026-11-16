@@ -41,7 +41,7 @@ def _gewerbe(db: sqlite3.Connection, email: str) -> list[sqlite3.Row]:
     zusätzlich den herrenlosen Alt-Bestand)."""
     sichtbar = "(owner_email = ? OR owner_email IS NULL)" if ist_admin({"email": email}) else "owner_email = ?"
     return db.execute(
-        f"SELECT id, name FROM gewerbe WHERE {sichtbar} AND aktiv = 1 ORDER BY name COLLATE NOCASE",
+        f"SELECT id, name, ustva_zeitraum, ustva_dauerfrist FROM gewerbe WHERE {sichtbar} AND aktiv = 1 ORDER BY name COLLATE NOCASE",
         (email,),
     ).fetchall()
 

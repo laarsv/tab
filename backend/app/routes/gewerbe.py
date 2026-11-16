@@ -46,6 +46,9 @@ class GewerbePatch(BaseModel):
     kontoinhaber: str | None = Field(default=None, max_length=70)
     rechnung_fusszeile: str | None = None
     ust_id: str | None = Field(default=None, max_length=20)
+    # Umsatzsteuer-Voranmeldung (v35)
+    ustva_zeitraum: str | None = Field(default=None, pattern="^(monat|quartal|jahr)$")
+    ustva_dauerfrist: bool | None = None
     # Zahlung & Mahnwesen (v17)
     zahlungsziel_tage: int | None = Field(default=None, ge=0, le=120)
     mahn_frist_tage: int | None = Field(default=None, ge=1, le=90)
@@ -143,6 +146,10 @@ def update_gewerbe(
         fields.append("aktiv = ?"); values.append(1 if body.aktiv else 0)
     if body.ust_id is not None:
         fields.append("ust_id = ?"); values.append(body.ust_id.strip().upper().replace(" ", "") or None)
+    if body.ustva_zeitraum is not None:
+        fields.append("ustva_zeitraum = ?"); values.append(body.ustva_zeitraum)
+    if body.ustva_dauerfrist is not None:
+        fields.append("ustva_dauerfrist = ?"); values.append(1 if body.ustva_dauerfrist else 0)
     for col, val in [
         ("anschrift", body.anschrift),
         ("iban", body.iban),

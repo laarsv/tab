@@ -43,6 +43,7 @@ from .routes import (
     passkeys,
     rechnungen,
     uebersicht,
+    umsatzsteuer,
     vorlagen,
     vorschlaege,
 )
@@ -176,3 +177,4 @@ app.include_router(einstellungen.router)
 app.include_router(news.router)
 app.include_router(export.router)
 app.include_router(meta.router)
+app.include_router(umsatzsteuer.router)

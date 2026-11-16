@@ -11,6 +11,7 @@ import Gewerbe from './pages/Gewerbe.jsx';
 import JahresCheck from './pages/JahresCheck.jsx';
 import Fahrten from './pages/Fahrten.jsx';
 import Fristen from './pages/Fristen.jsx';
+import Umsatzsteuer from './pages/Umsatzsteuer.jsx';
 import Abschluss from './pages/Abschluss.jsx';
 import Bank from './pages/Bank.jsx';
 import Rechnungen from './pages/Rechnungen.jsx';
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="/check" element={<JahresCheck />} />
         <Route path="/fahrten" element={<Fahrten />} />
         <Route path="/fristen" element={<Fristen />} />
+        <Route path="/umsatzsteuer" element={<Umsatzsteuer />} />
         <Route path="/abschluss" element={<Abschluss />} />
         <Route path="/bank" element={<Bank />} />
         <Route path="/rechnungen" element={<Rechnungen />} />

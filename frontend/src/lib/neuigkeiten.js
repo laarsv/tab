@@ -6,10 +6,17 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 46,
+    datum: '2026-11-16',
+    titel: 'Umsatzsteuer-Voranmeldung',
+    text: 'Für Gewerbe mit Regelbesteuerung rechnet Tab die Voranmeldung je Monat oder Quartal aus: die Kennzahlen für ELSTER (81, 86, 48, 66, 83) mit den Buchungen dahinter. Die Abgabefristen stehen unter Fristen, auch mit Dauerfristverlängerung, dazu die Umsatzsteuererklärung. Übermitteln musst du selbst über ELSTER; danach hakst du den Zeitraum ab. Als Kleinunternehmer siehst du davon nichts.',
+    link: { to: '/umsatzsteuer', label: 'Zur Umsatzsteuer' },
+  },
+  {
     id: 45,
     datum: '2026-11-16',
     titel: 'Umsatzsteuer, wenn du sie brauchst',
-    text: 'Fällt ein Gewerbe aus der Kleinunternehmerregelung, stellst du unter Gewerbe → Besteuerung ein, ab welchem Jahr die Regelbesteuerung gilt. In diesen Jahren buchst du je Position Steuersatz und Umsatzsteuer, Rechnungen, Angebote und Abos weisen die Umsatzsteuer aus (auch in der E-Rechnung), und das Summenblatt füllt die Umsatzsteuer- und Vorsteuer-Zeilen der Anlage EÜR. Als Kleinunternehmer ändert sich für dich nichts. Die Umsatzsteuer-Voranmeldung kommt noch.',
+    text: 'Fällt ein Gewerbe aus der Kleinunternehmerregelung, stellst du unter Gewerbe → Besteuerung ein, ab welchem Jahr die Regelbesteuerung gilt. In diesen Jahren buchst du je Position Steuersatz und Umsatzsteuer, Rechnungen, Angebote und Abos weisen die Umsatzsteuer aus (auch in der E-Rechnung), und das Summenblatt füllt die Umsatzsteuer- und Vorsteuer-Zeilen der Anlage EÜR. Als Kleinunternehmer ändert sich für dich nichts.',
     link: { to: '/gewerbe', label: 'Zu den Gewerben' },
   },
   {

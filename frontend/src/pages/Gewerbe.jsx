@@ -28,6 +28,46 @@ function ganzeZahl(text, min, max) {
   return s !== '' && Number.isInteger(n) && n >= min && n <= max ? n : undefined;
 }
 
+// Umsatzsteuer-Voranmeldung (v35): Zeitraum + Dauerfristverlängerung, sofort gespeichert.
+function VoranmeldungFeld({ gewerbe, onChanged }) {
+  async function speichern(patch) {
+    try {
+      const res = await api.patch(`/api/gewerbe/${gewerbe.id}`, patch);
+      onChanged(res.data);
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <div className="block">
+        <span className="field-label">Umsatzsteuer-Voranmeldung</span>
+        <Dropdown
+          value={gewerbe.ustva_zeitraum || 'quartal'}
+          onChange={(v) => speichern({ ustva_zeitraum: String(v) })}
+          options={[
+            { value: 'quartal', label: 'Vierteljährlich' },
+            { value: 'monat', label: 'Monatlich' },
+            { value: 'jahr', label: 'Keine (befreit, nur Jahreserklärung)' },
+          ]}
+        />
+      </div>
+      {gewerbe.ustva_zeitraum !== 'jahr' && (
+        <SchalterZeile
+          titel="Dauerfristverlängerung"
+          hinweis="Abgabe einen Monat später. Monatliche Abgeber zahlen dafür eine Sondervorauszahlung (in ELSTER selbst eintragen)."
+          checked={!!gewerbe.ustva_dauerfrist}
+          onChange={(v) => speichern({ ustva_dauerfrist: v })}
+        />
+      )}
+      <p className="text-xs leading-snug text-ink/60">
+        Faustregel: Umsatzsteuer im Vorjahr über 9.000 € → monatlich, bis 9.000 € → vierteljährlich, bis 2.000 € kann das
+        Finanzamt befreien. Maßgeblich ist, was das Finanzamt festlegt.
+      </p>
+    </div>
+  );
+}
+
 // Besteuerung je Jahr (Regelbesteuerung als Option, EUER_KATEGORIEN.md §8): Liste der Wechsel + neuer Wechsel.
 // Ein Wechsel gilt ab dem 1.1. des Jahres; der Server lehnt abgeschlossene Jahre und unpassende Buchungen ab.
 function BesteuerungFeld({ gewerbe, onChanged }) {
@@ -102,6 +142,7 @@ function BesteuerungFeld({ gewerbe, onChanged }) {
           Übernehmen
         </button>
       </div>
+      {wechsel.some((w) => w.art === REGEL) && <VoranmeldungFeld gewerbe={gewerbe} onChanged={onChanged} />}
       <p className="text-xs leading-snug text-ink/60">
         Ein Wechsel gilt immer ab dem 1. Januar. Bei Regelbesteuerung buchst du Steuersatz und Umsatzsteuer je Position,
         Rechnungen weisen die Umsatzsteuer aus, und die Anlage EÜR bekommt die Umsatzsteuer-Zeilen. Ob und ab wann du
@@ -285,6 +326,8 @@ export default function Gewerbe() {
                         steuernummer: g.steuernummer || '',
                         besteuerung: g.besteuerung || 'kleinunternehmer',
                         besteuerung_wechsel: g.besteuerung_wechsel || [],
+                        ustva_zeitraum: g.ustva_zeitraum || 'quartal',
+                        ustva_dauerfrist: Boolean(g.ustva_dauerfrist),
                         ust_id: g.ust_id || '',
                         anschrift: g.anschrift || '',
                         iban: g.iban || '',
@@ -403,7 +446,7 @@ export default function Gewerbe() {
               <BesteuerungFeld
                 gewerbe={editing}
                 onChanged={(g) => {
-                  setEditing((e) => ({ ...e, besteuerung: g.besteuerung, besteuerung_wechsel: g.besteuerung_wechsel || [] }));
+                  setEditing((e) => ({ ...e, besteuerung: g.besteuerung, besteuerung_wechsel: g.besteuerung_wechsel || [], ustva_zeitraum: g.ustva_zeitraum, ustva_dauerfrist: g.ustva_dauerfrist }));
                   load();
                   reloadGewerbe();
                 }}

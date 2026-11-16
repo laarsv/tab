@@ -74,7 +74,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`.
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`. v35 = `gewerbe.ustva_zeitraum` (monat|quartal|jahr) + `ustva_dauerfrist` (Umsatzsteuer-Voranmeldung).
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -187,8 +187,24 @@ der Mapping-Version des Jahres aufgelöst.
   S je Satz (+ E für 0 %), Seller VA. Zahlung auf eine Rechnung mit mehreren Sätzen wird **anteilig je Satz** gebucht
   (`rechnung_summen.zahlung_positionen`, auch `GET /api/rechnungen/{id}/einnahme-positionen` fürs Buchungsfenster und Bank-Automatik).
   Abo im falschen Steuer-Stand → Rechnung entsteht als Entwurf mit Fehlerhinweis, kein Auto-Versand. Gegen eine Kopie der Prod-DB geprüft:
-  KU-Summenblätter, Journale, Siegel, E-Rechnungen identisch. **Nicht gebaut:** USt-Voranmeldung (Kennzahlen/ELSTER), Soll-Versteuerung,
-  § 13b, innergemeinschaftlich, § 15a, Wechsel innerhalb eines Jahres, USt-Fristen, Steuer aus der Beleg-Erkennung, Bilanz.
+  KU-Summenblätter, Journale, Siegel, E-Rechnungen identisch. **Nicht gebaut:** Soll-Versteuerung,
+  § 13b, innergemeinschaftlich, § 15a, Wechsel innerhalb eines Jahres, Steuer aus der Beleg-Erkennung, Bilanz. Voranmeldung: nächster Punkt.
+- **Umsatzsteuer-Voranmeldung (v35, `services/ust_voranmeldung.py`, `routes/umsatzsteuer.py`, `pages/Umsatzsteuer.jsx`,
+  `EUER_KATEGORIEN.md` §9):** nur für Gewerbe mit Regelbesteuerung im Jahr; Menüpunkt „Umsatzsteuer“ erscheint nur dann
+  (`ustSichtbar` im Layout). Rechnet je Monat/Quartal (`gewerbe.ustva_zeitraum`, im Gewerbe-Dialog unter Besteuerung) die
+  ELSTER-Kennzahlen aus denselben Buchungspositionen wie das Summenblatt (Ist-Versteuerung, Buchungsdatum = Zahlungstag, auch
+  für die Vorsteuer — bewusst vereinfacht): **Kz 81/86** Netto der Einnahmen zu 19/7 % in vollen Euro abgerundet, Steuer wie
+  ELSTER aus der Bemessungsgrundlage (Abweichung zur gebuchten Steuer wird angezeigt), **Kz 35/36** andere Sätze,
+  **Kz 48** `einnahme_steuerfrei` (§ 4 Nr. 11), **Kz 66** betriebliche Vorsteuer (Privatanteil gilt, Bewirtung voll) +
+  `afa_buchung.vorsteuer_cent` im Anschaffungsmonat, **Kz 83** Zahllast/Überschuss. `ust_zahlung`/`ust_erstattung` zählen
+  nicht (nur Info). Einnahmen ohne Satz außer Kz 48 → Hinweis; steuerfreie + Vorsteuer → Hinweis Vorsteueraufteilung
+  (§ 15 Abs. 2, nicht gerechnet). **Fristen:** 10. nach Zeitraumende, mit `ustva_dauerfrist` einen Monat später, nächster
+  Werktag; Umsatzsteuererklärung 31.7. des Folgejahres — beide erscheinen in `services/steuerfristen.py` (Fristen-Seite,
+  Zähler, Übersicht, Kalender-Abo) nur für Regel-Jahre ab 2024. **„Übermittelt“** = Erledigt-Haken der Fristen
+  (`frist_erledigt`, Schlüssel `ustva:<gewerbe>:<zeitraum>` bzw. `ust-erklaerung:<gewerbe>:<jahr>`). CSV
+  `/api/umsatzsteuer/voranmeldungen.csv`, Detail mit Buchungen `/api/umsatzsteuer/zeitraum`, MCP-Werkzeug `umsatzsteuer`,
+  Steuerberatung darf lesen. Tab übermittelt nichts an ELSTER. Nicht gebaut: Sondervorauszahlung (Kz 39), § 13b,
+  innergemeinschaftlich, Vorsteueraufteilung, berichtigte Anmeldung, ELSTER-Versand/ERiC, Abgleich mit den gezahlten Beträgen.
 - **PDF:** kein Server-PDF, sondern Druck-Ansicht (`window.print()` + `@media print` /
   `.print-area` in `index.css`) auf der Export-Seite.
 - **Export-Downloads:** Summenblatt/Journal-CSV, **Jahres-Archiv** `/api/export/belege.zip`
@@ -324,7 +340,7 @@ der Mapping-Version des Jahres aufgelöst.
   Zugang bei JEDEM Request (gesperrt/entfernt/anderer Inhaber → 401, wirkt sofort). **Rechte als Allowlist** in
   `auth/berater_guard.py` (Middleware in `main.py`, läuft vor jeder Route): nur GET auf Gewerbe, Kategorien, Kennzahlen,
   Buchungen (+ Belege, Download), Rechnungen (Liste ohne Entwürfe, PDF), Anlagen, Fahrten, Export (Summenblatt, Journal,
-  Jahres-ZIP), Abschluss-Stand/Protokoll; alles andere 403 — **neue Routen sind für die Steuerberatung automatisch zu**,
+  Jahres-ZIP), Umsatzsteuer-Voranmeldungen, Abschluss-Stand/Protokoll; alles andere 403 — **neue Routen sind für die Steuerberatung automatisch zu**,
   bis sie dort eingetragen werden (der Test `berater_test.py` ruft jede registrierte Route auf). `ist_admin()` ist für sie
   immer False (kein Backup), `nur_inhaber` schützt die Verwaltungsrouten, `db._akteur` meldet sie als `berater:<id>`.
   Nicht für die Steuerberatung: Bank, Dauerbelege, Angebote, Kontakte, Artikel, Einstellungen, Fristen, Übersicht,
@@ -352,7 +368,7 @@ der Mapping-Version des Jahres aufgelöst.
   `letzte_nutzung`), `/api/ki/tokens` ist `nur_inhaber`. Tokens gelten **nur** an `/api/mcp` (kein Cookie, keine andere
   Route akzeptiert sie) und Cookies gelten dort nicht; der Inhaber muss freigeschaltet bleiben (`ALLOWED_EMAILS`/
   `OPEN_SIGNUP`), Bremse 120 Anfragen/Minute je Token. **Nur lesen, dreifach:** nur lesende Werkzeuge
-  (`gewerbe_liste`, `kennzahlen`, `euer_summenblatt`, `buchungen`, `rechnungen`, `wiederkehrende_rechnungen`,
+  (`gewerbe_liste`, `kennzahlen`, `euer_summenblatt`, `buchungen`, `rechnungen`, `wiederkehrende_rechnungen`, `umsatzsteuer`,
   `uebersicht`, `anlagen`, `fristen`, `belege_eingang`, `kategorien`, alle mit `readOnlyHint`; `rechnungen` liefert neben dem
   rohen `faellig_am` auch `faellig_effektiv` (Altbestand ohne Ziel: Datum + 30 Tage) und `ueberfaellig` — ein leeres `faellig_am`
   hatte ein Assistent sonst als „keine Fälligkeit, also nie überfällig“ gelesen), die DB-Verbindung steht nach dem Token-Check auf
@@ -616,8 +632,8 @@ der Mapping-Version des Jahres aufgelöst.
   Nur Steuertermine, die für Tab-Nutzer gelten: **Einkommensteuererklärung mit Anlage EÜR** je
   Jahr ab 2024 (31.7. des Folgejahres, auf Werktag verschoben, ohne Steuerberatung; erscheint für
   Jahre mit Buchungen/Rechnungen eines eigenen Gewerbes) und optional (Schalter, je Login)
-  **ESt-Vorauszahlungen** 10.3./6./9./12. als reiner Hinweis. **Keine USt-Voranmeldung**
-  (Kleinunternehmer; Regelbesteuerung gibt es in Tab nicht). Erledigt hakt der Nutzer von Hand ab
+  **ESt-Vorauszahlungen** 10.3./6./9./12. als reiner Hinweis. **USt-Voranmeldung und -erklärung** nur für
+  Gewerbe mit Regelbesteuerung (siehe „Umsatzsteuer-Voranmeldung“). Erledigt hakt der Nutzer von Hand ab
   (`frist_erledigt`, je Login) — Tab überträgt nichts ans Finanzamt. Zähler an „Fristen" in der
   Seitenleiste = offene Erklärungen, überfällig oder in ≤ 14 Tagen. **Kalender-Abo:** geheimer
   Link `GET /api/fristen/kalender/{token}.ics` (ohne Login, nur SHA-256-Hash gespeichert, Link nur
@@ -729,6 +745,5 @@ keine generischen Aliase), `scripts/deploy.sh`. Frontend baut mit getracktem
 
 ## Noch offen / nicht gebaut
 
-- **USt-Voranmeldung** (Kennzahlen 81/86/66/83 je Monat/Quartal, Fristen) — Grundlage (Regelbesteuerung) steht, die
-  Voranmeldung selbst fehlt. Ebenso Bilanzierung (doppelte Buchführung, E-Bilanz) und der Bankabruf (Enable Banking).
+- **ELSTER-Versand** der Voranmeldung (Tab rechnet nur), Sondervorauszahlung, § 13b. Ebenso Bilanzierung (doppelte Buchführung, E-Bilanz) und der Bankabruf (Enable Banking).
 - Weiterhin außen vor: Multi-User/Mandant, Bankabruf, ELSTER-Direktversand.

@@ -47,7 +47,7 @@ function FristRow({ frist, onErledigt }) {
       actions={
         <>
           {f.link && f.status !== 'erledigt' && (
-            <IconButton icon={IconDownload} label="Zum Export (EÜR-Summenblatt)" onClick={() => navigate(f.link)} />
+            <IconButton icon={IconDownload} label={f.link === '/umsatzsteuer' ? 'Zur Umsatzsteuer' : 'Zum Export (EÜR-Summenblatt)'} onClick={() => navigate(f.link)} />
           )}
           {f.erledigbar && f.status !== 'erledigt' && (
             <IconButton icon={IconCircleCheck} variant="primary" label="Als erledigt markieren" onClick={() => onErledigt(f, true)} />
