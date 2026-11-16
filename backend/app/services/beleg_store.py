@@ -46,11 +46,11 @@ def speichere_beleg(
     if len(data) > settings.MAX_UPLOAD_MB * 1024 * 1024:
         raise BelegAbgelehnt(f"Datei zu groß (max. {settings.MAX_UPLOAD_MB} MB).")
 
-    # Speicher-Quota je Nutzer (Summe über alle Gewerbe des Besitzers).
+    # Speicher-Quota je Nutzer (Summe über alle Gewerbe des Besitzers); Admins ausgenommen.
     owner = conn.execute(
         "SELECT owner_email FROM gewerbe WHERE id = ?", (gewerbe_id,)
     ).fetchone()
-    if owner and owner["owner_email"]:
+    if owner and owner["owner_email"] and not _admin(owner["owner_email"]):
         belegt = conn.execute(
             "SELECT COALESCE(SUM(b.size_bytes), 0) FROM beleg b "
             "JOIN gewerbe g ON g.id = b.gewerbe_id WHERE g.owner_email = ?",
@@ -83,6 +83,13 @@ def speichere_beleg(
          faellig_am or None),
     )
     return cur.lastrowid
+
+
+def _admin(email: str) -> bool:
+    """Admins (ALLOWED_EMAILS) haben keine Speicher-Quota — der Server gehört ihnen."""
+    from ..auth.deps import ist_admin  # Zirkel vermeiden
+
+    return ist_admin({"email": email})
 
 
 def default_gewerbe_id(conn: sqlite3.Connection, user_email: str) -> int | None:

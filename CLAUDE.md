@@ -220,6 +220,16 @@ der Mapping-Version des Jahres aufgelöst.
   „T<buchung>“/„A<anlage>“, Beleginfo = Dateinamen. **Neue Kategorie = Konto in `KONTEN` ergänzen** (sonst 9999 + Hinweis).
   Nicht gebaut: Belegbilder per DATEV-XML, Debitoren/Kreditoren, Kostenstellen, Import in DATEV selbst getestet (nur gegen
   die Formatbeschreibung geprüft).
+- **Import aus Lexware/DATEV (`services/datev_import.py`, Kommandozeile `python -m app.lexware_import`, keine Oberfläche):**
+  liest DATEV-Buchungsstapel (EXTF, SKR03), Belegbilder (document.xml/GUID = Beleglink „BEDI“), Lexware-Kontoumsätze
+  (DATEV-ASCII) und Kontakte.csv. Doppelte Buchführung → Zahlungsfluss: je Zahlung (Personenkonto + Belegfeld 1, alle
+  Jahre) die Konten der Rechnung anteilig; direkte Buchungen gegen Geld/Privat; Lohnaufwand am Tag der Lohnverbuchung;
+  nicht übernommen: AfA/Anlagenzugänge, Gewerbesteuer, Privates, Transit (`KONTEN`, Konto → Kategorie). Negative Beträge
+  werden zur Gegenart (Gewinn gleich). Sammelzahlungen werden zusammengeführt, wenn genau ein Kontoumsatz die Summe hat.
+  `--umkontieren 320=kfz_kosten:2025`, Anlagen per JSON als Buchwert zum Stichtag (Workaround für „Übernahme mit
+  Restbuchwert“), `--abschliessen-bis` schließt die abgegebenen Jahre. Läuft je Gewerbe nur einmal (erkennt
+  Belege „Lexware …“). Am 16.11.2026 für Lars ausgeführt (2020–2026); Originale unter `UPLOAD_ROOT/archiv/`.
+  Admins (`ALLOWED_EMAILS`) haben seitdem keine Beleg-Quota.
 - **CSV-Import** (`POST /api/buchungen/import`): Semikolon-CSV
   `Datum;Betrag;Kategorie[;Beschreibung[;Beleg-Details]]`, Datum TT.MM.JJJJ oder ISO, Betrag
   deutsch, Kategorie = Key oder Name. **Alles-oder-nichts** — bei Fehlern 400 mit Zeilenliste.
