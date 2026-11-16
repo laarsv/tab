@@ -28,6 +28,7 @@ import io
 import sqlite3
 
 from . import besteuerung as best
+from . import gewinnermittlung as gw
 from .afa import afa_jahr
 from .privatanteil import privat_cent
 
@@ -174,6 +175,8 @@ def einstellungen(gewerbe: sqlite3.Row) -> tuple[int, int, str]:
 def stapel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> _Stapel:
     g = conn.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()
     _, _, skr = einstellungen(g)
+    if gw.ist_bilanz(conn, gewerbe_id, jahr):
+        return _stapel_bilanz(conn, gewerbe_id, jahr, skr)
     regel = best.ist_regel(conn, gewerbe_id, jahr)
     st = _Stapel(skr)
     bank = _k(BANK, skr)
@@ -269,3 +272,83 @@ def buchungsstapel_csv(conn: sqlite3.Connection, gewerbe_id: int, jahr: int, jet
     for z in st.zeilen:
         buf.write(";".join(z) + "\r\n")
     return buf.getvalue().encode("cp1252", "replace")
+
+
+# ── Bilanz-Jahre: Stapel aus dem Bilanz-Journal (services/bilanz.py) ─────────
+# Soll-Prinzip: Erlöse gegen Forderungen, Aufwand gegen Verbindlichkeiten, Zahlungen über Geldtransit, Eröffnung gegen
+# 9000. USt/Vorsteuer stehen als eigene Zeilen auf den Steuerkonten (keine Automatikkonten, keine Steuerschlüssel).
+
+BESTAND_KONTEN = {
+    "anlage": ANLAGE, "sammelposten": SAMMELPOSTEN, "kasse": ("1000", "1600"), "forderungen": ("1400", "1200"),
+    "forderungen_sonst": ("1500", "1300"), "ara": ("0980", "1900"), "verrechnung": ("1360", "1460"),
+    "eigenkapital": ("0880", "2000"), "rueckstellungen": ("0970", "3070"), "verbindlichkeiten": ("1600", "3300"),
+    "verb_sonst": ("1700", "3500"), "pra": ("0990", "3900"), "finanzamt": ("1780", "3820"),
+}
+UST_KONTO = ("1776", "3806")
+VORSTEUER_KONTO = ("1576", "1406")
+GUV_STANDARD = {
+    "umsatzerloese": ("8195", "4185"), "sonstige_ertraege": ("2700", "4830"), "material_waren": KONTEN["waren"],
+    "material_leistungen": KONTEN["fremdleistungen"], "personal": KONTEN["personal"],
+    "abschreibungen": KONTEN["afa_beweglich"], "sonstige_aufwendungen": ("4900", "6300"), "zinsen": KONTEN["zinsen"],
+    "steuern_ertrag": ("4320", "7610"),
+}
+SONDER = {"skonto": ("8730", "4730"), "ausfall": ("2400", "6930"), "afa_sammelposten": AFA_SAMMELPOSTEN,
+          "gewst": ("4320", "7610"), "afa": KONTEN["afa_beweglich"]}
+ERLOES_OHNE_AUTOMATIK = {"einnahme_ust": ("8200", "4200"), "veraeusserung_av": ("8829", "4849"),
+                         "kfz_privatnutzung": ("8924", "4639"), "entnahme_sonstig": ("8905", "4605")}
+
+
+def _bilanz_konto(konto: str, kat: str | None, soll: bool, skr: str, st: _Stapel) -> str:
+    if konto.startswith("bank:"):
+        return _k(BANK, skr)
+    if konto == "privat":
+        return _k(PRIVATENTNAHME if soll else PRIVATEINLAGE, skr)
+    if konto == "finanzamt":
+        if kat == "ust":
+            return _k(UST_KONTO, skr)
+        if kat == "vorsteuer":
+            return _k(VORSTEUER_KONTO, skr)
+        return _k(BESTAND_KONTEN["finanzamt"], skr)
+    if konto == "anlage" and kat in ("sammelposten", "afa_sammelposten"):
+        return _k(SAMMELPOSTEN, skr)
+    if konto in BESTAND_KONTEN:
+        return _k(BESTAND_KONTEN[konto], skr)
+    if konto.startswith("guv:"):
+        if kat in SONDER:
+            return _k(SONDER[kat], skr)
+        if kat in ERLOES_OHNE_AUTOMATIK:
+            return _k(ERLOES_OHNE_AUTOMATIK[kat], skr)
+        if kat in KONTEN:
+            return _k(KONTEN[kat], skr)
+        return _k(GUV_STANDARD[konto[4:]], skr)
+    st.hinweise.append(f"Konto {konto} ohne DATEV-Zuordnung (9999).")
+    return "9999"
+
+
+def _stapel_bilanz(conn: sqlite3.Connection, gewerbe_id: int, jahr: int, skr: str) -> _Stapel:
+    from . import bilanz as bz  # Zirkel vermeiden
+    st = _Stapel(skr)
+    for konto, saldo in sorted(bz.eroeffnung(conn, gewerbe_id, jahr).items()):
+        if not saldo or konto in ("eigenkapital", "privat"):
+            continue
+        k = _bilanz_konto(konto, None, saldo > 0, skr, st)
+        st.add(betrag=abs(saldo), sh="S" if saldo > 0 else "H", konto=k, gegen="9000", datum=f"{jahr}-01-01",
+               beleg="EB", text=f"Eröffnung {bz.konto_name(conn, konto)}")
+    ek = bz.eroeffnung(conn, gewerbe_id, jahr).get("eigenkapital", 0)
+    if ek:
+        st.add(betrag=abs(ek), sh="S" if ek > 0 else "H", konto=_k(BESTAND_KONTEN["eigenkapital"], skr), gegen="9000",
+               datum=f"{jahr}-01-01", beleg="EB", text="Eröffnung Eigenkapital")
+    for z in bz.journal(conn, gewerbe_id, jahr):
+        soll = _bilanz_konto(z["soll"], z["kat"], True, skr, st)
+        haben = _bilanz_konto(z["haben"], z["kat"], False, skr, st)
+        if z["kat"] == "bewirtung" and z["soll"].startswith("guv:"):
+            abzug = round(z["betrag_cent"] * 0.7)
+            st.add(betrag=abzug, sh="S", konto=soll, gegen=haben, datum=z["datum"], beleg=z["ref"] or "", text=z["text"])
+            st.add(betrag=z["betrag_cent"] - abzug, sh="S", konto=_k(BEWIRTUNG_NICHT_ABZUGSFAEHIG, skr), gegen=haben,
+                   datum=z["datum"], beleg=z["ref"] or "", text=f"{z['text']} (30 % nicht abzugsfähig)")
+            continue
+        st.add(betrag=z["betrag_cent"], sh="S", konto=soll, gegen=haben, datum=z["datum"], beleg=z["ref"] or "",
+               text=z["text"])
+    st.hinweise.append("Bilanz-Jahr: Buchungen nach Soll-Prinzip aus dem Tab-Journal; Zahlungen laufen über Geldtransit "
+                       f"({_k(BESTAND_KONTEN['verrechnung'], skr)}), Eröffnung gegen 9000, USt/Vorsteuer ohne Automatik.")
+    return st

@@ -6,6 +6,8 @@ import { IconArchive, IconButton, IconDownload, IconFileText, IconPrinter } from
 import { Hinweis, KeinGewerbe, Kennzahl, Kennzahlen, Leer, PageHeader, Row, SectionHead } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { formatEuro } from '../lib/format.js';
+import { istBilanz } from '../lib/gewinnermittlung.js';
+import { Link } from 'react-router-dom';
 
 export default function Export() {
   const { gewerbeId, jahr, gewerbe } = useOutletContext();
@@ -15,9 +17,11 @@ export default function Export() {
   const [downloading, setDownloading] = useState('');
 
   const gewerbeName = gewerbe.find((g) => String(g.id) === String(gewerbeId))?.name || 'gewerbe';
+  const bilanzJahr = istBilanz(gewerbe.find((g) => String(g.id) === String(gewerbeId)), jahr);
 
   async function load() {
-    if (!gewerbeId) {
+    if (!gewerbeId || bilanzJahr) {
+      setData(null);
       setLoading(false);
       return;
     }
@@ -38,7 +42,7 @@ export default function Export() {
 
   useEffect(() => {
     load();
-  }, [gewerbeId, jahr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gewerbeId, jahr, bilanzJahr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // DATEV: Einstellungen da? Hinweise zur Kontierung?
   const [datev, setDatev] = useState(null);
@@ -131,8 +135,8 @@ export default function Export() {
       key: 'archiv',
       icon: IconArchive,
       titel: 'Jahres-Archiv (ZIP)',
-      text: 'Summenblatt, Journal und alle Beleg-Dateien des Jahres.',
-      disabled: laedt || !data,
+      text: bilanzJahr ? 'Bilanz und GuV, Journal und alle Beleg-Dateien des Jahres.' : 'Summenblatt, Journal und alle Beleg-Dateien des Jahres.',
+      disabled: laedt || (!data && !bilanzJahr),
       run: () => download('archiv'),
     },
     {
@@ -143,7 +147,7 @@ export default function Export() {
       disabled: laedt,
       run: () => download('backup'),
     },
-  ];
+  ].filter((a) => !bilanzJahr || (a.key !== 'summenblatt' && a.key !== 'druck'));
 
   return (
     <div>
@@ -154,6 +158,12 @@ export default function Export() {
       />
 
       <div className="no-print mt-5 space-y-3">
+        {bilanzJahr && (
+          <Hinweis ton="warn" titel={`${jahr} ist ein Bilanz-Jahr`}>
+            Für Bilanz-Jahre gibt es keine Anlage EÜR. Bilanz und GuV stehen unter{' '}
+            <Link to="/bilanz" className="text-royal underline">Bilanz</Link>; der DATEV-Stapel folgt dort dem Soll-Prinzip.
+          </Hinweis>
+        )}
         <Hinweis titel="Tab ist die bessere Excel-Liste — keine Steuerberatung.">
           Die Zuordnungen folgen der amtlichen Anleitung, aber dein Fall kann Besonderheiten haben. Prüfe die
           Zahlen vor der Abgabe selbst oder lass sie vom Steuerberater gegenchecken — das Beleg-Journal unten ist

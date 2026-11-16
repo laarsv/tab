@@ -41,6 +41,8 @@ const NAV = [
 
 // Nur, wenn das gewählte Gewerbe im gewählten Jahr regelbesteuert ist (Layout).
 const UST_NAV = { to: '/umsatzsteuer', label: 'Umsatzsteuer', icon: IconFileText };
+// Nur, wenn das gewählte Gewerbe im gewählten Jahr bilanziert (Layout).
+const BILANZ_NAV = { to: '/bilanz', label: 'Bilanz', icon: IconFileText };
 
 const WEITERE = [
   { to: '/export', label: 'Export', icon: IconDownload },
@@ -169,6 +171,7 @@ export default function Sidebar({
   bankOffen = 0,
   dauerFaellig = 0,
   ustSichtbar = false,
+  bilanzSichtbar = false,
   onNavigate,
   onNeueBuchung,
   onUpload,
@@ -260,7 +263,9 @@ export default function Sidebar({
       )}
 
       <div className="mt-2 space-y-0.5">
-        {(ustSichtbar ? NAV.flatMap((n) => (n.to === '/fristen' ? [n, UST_NAV] : [n])) : NAV).map((n) => (
+        {NAV.flatMap((n) =>
+          n.to === '/fristen' ? [n, ...(ustSichtbar ? [UST_NAV] : []), ...(bilanzSichtbar ? [BILANZ_NAV] : [])] : [n],
+        ).map((n) => (
           <NavItem
             key={n.to}
             item={n}

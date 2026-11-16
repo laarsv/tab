@@ -25,6 +25,7 @@ from .routes import (
     angebote,
     bank,
     berater,
+    bilanz,
     belege,
     buchungen,
     dauerbelege,
@@ -182,3 +183,4 @@ app.include_router(rechtliches.router)
 app.include_router(export.router)
 app.include_router(meta.router)
 app.include_router(umsatzsteuer.router)
+app.include_router(bilanz.router)

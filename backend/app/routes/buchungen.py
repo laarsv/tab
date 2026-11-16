@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services import besteuerung as best
+from ..services import gewinnermittlung as gw
 from ..services import dauerbelege as dsvc
 from ..services import zahlungen as zsvc
 from ..services.privatanteil import betrieblich_cent, betrieblich_ust_cent, privat_cent
@@ -54,22 +55,51 @@ class BuchungIn(BaseModel):
     rest_ausbuchen: Literal["skonto", "ausfall"] | None = None  # Rest der Rechnung ausbuchen
     dauerbeleg_id: int | None = None  # bucht den nächsten offenen Termin dieses Dauerbelegs
     termin: str | None = None  # Termin des Dauerbelegs (muss der nächste offene sein)
+    # Bilanz-Jahre (v41): Aufwand/Ertrag nach Rechnungsdatum; offen = noch nicht bezahlt (datum = Rechnungsdatum)
+    rechnungsdatum: str | None = None
+    offen: bool = False
 
     @field_validator("datum")
     @classmethod
     def _v_date(cls, v: str) -> str:
         return _valid_date(v)
 
+    @field_validator("rechnungsdatum")
+    @classmethod
+    def _v_rdate(cls, v: str | None) -> str | None:
+        return _valid_date(v) if v else None
+
 
 class BuchungPatch(BaseModel):
     datum: str | None = None
     beschreibung: str | None = None
     positionen: list[PositionIn] | None = None  # wenn gesetzt: ersetzt alle Positionen
+    rechnungsdatum: str | None = None  # explizit null = entfernen (model_fields_set)
+    offen: bool | None = None
 
     @field_validator("datum")
     @classmethod
     def _v_date(cls, v: str | None) -> str | None:
         return _valid_date(v) if v is not None else v
+
+    @field_validator("rechnungsdatum")
+    @classmethod
+    def _v_rdate(cls, v: str | None) -> str | None:
+        return _valid_date(v) if v else None
+
+
+def _pruefe_bilanzfelder(db: sqlite3.Connection, gewerbe_id: int, datum: str, rechnungsdatum: str | None,
+                          offen: bool, verknuepft: bool) -> None:
+    """Rechnungsdatum und „noch nicht bezahlt“ gibt es nur, wenn im Jahr bilanziert wird (BILANZ.md §3)."""
+    if not (rechnungsdatum or offen):
+        return
+    jahr = int((rechnungsdatum or datum)[:4])
+    if not gw.ist_bilanz(db, gewerbe_id, jahr):
+        raise HTTPException(400, f"Rechnungsdatum und „noch nicht bezahlt“ gibt es nur bei Bilanzierung — {jahr} wird per EÜR ermittelt.")
+    if rechnungsdatum and rechnungsdatum > datum and not offen:
+        raise HTTPException(400, "Das Rechnungsdatum liegt nach dem Zahltag — dann „noch nicht bezahlt“ wählen oder das Datum prüfen.")
+    if offen and verknuepft:
+        raise HTTPException(400, "Eine Buchung mit Bankumsatz ist bezahlt — „noch nicht bezahlt“ passt dazu nicht.")
 
 
 def _check_position(db: sqlite3.Connection, pos: PositionIn, art: str = best.KU) -> None:
@@ -170,6 +200,7 @@ def list_buchungen(
     check_gewerbe(db, user, gewerbe_id)
     sql = (
         "SELECT b.id, b.gewerbe_id, b.datum, b.beschreibung, b.dauerbeleg_id, b.created_at, b.updated_at, "
+        "b.rechnungsdatum, b.offen, "
         "(SELECT COUNT(*) FROM beleg WHERE beleg.buchung_id = b.id) AS beleg_count, "
         "(SELECT COALESCE(SUM(betrag_cent),0) FROM buchung_position WHERE buchung_id = b.id) AS summe_cent "
         "FROM buchung b WHERE b.gewerbe_id = ?"
@@ -233,6 +264,10 @@ def create_buchung(
     db: sqlite3.Connection = Depends(get_db),
 ):
     check_gewerbe(db, user, body.gewerbe_id)
+    if body.offen and body.rechnungsdatum:
+        body.datum = body.rechnungsdatum  # offen: Datum = Rechnungsdatum bis zur Zahlung
+    _pruefe_bilanzfelder(db, body.gewerbe_id, body.datum, body.rechnungsdatum, body.offen,
+                         body.bank_umsatz_id is not None)
     art = best.art_zum_datum(db, body.gewerbe_id, body.datum)
     for pos in body.positionen:
         _check_position(db, pos, art)
@@ -300,10 +335,13 @@ def create_buchung(
             raise HTTPException(409, "Für diesen Termin gibt es schon eine Buchung.")
 
     cur = db.execute(
-        "INSERT INTO buchung (gewerbe_id, datum, beschreibung, dauerbeleg_id, termin) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO buchung (gewerbe_id, datum, beschreibung, dauerbeleg_id, termin, rechnungsdatum, offen) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             body.gewerbe_id, body.datum, (body.beschreibung or "").strip() or None,
             dauer["id"] if dauer is not None else None, body.termin if dauer is not None else None,
+            body.rechnungsdatum if body.rechnungsdatum and (body.offen or body.rechnungsdatum != body.datum) else None,
+            1 if body.offen else 0,
         ),
     )
     buchung_id = cur.lastrowid
@@ -368,6 +406,17 @@ def update_buchung(
                                      ust_cent=r["ust_cent"]), art)
 
     fields, values = [], []
+    if "rechnungsdatum" in body.model_fields_set or body.offen is not None:
+        r_datum = body.rechnungsdatum if "rechnungsdatum" in body.model_fields_set else alt["rechnungsdatum"]
+        offen = alt["offen"] if body.offen is None else body.offen
+        verknuepft = bool(db.execute("SELECT 1 FROM bank_umsatz WHERE buchung_id = ?", (buchung_id,)).fetchone())
+        _pruefe_bilanzfelder(db, alt["gewerbe_id"], datum, r_datum, bool(offen), verknuepft)
+        if "rechnungsdatum" in body.model_fields_set:
+            fields.append("rechnungsdatum = ?"); values.append(r_datum)
+        if body.offen is not None:
+            fields.append("offen = ?"); values.append(1 if body.offen else 0)
+            if alt["offen"] and not body.offen and r_datum is None and "rechnungsdatum" not in body.model_fields_set:
+                fields.append("rechnungsdatum = ?"); values.append(alt["datum"])  # bezahlt: Rechnungsdatum festhalten
     if body.datum is not None:
         fields.append("datum = ?"); values.append(body.datum)
     if body.beschreibung is not None:

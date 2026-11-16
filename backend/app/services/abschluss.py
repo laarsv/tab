@@ -68,7 +68,9 @@ def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, d
             + ([["ust", p["ust_bp"], p["ust_cent"]]] if p["ust_bp"] or p["ust_cent"] else [])
             for p in conn.execute("SELECT * FROM buchung_position WHERE buchung_id = ? ORDER BY id", (b["id"],))
         ]
-        buchungen.append([b["id"], b["datum"], b["beschreibung"] or "", pos])
+        # Bilanz-Felder (v41) nur, wenn gesetzt: ältere Siegel bleiben nachrechenbar
+        buchungen.append([b["id"], b["datum"], b["beschreibung"] or "", pos]
+                         + ([["bilanz", b["rechnungsdatum"], b["offen"]]] if b["rechnungsdatum"] or b["offen"] else []))
     belege = [
         [r["id"], r["buchung_id"], r["original_name"], r["size_bytes"], _datei_sha256(r["stored_name"])]
         for r in conn.execute(
@@ -97,6 +99,15 @@ def siegel(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> tuple[str, d
         )
     ]
     teile = {"buchungen": buchungen, "belege": belege, "afa": afa, "fahrten": fahrten}
+    # Bilanz (v41): Abschlussbuchungen und Eröffnungswerte nur, wenn es welche gibt (alte Siegel bleiben gültig)
+    abschl = [[a["id"], a["datum"], a["soll"], a["haben"], a["betrag_cent"], a["text"] or ""] for a in conn.execute(
+        "SELECT * FROM abschlussbuchung WHERE gewerbe_id = ? AND substr(datum, 1, 4) = ? ORDER BY id", (gewerbe_id, j))]
+    if abschl:
+        teile["abschlussbuchungen"] = abschl
+    eroeff = [[e["posten"], e["betrag_cent"]] for e in conn.execute(
+        "SELECT * FROM bilanz_eroeffnung WHERE gewerbe_id = ? AND jahr = ? ORDER BY posten", (gewerbe_id, jahr))]
+    if eroeff:
+        teile["eroeffnung"] = eroeff
     info = {name: {"anzahl": len(daten), "hash": _h(daten)} for name, daten in teile.items()}
     gesamt = _h({"v": SIEGEL_VERSION, "gewerbe": gewerbe_id, "jahr": jahr, "teile": {k: v["hash"] for k, v in info.items()}})
     return gesamt, info

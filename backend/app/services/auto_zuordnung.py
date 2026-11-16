@@ -273,6 +273,8 @@ def lauf(conn: sqlite3.Connection, gewerbe_id: int, user: dict, *, bilder: bool 
                     "UPDATE bank_umsatz SET buchung_id = ?, zugeordnet_am = datetime('now') WHERE id = ?",
                     (t[0]["id"], u["id"]),
                 )
+                from . import gewinnermittlung as gw  # Zirkel vermeiden
+                gw.bezahlt_markieren(conn, t[0]["id"], u["datum"])
                 grund = f"Schon gebucht: „{t[0]['beschreibung'] or 'Buchung'}“ vom {t[0]['datum']} (Betrag, Datum, Beschreibung)"
                 _markieren(conn, u["id"], grund, False)
                 zugeordnet.add(u["id"])

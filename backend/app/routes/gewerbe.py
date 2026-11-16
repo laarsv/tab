@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth.deps import check_gewerbe, get_current_user, ist_admin
 from ..db import get_db
 from ..services import besteuerung as best
+from ..services import gewinnermittlung as gw
 from ..services import logo as logo_svc
 
 router = APIRouter(prefix="/api/gewerbe", tags=["gewerbe"], dependencies=[Depends(get_current_user)])
@@ -85,6 +86,7 @@ def _ausgabe(row: sqlite3.Row, db: sqlite3.Connection | None = None) -> dict:
     d.pop("logo_datei", None)
     if db is not None:
         d["besteuerung_wechsel"] = best.wechsel(db, row["id"])
+        d["gewinnermittlung_wechsel"] = gw.wechsel(db, row["id"])
     return d
 
 
@@ -253,6 +255,73 @@ def besteuerung_entfernen(
     _pruefe_wechsel(db, gewerbe_id, ab_jahr, neu)
     db.execute("DELETE FROM gewerbe_besteuerung WHERE gewerbe_id = ? AND ab_jahr = ?", (gewerbe_id, ab_jahr))
     best.sync_aktuell(db, gewerbe_id)
+    db.commit()
+    return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone(), db)
+
+
+# ── Gewinnermittlung je Jahr (Bilanzierung als Option, v41) ──────────────────
+
+class GewinnermittlungIn(BaseModel):
+    ab_jahr: int = Field(ge=2000, le=2100)
+    art: str = Field(pattern="^(euer|bilanz)$")
+
+
+def _pruefe_gw_wechsel(db: sqlite3.Connection, gewerbe_id: int, ab_jahr: int, neu: dict[int, str]) -> None:
+    gesperrt = db.execute(
+        "SELECT MIN(jahr) AS j FROM jahr_abschluss WHERE gewerbe_id = ? AND abgeschlossen = 1 AND jahr >= ?",
+        (gewerbe_id, ab_jahr),
+    ).fetchone()["j"]
+    if gesperrt is not None:
+        raise HTTPException(400, f"Das Jahr {gesperrt} ist abgeschlossen — die Gewinnermittlung lässt sich dafür nicht mehr ändern.")
+
+    def art_fuer(jahr: int) -> str:
+        passend = [j for j in neu if j <= jahr]
+        return neu[max(passend)] if passend else gw.EUER
+
+    # Offene Buchungen und Abschlussbuchungen gibt es nur in Bilanz-Jahren
+    for r in db.execute(
+        "SELECT CAST(substr(datum,1,4) AS INTEGER) AS jahr, COUNT(*) AS n FROM buchung "
+        "WHERE gewerbe_id = ? AND offen = 1 AND datum >= ? GROUP BY 1", (gewerbe_id, f"{ab_jahr:04d}-01-01"),
+    ):
+        if art_fuer(r["jahr"]) == gw.EUER:
+            raise HTTPException(409, f"{r['jahr']} hat {r['n']} noch nicht bezahlte Buchung(en) — die gibt es nur bei Bilanzierung.")
+    for r in db.execute(
+        "SELECT CAST(substr(datum,1,4) AS INTEGER) AS jahr, COUNT(*) AS n FROM abschlussbuchung "
+        "WHERE gewerbe_id = ? AND datum >= ? GROUP BY 1", (gewerbe_id, f"{ab_jahr:04d}-01-01"),
+    ):
+        if art_fuer(r["jahr"]) == gw.EUER:
+            raise HTTPException(409, f"{r['jahr']} hat {r['n']} Abschlussbuchung(en) — die gibt es nur bei Bilanzierung.")
+
+
+@router.put("/{gewerbe_id}/gewinnermittlung")
+def gewinnermittlung_setzen(
+    gewerbe_id: int, body: GewinnermittlungIn, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)
+):
+    """Ab dem 1.1. von `ab_jahr` gilt `art` (EÜR oder Bilanz) bis zum nächsten Wechsel."""
+    check_gewerbe(db, user, gewerbe_id)
+    neu = {w["ab_jahr"]: w["art"] for w in gw.wechsel(db, gewerbe_id)}
+    neu[body.ab_jahr] = body.art
+    _pruefe_gw_wechsel(db, gewerbe_id, body.ab_jahr, neu)
+    db.execute(
+        "INSERT INTO gewerbe_gewinnermittlung (gewerbe_id, ab_jahr, art) VALUES (?, ?, ?) "
+        "ON CONFLICT(gewerbe_id, ab_jahr) DO UPDATE SET art = excluded.art",
+        (gewerbe_id, body.ab_jahr, body.art),
+    )
+    db.commit()
+    return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone(), db)
+
+
+@router.delete("/{gewerbe_id}/gewinnermittlung/{ab_jahr}")
+def gewinnermittlung_entfernen(
+    gewerbe_id: int, ab_jahr: int, user: dict = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)
+):
+    check_gewerbe(db, user, gewerbe_id)
+    neu = {w["ab_jahr"]: w["art"] for w in gw.wechsel(db, gewerbe_id)}
+    if ab_jahr not in neu:
+        raise HTTPException(404, "Diesen Wechsel gibt es nicht.")
+    del neu[ab_jahr]
+    _pruefe_gw_wechsel(db, gewerbe_id, ab_jahr, neu)
+    db.execute("DELETE FROM gewerbe_gewinnermittlung WHERE gewerbe_id = ? AND ab_jahr = ?", (gewerbe_id, ab_jahr))
     db.commit()
     return _ausgabe(db.execute("SELECT * FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone(), db)
 

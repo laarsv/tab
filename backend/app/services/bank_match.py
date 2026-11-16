@@ -145,6 +145,7 @@ def beleg_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
 
 
 SCHWELLE_BUCHUNG = 60
+OFFEN_FENSTER_TAGE = 120  # offene Buchungen (Bilanz): Rechnung bis zu 120 Tage vor der Zahlung
 BUCHUNG_FENSTER_TAGE = 14
 
 
@@ -166,17 +167,21 @@ def buchung_treffer(conn: sqlite3.Connection, u: dict) -> list[dict]:
         FROM buchung b
         JOIN buchung_position p ON p.buchung_id = b.id
         JOIN kategorie k ON k.id = p.kategorie_id
-        WHERE b.gewerbe_id = ? AND b.datum BETWEEN ? AND ?
+        WHERE b.gewerbe_id = ? AND (b.datum BETWEEN ? AND ? OR (b.offen = 1 AND b.datum BETWEEN ? AND ?))
           AND NOT EXISTS (SELECT 1 FROM bank_umsatz x WHERE x.buchung_id = b.id)
         GROUP BY b.id
         HAVING SUM(p.betrag_cent) = ? AND SUM(CASE WHEN k.typ = ? THEN 0 ELSE 1 END) = 0
         """,
-        (u["gewerbe_id"], von, bis, betrag, typ),
+        (u["gewerbe_id"], von, bis, (tag - dt.timedelta(days=OFFEN_FENSTER_TAGE)).isoformat(), bis, betrag, typ),
     ):
         abstand = abs((dt.date.fromisoformat(b["datum"]) - tag).days)
         punkte, gruende = 50, ["Betrag stimmt exakt"]
-        punkte += 20 if abstand <= 3 else 10
-        gruende.append("Datum passt" if abstand <= 3 else f"{abstand} Tage Abstand")
+        if abstand > BUCHUNG_FENSTER_TAGE:  # offene Buchung (Bilanz): Rechnung von früher, jetzt bezahlt
+            punkte += 10
+            gruende.append(f"noch nicht bezahlte Rechnung vom {b['datum']}")
+        else:
+            punkte += 20 if abstand <= 3 else 10
+            gruende.append("Datum passt" if abstand <= 3 else f"{abstand} Tage Abstand")
         if _name_passt(b["beschreibung"], u["gegenpartei"], u["verwendungszweck"]):
             punkte += 30
             gruende.append("Beschreibung passt")

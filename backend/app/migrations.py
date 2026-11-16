@@ -1009,6 +1009,46 @@ MIGRATIONS: list[Migration] = [
         );
         """,
     ),
+    Migration(
+        version=41,
+        sql="""
+        -- v41: Bilanzierung als Option (BILANZ.md, services/bilanz.py).
+        --  gewerbe_gewinnermittlung: ab welchem Jahr EÜR oder Bilanz (letzter Eintrag <= Jahr, ohne Eintrag EÜR).
+        --  buchung.rechnungsdatum: Aufwand/Ertrag nach Rechnungsdatum (nur Bilanz-Jahre; NULL = datum).
+        --  buchung.offen: noch nicht bezahlt (nur Bilanz-Jahre; datum = Rechnungsdatum bis zur Zahlung).
+        --  bilanz_eroeffnung: Eröffnungswerte des ersten Bilanz-Jahres je Posten (Betrag >= 0, Seite aus dem Posten).
+        --  abschlussbuchung: freie Soll/Haben-Buchungen auf internen Posten (Rückstellungen, RAP, Kasse, …).
+        CREATE TABLE gewerbe_gewinnermittlung (
+            gewerbe_id INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            ab_jahr    INTEGER NOT NULL,
+            art        TEXT    NOT NULL CHECK (art IN ('euer','bilanz')),
+            created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (gewerbe_id, ab_jahr)
+        );
+        ALTER TABLE buchung ADD COLUMN rechnungsdatum TEXT;
+        ALTER TABLE buchung ADD COLUMN offen INTEGER NOT NULL DEFAULT 0 CHECK (offen IN (0, 1));
+        CREATE TABLE bilanz_eroeffnung (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            jahr        INTEGER NOT NULL,
+            posten      TEXT    NOT NULL,
+            betrag_cent INTEGER NOT NULL CHECK (betrag_cent >= 0),
+            text        TEXT,
+            UNIQUE (gewerbe_id, jahr, posten)
+        );
+        CREATE TABLE abschlussbuchung (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            gewerbe_id  INTEGER NOT NULL REFERENCES gewerbe(id) ON DELETE CASCADE,
+            datum       TEXT    NOT NULL,
+            soll        TEXT    NOT NULL,
+            haben       TEXT    NOT NULL,
+            betrag_cent INTEGER NOT NULL CHECK (betrag_cent > 0),
+            text        TEXT,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX idx_abschlussbuchung ON abschlussbuchung(gewerbe_id, datum);
+        """,
+    ),
 ]
 
 

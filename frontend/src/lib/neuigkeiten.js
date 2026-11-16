@@ -6,6 +6,12 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 50,
+    datum: '2026-11-16',
+    titel: 'Bilanz als Option',
+    text: 'Musst du (oder willst du) bilanzieren, stellst du das im Gewerbe unter „Gewinnermittlung“ ab einem Jahr um — ohne Umstellung bleibt alles wie bisher. In Bilanz-Jahren zählen Ausgaben und Einnahmen zum Rechnungsdatum, „Noch nicht bezahlt“ macht einen offenen Posten daraus, und die neue Seite „Bilanz“ zeigt Bilanz, GuV, Abstimmung, Eröffnung und Abschlussbuchungen als Entwurf für die Steuerberatung. Der DATEV-Stapel folgt dann dem Soll-Prinzip.',
+  },
+  {
     id: 49,
     datum: '2026-11-16',
     titel: 'DATEV-Export für die Steuerberatung',

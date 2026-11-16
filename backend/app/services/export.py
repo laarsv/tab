@@ -23,6 +23,7 @@ import sqlite3
 import zipfile
 
 from . import besteuerung as best
+from . import gewinnermittlung as gw
 from .afa import afa_jahr, methode_text
 from .privatanteil import betrieblich_cent, betrieblich_netto_cent, betrieblich_ust_cent
 from ..config import settings
@@ -64,6 +65,9 @@ def _gewerbe_or_404(conn: sqlite3.Connection, gewerbe_id: int) -> sqlite3.Row:
 
 def build_summenblatt(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> dict:
     gewerbe = _gewerbe_or_404(conn, gewerbe_id)
+    if gw.ist_bilanz(conn, gewerbe_id, jahr):
+        raise BesteuerungNotSupportedError(
+            f"{jahr} ist ein Bilanz-Jahr: keine Anlage EÜR. Bilanz und GuV stehen unter „Bilanz“.")
     art = best.art(conn, gewerbe_id, jahr)
     regel = art == best.REGEL
 
@@ -355,6 +359,7 @@ Erstellt am {erstellt} (UTC) mit Tab.
 
 Inhalt
   euer-summenblatt-{jahr}.csv     EUeR-Summenblatt je Anlage-EUeR-Zeile
+                                  (Bilanz-Jahre: bilanz-guv-{jahr}.csv mit Bilanz, GuV und Journal)
   beleg-journal-{jahr}.csv        Beleg-Journal
   fahrten-{jahr}.csv              Fahrten-Liste (nur wenn vorhanden)
   belege/                         Beleg-Dateien der Buchungen des Jahres
@@ -384,7 +389,12 @@ def belege_zip(conn: sqlite3.Connection, gewerbe_id: int, jahr: int) -> bytes:
         summen[arcname] = hashlib.sha256(data).hexdigest()
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        schreibe(zf, f"euer-summenblatt-{jahr}.csv", summenblatt_csv(conn, gewerbe_id, jahr))
+        if gw.ist_bilanz(conn, gewerbe_id, jahr):
+            from . import bilanz as bz  # Zirkel vermeiden
+            name = conn.execute("SELECT name FROM gewerbe WHERE id = ?", (gewerbe_id,)).fetchone()["name"]
+            schreibe(zf, f"bilanz-guv-{jahr}.csv", bz.csv_text(conn, gewerbe_id, jahr, name).encode("utf-8-sig"))
+        else:
+            schreibe(zf, f"euer-summenblatt-{jahr}.csv", summenblatt_csv(conn, gewerbe_id, jahr))
         schreibe(zf, f"beleg-journal-{jahr}.csv", journal_csv(conn, gewerbe_id, jahr))
         # Fahrten-Liste (Nachweis für die km-Pauschale), falls vorhanden.
         fahrten = conn.execute(

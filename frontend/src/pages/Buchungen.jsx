@@ -25,7 +25,7 @@ import {
 } from '../components/Icons.jsx';
 import AbschlussHinweis from '../components/AbschlussHinweis.jsx';
 import KuGuard from '../components/KuGuard.jsx';
-import { Hinweis, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, SectionHead } from '../components/PageParts.jsx';
+import { Hinweis, Kennzahl, Kennzahlen, Leer, PageHeader, PUNKT, Row, SectionHead, Zustand } from '../components/PageParts.jsx';
 import { PageSpinner } from '../components/Spinner.jsx';
 import { openBeleg, fileSize, belegTyp, ACCEPT } from '../lib/belege.js';
 import { formatEuro, formatDateDE, todayISO } from '../lib/format.js';
@@ -506,6 +506,19 @@ export default function Buchungen() {
                           {PUNKT}
                           <span className="tabular-nums">Rechnung {nummer}</span>
                         </>
+                      )}
+                      {b.offen ? (
+                        <>
+                          {PUNKT}
+                          <Zustand ton="warn">Noch nicht bezahlt</Zustand>
+                        </>
+                      ) : (
+                        b.rechnungsdatum && (
+                          <>
+                            {PUNKT}
+                            <span className="tabular-nums">Rechnung vom {kurz(b.rechnungsdatum)}</span>
+                          </>
+                        )
                       )}
                       {b.positionen.some((p) => p.privat_bp > 0) && (
                         <>

@@ -67,6 +67,9 @@ AUDIT_TABELLEN: dict[str, Callable[[str], str]] = {
     "angebot": _gid_direkt,
     "angebot_position": _gid_kind("angebot", "angebot_id"),
     "dauerbeleg": _gid_direkt,
+    "gewerbe_gewinnermittlung": _gid_direkt,
+    "bilanz_eroeffnung": _gid_direkt,
+    "abschlussbuchung": _gid_direkt,
 }
 
 
@@ -194,6 +197,17 @@ def _sperr_trigger() -> dict[str, str]:
         f"({betraege_aendern} AND ({_afa_betrifft('OLD')} OR {_afa_betrifft('NEW')})) "
         f"OR {_afa_abgang_aendert_abgeschlossen()}",
     )
+    # Bilanz (v41): Abschlussbuchungen nach ihrem Datum, Eröffnungswerte nach ihrem Jahr
+    neu("tab_lock_abschlussb_ins", "BEFORE INSERT ON abschlussbuchung", _jahr_gesperrt("NEW.gewerbe_id", "NEW.datum"))
+    neu(
+        "tab_lock_abschlussb_upd", "BEFORE UPDATE ON abschlussbuchung",
+        f"{_jahr_gesperrt('OLD.gewerbe_id', 'OLD.datum')} OR {_jahr_gesperrt('NEW.gewerbe_id', 'NEW.datum')}",
+    )
+    neu("tab_lock_abschlussb_del", "BEFORE DELETE ON abschlussbuchung", _jahr_gesperrt("OLD.gewerbe_id", "OLD.datum"))
+    for wann, r in (("INSERT", "NEW"), ("UPDATE", "OLD"), ("DELETE", "OLD")):
+        neu(f"tab_lock_eroeffnung_{wann.lower()[:3]}", f"BEFORE {wann} ON bilanz_eroeffnung",
+            "EXISTS (SELECT 1 FROM jahr_abschluss a WHERE a.abgeschlossen = 1 "
+            f"AND a.gewerbe_id = {r}.gewerbe_id AND a.jahr = {r}.jahr)")
     return t
 
 

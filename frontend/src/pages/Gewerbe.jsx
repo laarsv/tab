@@ -5,6 +5,7 @@ import { api, apiError } from '../api/client.js';
 import { IconBriefcase, IconButton, IconPause, IconPencil, IconPlay, IconPlus, IconTrash } from '../components/Icons.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import { ART_LABEL, KU, REGEL, artImJahr } from '../lib/besteuerung.js';
+import { BILANZ, EUER, GW_LABEL, gwImJahr } from '../lib/gewinnermittlung.js';
 import { DialogFuss, Gruppe, SchalterZeile } from '../components/DialogParts.jsx';
 import LogoFeld from '../components/LogoFeld.jsx';
 import Modal from '../components/Modal.jsx';
@@ -147,6 +148,88 @@ function BesteuerungFeld({ gewerbe, onChanged }) {
         Ein Wechsel gilt immer ab dem 1. Januar. Bei Regelbesteuerung buchst du Steuersatz und Umsatzsteuer je Position,
         Rechnungen weisen die Umsatzsteuer aus, und die Anlage EÜR bekommt die Umsatzsteuer-Zeilen. Ob und ab wann du
         wechseln musst, klär mit deiner Steuerberatung.
+      </p>
+    </Gruppe>
+  );
+}
+
+// Gewinnermittlung je Jahr (Bilanz als Option, BILANZ.md): wie die Besteuerung, Wechsel immer zum 1.1.
+function GewinnermittlungFeld({ gewerbe, onChanged }) {
+  const diesesJahr = new Date().getFullYear();
+  const aktuell = gwImJahr(gewerbe, diesesJahr);
+  const [abJahr, setAbJahr] = useState(String(diesesJahr + 1));
+  const [art, setArt] = useState(aktuell === EUER ? BILANZ : EUER);
+  const [busy, setBusy] = useState(false);
+  const wechsel = gewerbe.gewinnermittlung_wechsel || [];
+
+  async function setzen() {
+    const j = Number(abJahr);
+    if (!Number.isInteger(j) || j < 2000 || j > 2100) return toast.error('Bitte ein Jahr angeben, z. B. ' + (diesesJahr + 1) + '.');
+    if (gwImJahr(gewerbe, j) === art) return toast.error(`${j} gilt schon: ${GW_LABEL[art]}.`);
+    if (art === BILANZ && !window.confirm(`Ab 1.1.${j} bilanzieren? Tab erstellt dann Bilanz und GuV als Entwurf; die Anlage EÜR entfällt für diese Jahre.`)) return;
+    setBusy(true);
+    try {
+      const res = await api.put(`/api/gewerbe/${gewerbe.id}/gewinnermittlung`, { ab_jahr: j, art });
+      toast.success(`Ab 1.1.${j}: ${GW_LABEL[art]}.`);
+      onChanged(res.data);
+    } catch (e) {
+      toast.error(apiError(e), { duration: 8000 });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function entfernen(w) {
+    if (!window.confirm(`Wechsel „ab ${w.ab_jahr}: ${GW_LABEL[w.art]}“ entfernen?`)) return;
+    try {
+      const res = await api.delete(`/api/gewerbe/${gewerbe.id}/gewinnermittlung/${w.ab_jahr}`);
+      onChanged(res.data);
+    } catch (e) {
+      toast.error(apiError(e), { duration: 8000 });
+    }
+  }
+
+  return (
+    <Gruppe titel="Gewinnermittlung" className="border-t border-ink/[0.08] pt-4">
+      <p className="text-[13.5px] leading-snug text-ink/80">
+        {diesesJahr}: <strong>{GW_LABEL[aktuell]}</strong>
+      </p>
+      {wechsel.length > 0 && (
+        <ul className="divide-y divide-ink/[0.06]">
+          {wechsel.map((w) => (
+            <li key={w.ab_jahr} className="flex items-center gap-2 py-1.5 text-[13.5px]">
+              <span className="flex-1 tabular-nums">
+                ab 1.1.{w.ab_jahr}: {GW_LABEL[w.art]}
+              </span>
+              <IconButton icon={IconTrash} variant="danger" label="Wechsel entfernen" onClick={() => entfernen(w)} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_auto] items-end gap-2">
+        <label className="block">
+          <span className="field-label">Ab Jahr</span>
+          <input className="input tabular-nums" inputMode="numeric" value={abJahr} onChange={(e) => setAbJahr(e.target.value)} />
+        </label>
+        <div className="block">
+          <span className="field-label">Gewinnermittlung</span>
+          <Dropdown
+            value={art}
+            onChange={(v) => setArt(String(v))}
+            options={[
+              { value: BILANZ, label: 'Bilanz' },
+              { value: EUER, label: 'EÜR' },
+            ]}
+          />
+        </div>
+        <button type="button" className="btn-outline btn-sm mb-0.5" disabled={busy} onClick={setzen}>
+          Übernehmen
+        </button>
+      </div>
+      <p className="text-xs leading-snug text-ink/60">
+        Bilanzieren musst du erst, wenn das Finanzamt dich dazu auffordert (§ 141 AO: Umsatz über 800.000 € oder Gewinn über
+        80.000 € im Jahr) — dann ab dem folgenden Jahr. Freiwillig geht immer. In Bilanz-Jahren zählen Ausgaben und
+        Einnahmen zum Rechnungsdatum; Tab erstellt Bilanz und GuV als Entwurf für die Steuerberatung.
       </p>
     </Gruppe>
   );
@@ -333,6 +416,7 @@ export default function Gewerbe() {
                         steuernummer: g.steuernummer || '',
                         besteuerung: g.besteuerung || 'kleinunternehmer',
                         besteuerung_wechsel: g.besteuerung_wechsel || [],
+                        gewinnermittlung_wechsel: g.gewinnermittlung_wechsel || [],
                         ustva_zeitraum: g.ustva_zeitraum || 'quartal',
                         ustva_dauerfrist: Boolean(g.ustva_dauerfrist),
                         datev_berater: g.datev_berater ? String(g.datev_berater) : '',
@@ -482,6 +566,17 @@ export default function Gewerbe() {
               />
               <span className="mt-1 block text-xs text-ink/60">Steht auf Rechnungen und in der E-Rechnung, wenn ausgefüllt.</span>
             </label>
+
+            {editing.id && (
+              <GewinnermittlungFeld
+                gewerbe={editing}
+                onChanged={(g) => {
+                  setEditing((e) => ({ ...e, gewinnermittlung_wechsel: g.gewinnermittlung_wechsel || [] }));
+                  load();
+                  reloadGewerbe();
+                }}
+              />
+            )}
 
             {editing.id && (
               <Gruppe titel="DATEV" className="border-t border-ink/[0.08] pt-4">

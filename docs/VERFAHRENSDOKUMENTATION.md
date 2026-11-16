@@ -23,7 +23,7 @@ Ausdruck je Jahr erhalten (siehe 7).
 | Anschrift | **[ausfüllen]** |
 | Steuernummer | **[ausfüllen]** |
 | Tätigkeit | **[ausfüllen, z. B. Versicherungsvermittlung (steuerfrei nach § 4 Nr. 11 UStG) und IT-Dienstleistungen]** |
-| Gewinnermittlung | Einnahmen-Überschuss-Rechnung (§ 4 Abs. 3 EStG), Anlage EÜR |
+| Gewinnermittlung | Einnahmen-Überschuss-Rechnung (§ 4 Abs. 3 EStG), Anlage EÜR — ab dem Jahr __________ Bilanz (§ 4 Abs. 1, § 5 EStG; nur ausfüllen, wenn umgestellt) |
 | Umsatzsteuer | Kleinunternehmer (§ 19 UStG); steuerfreie Umsätze nach § 4 Nr. 11 zählen nicht zur Grenze (§ 19 Abs. 2 UStG) |
 | Beschäftigte | **[ausfüllen: Anzahl, Art (z. B. Minijob); wer die Lohnabrechnung macht]** — die Buchführung in Tab erledigt der Inhaber selbst |
 | Steuerberatung | **[ausfüllen: Kanzlei, ob sie Zugang zu Tab hat]** |
@@ -191,6 +191,13 @@ Vordruck geprüft, bevor das Jahr bebucht wird.
 Nach Abschluss des Jahres erzeugt Tab das EÜR-Summenblatt je Zeile der Anlage EÜR. Der Inhaber überträgt die
 Werte in ELSTER und reicht die Erklärung ein; Tab übermittelt nichts. Fristen stehen in Tab unter „Fristen“.
 
+**Bilanz-Jahre** (Gewinnermittlung im Gewerbe auf „Bilanz“ umgestellt, immer ab dem 1.1.): Ausgaben und Einnahmen
+werden zum Rechnungsdatum erfasst, noch nicht bezahlte als offener Posten; die Zahlung wird später über den Bankumsatz
+zugeordnet. Tab leitet daraus Bilanz und GuV als **Entwurf** ab (Eröffnungswerte im ersten Bilanz-Jahr, danach
+Schlussbestand des Vorjahres; Rückstellungen, Rechnungsabgrenzung und Kasse als Abschlussbuchungen). Jahresabschluss,
+E-Bilanz und Steuererklärung erstellt die Steuerberatung, z. B. aus dem DATEV-Buchungsstapel. Eröffnungswerte und
+Abschlussbuchungen sind protokolliert und mit dem Jahresabschluss gesperrt.
+
 ---
 
 ## 7. Aufbewahrung
@@ -241,3 +248,4 @@ erklärten Jahre bleiben die Auswertungen des früheren Programms; Abweichungen 
 | 15.11.2026 | 2 | Automatische Zuordnung von Bankumsätzen (2.3) |
 | 16.11.2026 | 3 | Bankabruf über Enable Banking als zweiter Weg für Bankumsätze (2.3) |
 | 16.11.2026 | 4 | Übernahme von Altdaten aus einem DATEV-Export (7.3) |
+| 16.11.2026 | 5 | Bilanz als Option je Jahr (1, 6) |

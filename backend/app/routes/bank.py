@@ -18,6 +18,7 @@ from ..auth.deps import check_gewerbe, get_current_user
 from ..db import get_db
 from ..services import auto_zuordnung as auto
 from ..services import bank_abruf as abruf
+from ..services import gewinnermittlung as gw
 from ..services import bank_import as imp
 from ..services import bank_match as match
 from ..services.girocode import iban_gueltig, iban_normal
@@ -314,6 +315,7 @@ def zuordnen(
         "zugeordnet_am = datetime('now') WHERE id = ?",
         (b["id"], umsatz_id),
     )
+    gw.bezahlt_markieren(db, b["id"], u["datum"])  # offene Buchung (Bilanz) ist jetzt bezahlt
     db.commit()
     return {"ok": True}
 

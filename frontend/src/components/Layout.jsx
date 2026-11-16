@@ -15,6 +15,7 @@ import { syncGelesen, ungelesene } from '../lib/neuigkeiten.js';
 import { ACCEPT } from '../lib/belege.js';
 import { todayISO } from '../lib/format.js';
 import { istRegel } from '../lib/besteuerung.js';
+import { istBilanz } from '../lib/gewinnermittlung.js';
 
 // Tab-Leiste am Handy (unter lg): die drei Hauptziele + „Mehr“ öffnet die Schublade.
 const TABS = [
@@ -236,6 +237,7 @@ export default function Layout() {
     bankOffen,
     dauerFaellig,
     ustSichtbar: istRegel(gewerbe.find((g) => String(g.id) === String(gewerbeId)), jahr),
+    bilanzSichtbar: istBilanz(gewerbe.find((g) => String(g.id) === String(gewerbeId)), jahr),
     onNeueBuchung: () => {
       setDrawer(false);
       navigate(`/buchungen?neu=${Date.now()}`);

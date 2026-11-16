@@ -5,7 +5,8 @@ Arbeitsanweisungen für Claude Code in diesem Repo. Kurz halten, beim Ändern ak
 ## Was ist Tab
 
 Schlanke EÜR-Buchhaltung für Einzelunternehmer mit **Kleinunternehmerregelung (§19 UStG)**; **Regelbesteuerung**
-(Ist-Versteuerung) ist je Gewerbe ab einem Jahr zuschaltbar (v34, siehe „Regelbesteuerung“).
+(Ist-Versteuerung) ist je Gewerbe ab einem Jahr zuschaltbar (v34, siehe „Regelbesteuerung“), ebenso **Bilanz** statt EÜR
+(v41, Entwurf für die Steuerberatung, siehe „Bilanz als Option“).
 Belege erfassen → Kategorien → am Jahresende **EÜR-Summenblatt pro Anlage-EÜR-Zeile** +
 **Beleg-Journal (CSV)** exportieren. Kein ELSTER-Direktversand. Kontoauszüge als
 Datei (CAMT.053/CSV/PDF, siehe Bank-Import) oder per **Bankabruf** (Enable Banking, PSD2, nur lesen, v36); Belege manuell, per Mail oder Handy-Teilen. Multi-Gewerbe (eine EÜR pro Gewerbe). Single-User (Phase 1).
@@ -74,7 +75,7 @@ v5 = `fahrt` (Fahrten-Liste für die km-Pauschale), v6 = Rechnungsmodul (`rechnu
 aus bestehenden Rechnungen), v10 = `beleg.faellig_am` („noch zu zahlen"-Erinnerung
 im Eingang; offene Belege sortieren fällige zuerst, PATCH nutzt model_fields_set),
 v11 = Mail-Import (`user_mail.import_*` + Dedup-Tabelle `mail_import`), v15 = `rechnung.buchung_id` (Rechnung↔Einnahme-Buchung, ON DELETE SET NULL; Backfill über „Rechnung {nr} – …“), v16 = `news_gelesen` (Neuigkeiten gelesen je Login), v17 = Fälligkeit + Mahnwesen
-(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`. v35 = `gewerbe.ustva_zeitraum` (monat|quartal|jahr) + `ustva_dauerfrist` (Umsatzsteuer-Voranmeldung). v36 = `bank_verbindung` + `bankkonto.verbindung_id`/`eb_uid`/`abruf_ab` (Bankabruf). v37 = `vorauszahlung` (Beträge laut Bescheid je Login). v38 = `bank_umsatz.auto_frist` (erkannte Vorauszahlung). v39 = `gewerbe.datev_berater`/`datev_mandant`/`datev_skr` (DATEV-Export). v40 = `fremd_import` (Herkunft übernommener Fremddaten).
+(`rechnung.zahlungsziel_tage`/`faellig_am`, Gewerbe-Einstellungen `zahlungsziel_tage`/`mahn_frist_tage`/`mahn_gebuehr_{1,2,3}_cent`/`basiszinssatz_bp`, Tabelle `mahnung`), v18 = `gewerbe.kontoinhaber`, v19 = `frist_einstellung` + `frist_erledigt` (Fristen-Seite), v20 = `audit_log` + `jahr_abschluss` (Festschreibung; die Trigger legt `services/audit.ensure_triggers()` bei jedem Start an), v21 = `bankkonto` + `bank_import` + `bank_umsatz` (Bank-Import), v22 = `rechnung_zahlung` + `rechnung.skonto_bp`/`skonto_tage` (Teilzahlungen, Skonto), v23 = `angebot` + `angebot_position` (Angebote), v24 = `buchung_position.privat_bp` + `dauerbeleg` + `buchung.dauerbeleg_id`/`termin` (Privatanteil, Dauerbelege), v25 = `afa_buchung.degressiv_bp`/`linear_ab_jahr` (AfA-Methoden). v26 = `rechnung.bestellnummer`, `gewerbe.logo_datei`, `artikel`, `textbaustein` (Rechnungs-Komfort). v27 = `berater_einladung` + `berater_zugang` (Zugang für die Steuerberatung). v28 = `passkey` (Passkeys). v29 = `ki_token` (KI-Assistenten/MCP). v30 = `oauth_client` + `oauth_code` + `oauth_grant` (OAuth für MCP). v31 = `ki_vorschlag` + `vorschlaege` an `ki_token`/`oauth_code`/`oauth_grant` (KI-Änderungsvorschläge). v32 = `rechnung_abo.endet_am` (Enddatum für wiederkehrende Rechnungen). v33 = `bank_umsatz.auto_grund`/`auto_buchung`/`auto_aus` + `gewerbe.bank_auto` (automatische Zuordnung). v34 = Regelbesteuerung: `gewerbe_besteuerung` (Wechsel je Jahr), `buchung_position.ust_bp`/`ust_cent`, `rechnung_position`/`angebot_position.ust_bp`, `dauerbeleg.ust_bp`/`ust_cent`, `afa_buchung.vorsteuer_cent`, `kategorie.ust_standard_bp`/`nur_besteuerung`, `gewerbe.ust_id`. v35 = `gewerbe.ustva_zeitraum` (monat|quartal|jahr) + `ustva_dauerfrist` (Umsatzsteuer-Voranmeldung). v36 = `bank_verbindung` + `bankkonto.verbindung_id`/`eb_uid`/`abruf_ab` (Bankabruf). v37 = `vorauszahlung` (Beträge laut Bescheid je Login). v38 = `bank_umsatz.auto_frist` (erkannte Vorauszahlung). v39 = `gewerbe.datev_berater`/`datev_mandant`/`datev_skr` (DATEV-Export). v40 = `fremd_import` (Herkunft übernommener Fremddaten). v41 = Bilanz: `gewerbe_gewinnermittlung` (EÜR/Bilanz je Jahr), `buchung.rechnungsdatum`/`offen`, `bilanz_eroeffnung`, `abschlussbuchung`.
 
 Migrations-Runner schaltet `foreign_keys` während der Migration ab (für Tabellen-Rebuilds bei v3) und
 danach wieder an. Neue Schema-Änderung = neue `Migration` anhängen; Rebuild-Migrationen via
@@ -205,6 +206,27 @@ der Mapping-Version des Jahres aufgelöst.
   `/api/umsatzsteuer/voranmeldungen.csv`, Detail mit Buchungen `/api/umsatzsteuer/zeitraum`, MCP-Werkzeug `umsatzsteuer`,
   Steuerberatung darf lesen. Tab übermittelt nichts an ELSTER. Nicht gebaut: Sondervorauszahlung (Kz 39), § 13b,
   innergemeinschaftlich, Vorsteueraufteilung, berichtigte Anmeldung, ELSTER-Versand/ERiC, Abgleich mit den gezahlten Beträgen.
+- **Bilanz als Option (v41, `BILANZ.md` ist die Spec, `services/gewinnermittlung.py`, `services/bilanz.py`, `routes/bilanz.py`,
+  `pages/Bilanz.jsx`, `lib/gewinnermittlung.js`):** Gewinnermittlung **je Gewerbe und Jahr** (`gewerbe_gewinnermittlung`, Muster wie
+  die Besteuerung; ohne Eintrag EÜR; `gw.art()` ist die einzige Quelle), umschaltbar im Gewerbe-Dialog „Gewinnermittlung“
+  (`PUT/DELETE /api/gewerbe/{id}/gewinnermittlung`, nie für abgeschlossene Jahre, 409 wenn ein künftiges EÜR-Jahr offene Buchungen oder
+  Abschlussbuchungen hätte). **EÜR-Jahre bleiben exakt wie vorher.** **Buchen in Bilanz-Jahren:** `buchung.rechnungsdatum` (Aufwand/Ertrag)
+  neben `datum` (Zahltag) und `buchung.offen` (noch nicht bezahlt; dann `datum` = Rechnungsdatum) — beides nur in Bilanz-Jahren (400),
+  `offen` nie zusammen mit Bankumsatz. Bank-Zuordnung (`bank.zuordnen`, Auto-Regel 1) ruft `gw.bezahlt_markieren` → `offen = 0`, `datum`
+  = Umsatztag, `rechnungsdatum` bleibt; `bank_match.buchung_treffer` findet offene Buchungen bis 120 Tage zurück. **Kein zweites Hauptbuch:**
+  `bilanz.journal()` leitet ein doppeltes Journal ab (Rechnungsseite zum Rechnungsdatum gegen Forderungen/Verbindlichkeiten, Zahlungsseite
+  und jeder Bankumsatz über das **Verrechnungskonto**, Tab-Rechnungen als Erlös zum Rechnungsdatum — die Zahlungsbuchung tilgt dann nur
+  die Forderung —, AfA, Anlagenzugang, Pauschalen gegen Privat, ignorierte Umsätze „Privat“/ESt → Privat, Gewerbesteuer → GuV 14,
+  Abschlussbuchungen); `auswertung()` = GuV, Bilanz (Konto → Posten nach Saldo-Vorzeichen), Eigenkapitalentwicklung, Hinzurechnungen
+  (Bewirtung 30 %, Gewerbesteuer), Übergangsgewinn, Abstimmung (Ursachen für ein Verrechnungskonto ≠ 0). Eröffnung: erstes Bilanz-Jahr
+  manuell (`bilanz_eroeffnung`, Vorschlag Anlagen-Buchwerte + offene Rechnungen), danach Schlussbestand des Vorjahres (rekursiv).
+  `abschlussbuchung` = freie Soll/Haben-Zeile (Rückstellungen, RAP, Kasse …; Konten `bilanz.ABSCHLUSS_KONTEN`, `bank:<id>`, `guv:<posten>`).
+  Beide Tabellen im Protokoll und jahresgesperrt (Trigger); Siegel nimmt `rechnungsdatum`/`offen`, Abschlussbuchungen und Eröffnung nur
+  auf, wenn gesetzt. **Exporte:** Summenblatt in Bilanz-Jahren 400; Jahres-ZIP mit `bilanz-guv-{jahr}.csv`; DATEV aus dem Journal
+  (`datev._stapel_bilanz`: Eröffnung gegen 9000, Forderungen 1400/1200, Verbindlichkeiten 1600/3300, Geldtransit 1360/1460, USt/Vorsteuer
+  ohne Automatik). Steuerberatung liest `/api/bilanz*`, MCP-Werkzeug `bilanz`. Menüpunkt „Bilanz“ nur in Bilanz-Jahren. Nicht gebaut:
+  E-Bilanz/XBRL, Inventur/Warenbestand, § 7g/Rücklagen, latente Steuern, Anhang, automatische Auflösung von Rückstellungen, Rückwechsel
+  mit Übergangsverlust, Kontostände aus Auszügen als Prüfung, Kennzahlen/Übersicht nach Soll-Prinzip (bleiben Zahlungsfluss).
 - **PDF:** kein Server-PDF, sondern Druck-Ansicht (`window.print()` + `@media print` /
   `.print-area` in `index.css`) auf der Export-Seite.
 - **Export-Downloads:** Summenblatt/Journal-CSV, **Jahres-Archiv** `/api/export/belege.zip`
@@ -812,5 +834,5 @@ keine generischen Aliase), `scripts/deploy.sh`. Frontend baut mit getracktem
 
 ## Noch offen / nicht gebaut
 
-- **ELSTER-Versand** der Voranmeldung (Tab rechnet nur), Sondervorauszahlung, § 13b. Ebenso Bilanzierung (doppelte Buchführung, E-Bilanz).
+- **ELSTER-Versand** der Voranmeldung (Tab rechnet nur), Sondervorauszahlung, § 13b. Bilanz gibt es als Entwurf (siehe oben), E-Bilanz nicht.
 - Weiterhin außen vor: Multi-User/Mandant, ELSTER-Direktversand, Zahlungen aus Tab.

@@ -29,7 +29,7 @@ from ..db import _connect, get_db
 from . import oauth
 from ..services.mahnwesen import effektive_faelligkeit
 from . import vorschlaege
-from . import abos, afa, belege, buchungen, export, fristen, gewerbe, kategorien, meta, rechnungen, uebersicht, umsatzsteuer
+from . import abos, afa, belege, bilanz, buchungen, export, fristen, gewerbe, kategorien, meta, rechnungen, uebersicht, umsatzsteuer
 
 router = APIRouter(prefix="/api", tags=["ki"])
 log = logging.getLogger("tab.mcp")
@@ -208,6 +208,18 @@ def _w_umsatzsteuer(db, user, a):
     return d
 
 
+def _w_bilanz(db, user, a):
+    gid, jahr = _int(a, "gewerbe_id"), _int(a, "jahr")
+    from ..services import gewinnermittlung as gw
+    if not gw.ist_bilanz(db, gid, jahr):
+        bilanz.check_gewerbe(db, user, gid)
+        return {"hinweis": "In diesem Jahr ermittelt das Gewerbe den Gewinn per EÜR — es gibt keine Bilanz."}
+    d = bilanz.bilanz_lesen(gid, jahr, user, db)
+    return {k: d[k] for k in ("jahr", "guv", "ergebnis_cent", "hinzurechnungen", "steuerlicher_gewinn_cent", "aktiva",
+                              "passiva", "summe_aktiva_cent", "summe_passiva_cent", "eigenkapital",
+                              "uebergangsgewinn_cent", "abstimmung")}
+
+
 def _w_fristen(db, user, a):
     f = fristen.liste(user, db)
     return {"heute": f["heute"], "fristen": [
@@ -258,6 +270,8 @@ WERKZEUGE = [
     ("fristen", "Steuerfristen des Kontos (Einkommensteuererklärung mit Anlage EÜR, bei Regelbesteuerung Umsatzsteuer-Voranmeldungen und -erklärung) mit Status.", _schema({}, []), _w_fristen),
     ("umsatzsteuer", "Umsatzsteuer-Voranmeldungen eines Jahres (nur bei Regelbesteuerung): je Monat/Quartal die ELSTER-Kennzahlen 81, 86, 35/36, 48, 66 und 83 (Zahllast, negativ = Erstattung), Abgabefrist und ob übermittelt. Tab übermittelt nichts selbst.",
      _schema({"gewerbe_id": _GID, "jahr": _JAHR}, ["gewerbe_id", "jahr"]), _w_umsatzsteuer),
+    ("bilanz", "Bilanz und GuV eines Jahres (nur wenn das Gewerbe in dem Jahr bilanziert): GuV-Posten, Aktiva/Passiva mit Konten, Eigenkapitalentwicklung, außerbilanzielle Hinzurechnungen und Abstimmungshinweise. Entwurf für die Steuerberatung, Beträge in Cent.",
+     _schema({"gewerbe_id": _GID, "jahr": _JAHR}, ["gewerbe_id", "jahr"]), _w_bilanz),
     ("belege_eingang", "Noch nicht verbuchte Belege im Eingang (nur Metadaten, keine Dateiinhalte).",
      _schema({"gewerbe_id": _GID}, ["gewerbe_id"]), _w_belege),
     ("kategorien", "Buchungskategorien mit Typ (einnahme/ausgabe) und EÜR-Zeile für ein Jahr.",

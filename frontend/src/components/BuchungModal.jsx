@@ -12,6 +12,7 @@ import { openBeleg } from '../lib/belege.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 import { betrieblichCent, bpZuText, privatCent, textZuBp } from '../lib/privat.js';
 import { KU, OHNE_SATZ, SAETZE, artImJahr, ustAusBrutto } from '../lib/besteuerung.js';
+import { istBilanz } from '../lib/gewinnermittlung.js';
 
 const QUELLE_LABEL = {
   'e-rechnung': 'E-Rechnung, exakt',
@@ -199,6 +200,9 @@ export default function BuchungModal({
   );
 
   const [datum, setDatum] = useState(buchung?.datum || presetDatum || todayISO());
+  // Bilanz-Jahre (BILANZ.md): Rechnungsdatum neben dem Zahltag, „noch nicht bezahlt“ = offen
+  const [offen, setOffen] = useState(Boolean(buchung?.offen));
+  const [rechnungsdatum, setRechnungsdatum] = useState(buchung?.rechnungsdatum || '');
   const [beschreibung, setBeschreibung] = useState(buchung?.beschreibung || presetBeschreibung || '');
   const [positionen, setPositionen] = useState(() =>
     buchung?.positionen?.length
@@ -307,6 +311,8 @@ export default function BuchungModal({
   const art = artImJahr(gewerbeObj, buchungsJahr);
   const regel = art !== KU;
   const jahrMismatch = jahr && datum && String(datum).slice(0, 4) !== String(jahr);
+  const bilanz = istBilanz(gewerbeObj, buchungsJahr);
+  const offenMoeglich = bilanz && !umsatzId && !dauerbeleg && !rechnungId;
 
   // Kategorien, die es in diesem Jahr gibt (einnahme_ku nur Kleinunternehmer, USt-Kategorien nur Regelbesteuerung)
   const optionenJahr = useMemo(
@@ -412,6 +418,9 @@ export default function BuchungModal({
           datum,
           beschreibung: beschreibung.trim() || null,
           positionen: payloadPos,
+          ...(bilanz || buchung.offen || buchung.rechnungsdatum
+            ? { offen: offenMoeglich ? offen : false, rechnungsdatum: !offen && rechnungsdatum && rechnungsdatum !== datum ? rechnungsdatum : null }
+            : {}),
         });
         toast.success('Gespeichert.');
       } else {
@@ -421,6 +430,8 @@ export default function BuchungModal({
           beschreibung: beschreibung.trim() || null,
           positionen: payloadPos,
           beleg_ids: preBelege.map((b) => b.id),
+          ...(offenMoeglich && offen ? { offen: true } : {}),
+          ...(bilanz && !offen && rechnungsdatum && rechnungsdatum !== datum ? { rechnungsdatum } : {}),
           ...(rechnungId ? { rechnung_id: rechnungId } : {}),
           ...(umsatzId ? { bank_umsatz_id: umsatzId } : {}),
           ...(zahlungId ? { zahlung_id: zahlungId } : {}),
@@ -477,7 +488,7 @@ export default function BuchungModal({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2">
           <label className="block">
-            <span className="field-label">Datum (Zahlung)</span>
+            <span className="field-label">{bilanz && offen ? 'Rechnungsdatum' : 'Datum (Zahlung)'}</span>
             <input type="date" className="input" value={datum} onChange={(e) => setDatum(e.target.value)} />
           </label>
           <label className="block">
@@ -490,6 +501,25 @@ export default function BuchungModal({
             />
           </label>
         </div>
+
+        {bilanz && (offenMoeglich || buchung?.offen) && (
+          <div className="flex items-center gap-3">
+            <Schalter checked={offen} onChange={setOffen} label="Noch nicht bezahlt" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-bold leading-snug">Noch nicht bezahlt</div>
+              <div className="text-xs leading-snug text-ink/60">
+                Bilanz: zählt zum Rechnungsdatum und steht bis zur Zahlung als offener Posten. Ordnest du später den
+                Bankumsatz zu, wird das Datum zum Zahltag.
+              </div>
+            </div>
+          </div>
+        )}
+        {bilanz && !offen && (
+          <label className="block sm:max-w-xs">
+            <span className="field-label">Rechnungsdatum (wenn anders als Zahltag)</span>
+            <input type="date" className="input" value={rechnungsdatum} onChange={(e) => setRechnungsdatum(e.target.value)} />
+          </label>
+        )}
 
         {liestBeleg && (
           <div className="flex items-center gap-2.5 text-[13.5px] text-ink/60">
