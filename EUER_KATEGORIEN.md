@@ -311,6 +311,13 @@ für §8, deshalb passt die Summe der Voranmeldungen (bis auf Rundung je Anmeldu
   §§ 14, 14a UStG, GoBD Rz. 78) — Hinweis in Regel-Jahren. **Bewirtung in Gaststätten:** maschinelle Rechnung bleibt
   Pflicht (§ 4 Abs. 5 Nr. 2 EStG), der Eigenbeleg ersetzt sie nicht. Nur für Ausgaben.
 - **Keine Kategorie, keine EÜR-Zeile:** Der Eigenbeleg ist nur der Beleg; gebucht wird wie immer über die Buchung.
+- **Bewirtungsbeleg (BW-Nummernkreis, `art: bewirtung`):** Nachweis nach § 4 Abs. 5 Satz 1 Nr. 2 EStG — Ort, Tag,
+  Teilnehmer, Anlass, Höhe (BMF 19.11.2025, Rn. 1); bei Gaststätte genügen Anlass und Teilnehmer, die Rechnung wird
+  beigefügt. Statt Papier-Vordruck: digitaler Bewirtungsbeleg nach Rn. 19–22 mit Verweis auf die Rechnung (Beleg-Nr. in
+  Tab, Dateiname, SHA-256 der Datei, Rn. 20 „Verweis … ausreichend“). Hier ist die digitale Freigabe **ausdrücklich**
+  geregelt. Ersetzt die Rechnung nicht (Rn. 13: nur maschinell erstellte, TSE-gesicherte Rechnungen). Hinweise: keine
+  Rechnung verknüpft, über 250 € (Steuernummer/USt-IdNr., Rechnungsnummer, Name des Bewirtenden auf der Rechnung, Rn.
+  9–12), Trinkgeld (Quittung auf der Rechnung, Rn. 8), mehr als 30 Tage nach der Bewirtung (zeitnah, Rn. 1/22).
 
 ---
 

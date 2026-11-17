@@ -273,6 +273,11 @@ def beleg_vorschlag(
         raise HTTPException(410, "Datei nicht mehr vorhanden.")
     if r["eigenbeleg"]:  # Eigenbeleg: Angaben sind bekannt, nichts raten
         e = json.loads(r["eigenbeleg"])
+        if e.get("art") == "bewirtung":
+            kat = db.execute("SELECT id FROM kategorie WHERE key = 'bewirtung'").fetchone()
+            return {"quelle": "eigenbeleg", "betrag_cent": e.get("betrag_cent"), "datum": e["datum"],
+                    "faellig_am": None, "lieferant": e.get("ort"), "kategorie_id": kat["id"] if kat else None,
+                    "richtung": "ausgabe", "richtung_erkannt": True}
         text = f"{e['empfaenger']} {e['gegenstand']}"
         return {"quelle": "eigenbeleg", "betrag_cent": e["betrag_cent"], "datum": e["datum"],
                 "faellig_am": None, "lieferant": e["empfaenger"],

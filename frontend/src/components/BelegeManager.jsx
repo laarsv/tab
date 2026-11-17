@@ -6,10 +6,19 @@ import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
 import { useBelegScanner } from './BelegScanner.jsx';
 import { IconCamera, IconPencil } from './Icons.jsx';
 import EigenbelegModal from './EigenbelegModal.jsx';
+import BewirtungModal from './BewirtungModal.jsx';
 
 // Belege einer bestehenden Buchung: anzeigen, öffnen, hochladen, aus Eingang anhängen, entfernen.
-// eigenVorlage (nur Ausgaben): Knopf „Eigenbeleg“, vorbefüllt aus der Buchung.
-export default function BelegeManager({ buchungId, gewerbeId, onChange, eigenVorlage = null }) {
+// eigenVorlage (nur Ausgaben): Knopf „Eigenbeleg“, vorbefüllt aus der Buchung. bewirtungVorlage (Bewirtung): Knopf
+// „Bewirtungsbeleg“ zu den angehängten Rechnungen; onBewirtung(beleg) danach (füllt die Beleg-Details).
+export default function BelegeManager({
+  buchungId,
+  gewerbeId,
+  onChange,
+  eigenVorlage = null,
+  bewirtungVorlage = null,
+  onBewirtung,
+}) {
   const [attached, setAttached] = useState([]);
   const [inbox, setInbox] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +26,7 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange, eigenVor
   const [showInbox, setShowInbox] = useState(false);
   const inputRef = useRef(null);
   const [eigenOffen, setEigenOffen] = useState(false);
+  const [bewirtungOffen, setBewirtungOffen] = useState(false);
   const scanner = useBelegScanner({
     gewerbeId,
     buchungId,
@@ -112,6 +122,30 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange, eigenVor
               <IconPencil className="h-4 w-4" /> Eigenbeleg
             </button>
           )}
+          {bewirtungVorlage && (
+            <button
+              type="button"
+              className="btn-outline btn-sm gap-1.5"
+              onClick={() => setBewirtungOffen(true)}
+              title="Anlass und Teilnehmer zur Restaurantrechnung festhalten"
+            >
+              <IconPencil className="h-4 w-4" /> Bewirtungsbeleg
+            </button>
+          )}
+          {bewirtungOffen && (
+            <BewirtungModal
+              gewerbeId={gewerbeId}
+              buchungId={buchungId}
+              rechnungen={attached.filter((b) => !b.eigenbeleg)}
+              vorlage={bewirtungVorlage}
+              onClose={() => setBewirtungOffen(false)}
+              onCreated={async (beleg) => {
+                onBewirtung?.(beleg);
+                await load();
+                onChange?.();
+              }}
+            />
+          )}
           {eigenOffen && (
             <EigenbelegModal
               gewerbeId={gewerbeId}
@@ -164,7 +198,11 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange, eigenVor
                 {b.original_name}
               </button>
               <div className="flex items-center gap-3 shrink-0">
-                {b.eigenbeleg && <span className="text-xs font-bold text-ink/60">Eigenbeleg</span>}
+                {b.eigenbeleg && (
+                  <span className="text-xs font-bold text-ink/60">
+                    {b.eigenbeleg.art === 'bewirtung' ? 'Bewirtungsbeleg' : 'Eigenbeleg'}
+                  </span>
+                )}
                 <span className="text-xs text-ink/50 tabular-nums">{fileSize(b.size_bytes)}</span>
                 <button
                   type="button"

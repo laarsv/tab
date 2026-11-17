@@ -139,6 +139,13 @@ bekommen. **[anpassen: eigene Regel, z. B. ab welchem Betrag immer eine Kopie an
 5. **Bewirtung in einer Gaststätte:** Die maschinelle Rechnung des Restaurants bleibt Pflicht; ein Eigenbeleg ersetzt sie
    nicht, sondern ergänzt nur Anlass und Teilnehmer.
 
+**Bewirtungsbelege:** Für Bewirtungen aus geschäftlichem Anlass hält der Inhaber Anlass und Teilnehmer (bei Bewirtung
+außerhalb einer Gaststätte auch Ort und Höhe) zeitnah im **Bewirtungsbeleg** in Tab fest (im Buchungsfenster bei Kategorie
+„Bewirtung“), statt sie auf Papier zu schreiben. Die Restaurantrechnung (maschinell erstellt, mit TSE-Angaben) wird
+vorher hochgeladen oder gescannt. Freigabe, Zeitstempel und Unveränderbarkeit wie oben; das PDF (Nummer BW-JJJJ-NNNN)
+verweist mit Beleg-Nummer, Dateiname und SHA-256 auf die Rechnung und hängt an derselben Buchung. Für diesen Fall
+erlaubt das BMF-Schreiben vom 19.11.2025 (Rn. 19–22) die digitale Form ausdrücklich.
+
 Die digitale Freigabe stützt sich auf das BMF-Schreiben vom 19.11.2025 zu Bewirtungskosten (Rn. 19 und 22: elektronische
 Unterschrift oder Genehmigung, Zeitpunkt aufgezeichnet, keine undokumentierte Änderung). Dieses Schreiben gilt
 ausdrücklich nur für Bewirtungsbelege. Für andere Eigenbelege gibt es keine eigene Verwaltungsanweisung; das Vorgehen
@@ -286,3 +293,4 @@ erklärten Jahre bleiben die Auswertungen des früheren Programms; Abweichungen 
 | 16.11.2026 | 5 | Bilanz als Option je Jahr (1, 6) |
 | 17.11.2026 | 6 | Belegscanner in Tab als Weg für Papierbelege, Zuschnitt und Graustufen beim Digitalisieren (2.1, 2.4) |
 | 17.11.2026 | 7 | Digitale Eigenbelege mit elektronischer Freigabe (2.1, 2.5) |
+| 17.11.2026 | 8 | Digitaler Bewirtungsbeleg zur Restaurantrechnung (2.5) |

@@ -7,6 +7,7 @@ import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
 import BelegVorschau from './BelegVorschau.jsx';
 import EigenbelegModal from './EigenbelegModal.jsx';
+import BewirtungModal from './BewirtungModal.jsx';
 import { Schalter } from './DialogParts.jsx';
 import { IconCamera, IconPencil, IconSparkles, IconX } from './Icons.jsx';
 import { useBelegScanner } from './BelegScanner.jsx';
@@ -357,6 +358,24 @@ export default function BuchungModal({
       aktiv = false;
     };
   }, [rechnungId, regel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bewirtung: statt Eigenbeleg der Bewirtungsbeleg (Anlass + Teilnehmer zur Restaurantrechnung).
+  const istBewirtung = positionen.some((p) => katById[String(p.kategorie_id)]?.key === 'bewirtung');
+  const [bewirtungOffen, setBewirtungOffen] = useState(false);
+  // Nach dem Bewirtungsbeleg: leere Beleg-Details der Bewirtungs-Positionen mit dessen Angaben füllen.
+  function bewirtungUebernehmen(beleg) {
+    const e = beleg.eigenbeleg;
+    const text = `Bewirtungsbeleg ${e.nummer}${e.ort ? `, ${e.ort}` : ''}: ${e.anlass}. Teilnehmer: ${e.teilnehmer
+      .split('\n')
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .join(', ')}`.slice(0, 500);
+    setPositionen((alt) =>
+      alt.map((p) =>
+        katById[String(p.kategorie_id)]?.key === 'bewirtung' && !p.beleg_details.trim() ? { ...p, beleg_details: text } : p,
+      ),
+    );
+  }
 
   function setPos(i, patch) {
     setPositionen((arr) => arr.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
@@ -873,10 +892,23 @@ export default function BuchungModal({
               buchungId={buchung.id}
               gewerbeId={gewerbeId}
               onChange={onSaved}
-              eigenVorlage={richtung !== 'einnahme' ? eigenVorlage() : null}
+              eigenVorlage={richtung !== 'einnahme' && !istBewirtung ? eigenVorlage() : null}
+              bewirtungVorlage={istBewirtung ? { datum, betragCent: eigenVorlage().betragCent } : null}
+              onBewirtung={bewirtungUebernehmen}
             />
           </div>
-        ) : einBeleg ? null : preBelege.length + gescannt.length > 0 ? (
+        ) : einBeleg ? (
+          istBewirtung || gescannt.length > 0 ? (
+            <div className="flex items-start gap-2 rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
+              <div className="min-w-0 flex-1">
+                {gescannt.length > 0
+                  ? `Wird zusätzlich angehängt: ${gescannt.map((b) => b.original_name).join(', ')}`
+                  : 'Anlass und Teilnehmer gehören zur Rechnung — als Bewirtungsbeleg, ohne Papier.'}
+              </div>
+              {istBewirtung && <BewirtungKnopf onClick={() => setBewirtungOffen(true)} />}
+            </div>
+          ) : null
+        ) : preBelege.length + gescannt.length > 0 ? (
           <div className="flex items-start gap-2 rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
             <div className="min-w-0 flex-1">
             Wird angehängt:{' '}
@@ -894,7 +926,11 @@ export default function BuchungModal({
               </span>
             ))}
             </div>
-            {richtung !== 'einnahme' && <EigenKnopf onClick={() => setEigenOffen(true)} />}
+            {istBewirtung ? (
+              <BewirtungKnopf onClick={() => setBewirtungOffen(true)} />
+            ) : (
+              richtung !== 'einnahme' && <EigenKnopf onClick={() => setEigenOffen(true)} />
+            )}
             <ScanKnopf onClick={scanner.starten} />
           </div>
         ) : (
@@ -902,7 +938,11 @@ export default function BuchungModal({
             <span className="min-w-0 flex-1">
               Beleg jetzt mit der Kamera scannen — oder nach dem Speichern anhängen.
             </span>
-            {richtung !== 'einnahme' && <EigenKnopf onClick={() => setEigenOffen(true)} />}
+            {istBewirtung ? (
+              <BewirtungKnopf onClick={() => setBewirtungOffen(true)} />
+            ) : (
+              richtung !== 'einnahme' && <EigenKnopf onClick={() => setEigenOffen(true)} />
+            )}
             <ScanKnopf onClick={scanner.starten} />
           </div>
         )}
@@ -913,6 +953,18 @@ export default function BuchungModal({
             vorlage={eigenVorlage()}
             onClose={() => setEigenOffen(false)}
             onCreated={(beleg) => setGescannt((alt) => [...alt, beleg])}
+          />
+        )}
+        {bewirtungOffen && (
+          <BewirtungModal
+            gewerbeId={gewerbeId}
+            rechnungen={[...preBelege, ...gescannt].filter((b) => !b.eigenbeleg)}
+            vorlage={{ datum, betragCent: eigenVorlage().betragCent }}
+            onClose={() => setBewirtungOffen(false)}
+            onCreated={(beleg) => {
+              setGescannt((alt) => [...alt, beleg]);
+              bewirtungUebernehmen(beleg);
+            }}
           />
         )}
 
@@ -951,6 +1003,19 @@ function EigenKnopf({ onClick }) {
       title="Kein Originalbeleg? Eigenbeleg erstellen"
     >
       <IconPencil className="h-4 w-4" /> Eigenbeleg
+    </button>
+  );
+}
+
+function BewirtungKnopf({ onClick }) {
+  return (
+    <button
+      type="button"
+      className="btn-outline btn-sm shrink-0 gap-1.5"
+      onClick={onClick}
+      title="Anlass und Teilnehmer zur Restaurantrechnung festhalten"
+    >
+      <IconPencil className="h-4 w-4" /> Bewirtungsbeleg
     </button>
   );
 }

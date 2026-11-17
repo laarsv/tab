@@ -801,7 +801,16 @@ der Mapping-Version des Jahres aufgelöst.
   /api/eigenbelege/pruefen`): Regel-Jahr → keine Vorsteuer, Bewirtung → Gaststättenrechnung bleibt Pflicht, > 150 €,
   ≥ 12 im Jahr. Rechtlich offen: die digitale Freigabe ohne Unterschrift ist ausdrücklich nur für Bewirtungsbelege geregelt
   (BMF 19.11.2025, Rn. 19/22), für andere Eigenbelege übertragen. Steuerberatung: nur lesen (POST nicht in der Allowlist).
-  Nicht gebaut: Eigenbelege für Einnahmen, Bewirtungs-Eigenbeleg mit Teilnehmerliste, mehrere Positionen je Eigenbeleg.
+  **Bewirtungsbeleg** (`POST /api/eigenbelege/bewirtung` + `/bewirtung/pruefen`, `components/BewirtungModal.jsx`, JSON mit
+  `art: "bewirtung"`, Nummer `BW-{jahr}-{lauf:04d}`, zählt nicht als Eigenbeleg): Tag, Ort, Anlass, Teilnehmer (Pflicht),
+  Gesamtbetrag/Trinkgeld optional; Verweis auf die Rechnung(en) = `rechnung_beleg_ids` oder die an der Buchung hängenden
+  Belege ohne Eigenbeleg, je mit SHA-256 der Datei im PDF und JSON. Im Buchungsfenster ersetzt er bei Kategorie
+  „Bewirtung“ den Eigenbeleg-Knopf (auch in der Split-Ansicht beim Verbuchen eines Eingangs-Belegs und im
+  `BelegeManager` über `bewirtungVorlage`/`onBewirtung`) und füllt leere Beleg-Details mit Nummer, Ort, Anlass und
+  Teilnehmern. **Beide Fenster haben kein Formular-Element** (sie liegen im Formular des Buchungsfensters; verschachtelte
+  Formulare schicken im Browser das äußere ab) — Speichern per Klick, Enter in Feldern wird abgefangen. Nicht gebaut:
+  Eigenbelege für Einnahmen, mehrere Positionen je Eigenbeleg, Schutz der verknüpften Rechnung vor dem Löschen (der
+  Verweis im PDF bliebe dann ins Leere; Jahres-Sperre schützt erst nach dem Abschluss).
 - **Beleg verschieben:** offene Eingangs-Belege können per PATCH (`gewerbe_id`) in ein
   anderes eigenes Gewerbe wandern (UI: „Verschieben…"-Dropdown im Eingang bei >1 Gewerbe).
 - **Mail-Konto individuell je Login (`routes/einstellungen.py`, `services/mailer.py`, v13):**

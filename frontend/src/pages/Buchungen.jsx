@@ -408,7 +408,9 @@ export default function Buchungen() {
               sub={
                 <>
                   <span>
-                    {b.eigenbeleg
+                    {b.eigenbeleg?.art === 'bewirtung'
+                      ? `Bewirtungsbeleg · ${b.eigenbeleg.anlass} am ${kurz(b.eigenbeleg.datum)}`
+                      : b.eigenbeleg
                       ? `Eigenbeleg · ${formatEuro(b.eigenbeleg.betrag_cent)} am ${kurz(b.eigenbeleg.datum)}`
                       : `Hochgeladen ${kurz(b.created_at.slice(0, 10))} · ${fileSize(b.size_bytes)}`}
                   </span>

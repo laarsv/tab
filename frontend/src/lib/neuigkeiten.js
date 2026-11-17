@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 53,
+    datum: '2026-11-17',
+    titel: 'Bewirtungsbeleg ohne Papier',
+    text: 'Bei einer Buchung mit der Kategorie „Bewirtung“ gibt es jetzt den Knopf „Bewirtungsbeleg“. Restaurantrechnung hochladen oder scannen, dann Anlass und Teilnehmer eintragen und bestätigen. Tab macht daraus ein PDF mit Verweis auf die Rechnung und hängt es an die Buchung. Nichts mehr auf die Rückseite schreiben, kein Vordruck. Die Beleg-Details füllt Tab gleich mit. Die Restaurantrechnung bleibt Pflicht.',
+    link: { to: '/buchungen', label: 'Zu den Buchungen' },
+  },
+  {
     id: 52,
     datum: '2026-11-17',
     titel: 'Eigenbeleg, wenn die Quittung fehlt',

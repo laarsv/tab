@@ -52,7 +52,9 @@ export default function EigenbelegModal({ gewerbeId, buchungId = null, vorlage =
   }, [gewerbeId, buchungId, f.datum, betragCent, vorlage.kategorieKey]);
 
   async function speichern(e) {
-    e.preventDefault();
+    e?.preventDefault();
+    if (!f.empfaenger.trim() || !f.gegenstand.trim() || !f.anlass.trim())
+      return toast.error('Bitte Zahlungsempfänger, Gegenstand und Anlass angeben.');
     if (!(betragCent > 0)) return toast.error('Bitte einen Betrag angeben.');
     if (!f.grund) return toast.error('Bitte angeben, warum kein Originalbeleg vorliegt.');
     if (!bestaetigt) return toast.error('Bitte die Erklärung bestätigen.');
@@ -88,7 +90,12 @@ export default function EigenbelegModal({ gewerbeId, buchungId = null, vorlage =
       onClose={onClose}
       maxWidth="max-w-xl"
     >
-      <form onSubmit={speichern} className="space-y-5">
+      {/* Kein Formular-Element: das Fenster liegt oft im Formular des Buchungsfensters, verschachtelte
+          Formulare schicken im Browser das äußere ab. Gespeichert wird per Klick, Enter in einem Feld schickt nichts ab. */}
+      <div
+        className="space-y-5"
+        onKeyDown={(e) => e.key === 'Enter' && e.target.tagName === 'INPUT' && e.preventDefault()}
+      >
         <Gruppe titel="Ausgabe">
           <div className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
             <label className="block">
@@ -191,11 +198,11 @@ export default function EigenbelegModal({ gewerbeId, buchungId = null, vorlage =
           <button type="button" className="btn-ghost" onClick={onClose}>
             Abbrechen
           </button>
-          <button type="submit" className="btn-primary" disabled={busy || !bestaetigt}>
+          <button type="button" className="btn-primary" onClick={speichern} disabled={busy || !bestaetigt}>
             Eigenbeleg erstellen
           </button>
         </DialogFuss>
-      </form>
+      </div>
     </Modal>
   );
 }
