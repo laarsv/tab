@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import { api, apiError } from '../api/client.js';
 import Spinner from './Spinner.jsx';
 import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
+import { useBelegScanner } from './BelegScanner.jsx';
+import { IconCamera } from './Icons.jsx';
 
 // Belege einer bestehenden Buchung: anzeigen, öffnen, hochladen, aus Eingang anhängen, entfernen.
 export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
@@ -12,6 +14,14 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
   const [busy, setBusy] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const inputRef = useRef(null);
+  const scanner = useBelegScanner({
+    gewerbeId,
+    buchungId,
+    onGespeichert: async () => {
+      await load();
+      onChange?.();
+    },
+  });
 
   async function load() {
     try {
@@ -85,6 +95,10 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
               Aus Eingang ({inbox.length})
             </button>
           )}
+          <button type="button" className="btn-outline btn-sm gap-1.5" onClick={scanner.starten} disabled={busy}>
+            <IconCamera className="h-4 w-4" /> Scannen
+          </button>
+          {scanner.element}
           <button
             type="button"
             className="btn-outline btn-sm"

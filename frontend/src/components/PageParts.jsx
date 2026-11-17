@@ -25,7 +25,7 @@ export function PageHeader({ title, accent, sub, children }) {
 export function SectionHead({ label, count, children, className = '' }) {
   return (
     <div className={`flex items-center gap-2.5 mt-8 mb-1 ${className}`}>
-      <span className="eyebrow">{label}</span>
+      <span className="eyebrow whitespace-nowrap">{label}</span>
       {count !== undefined && count !== null && (
         <span className="font-mono text-xs font-bold text-ink/60 tabular-nums">{count}</span>
       )}

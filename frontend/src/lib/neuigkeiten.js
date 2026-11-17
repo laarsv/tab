@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 51,
+    datum: '2026-11-17',
+    titel: 'Belege mit der Kamera scannen',
+    text: 'Papierbeleg? Tipp auf das Kamera-Symbol oben (am Handy) oder neben „Neue Buchung“ und fotografiere ihn. Tab findet die Kanten, zieht den Beleg gerade und macht ihn gut lesbar — Schatten weg, mehr Kontrast. Mehrere Seiten werden eine PDF und landen im Beleg-Eingang. Auch im Buchungsfenster gibt es „Beleg scannen“. Alles passiert auf deinem Gerät, kein fremder Dienst. Trägt der Beleg farbige Stempel, schalte „Als Dokument aufbereiten“ aus, dann bleibt er farbig.',
+    link: { to: '/buchungen', label: 'Zum Eingang' },
+  },
+  {
     id: 50,
     datum: '2026-11-16',
     titel: 'Bilanz als Option',

@@ -22,6 +22,7 @@ import {
   IconPlus,
   IconTrash,
   IconUpload,
+  IconCamera,
 } from '../components/Icons.jsx';
 import AbschlussHinweis from '../components/AbschlussHinweis.jsx';
 import KuGuard from '../components/KuGuard.jsx';
@@ -87,7 +88,7 @@ function belegIcon(b) {
 }
 
 export default function Buchungen() {
-  const { gewerbeId, jahr, gewerbe, reloadBadges, uploadBelege, uploading, eingangTick, jahrAbgeschlossen } =
+  const { gewerbeId, jahr, gewerbe, reloadBadges, uploadBelege, uploading, eingangTick, jahrAbgeschlossen, scanBeleg } =
     useOutletContext();
   const aktives = (gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   const andereGewerbe = (gewerbe || []).filter((g) => String(g.id) !== String(gewerbeId) && g.aktiv);
@@ -371,11 +372,13 @@ export default function Buchungen() {
           <button
             type="button"
             onClick={startWizard}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-bold text-royal outline-none hover:bg-royal/10 focus-visible:ring-2 focus-visible:ring-royal/40 sm:py-1"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-bold text-royal outline-none hover:bg-royal/10 focus-visible:ring-2 focus-visible:ring-royal/40 sm:py-1"
           >
-            <IconArrowRight className="h-4 w-4" /> Jetzt abarbeiten
+            <IconArrowRight className="h-4 w-4" /> <span className="sm:hidden">Abarbeiten</span>
+            <span className="hidden sm:inline">Jetzt abarbeiten</span>
           </button>
         )}
+        <IconButton icon={IconCamera} label="Beleg scannen" onClick={() => scanBeleg?.()} />
         <IconButton
           icon={IconUpload}
           label="Belege hochladen"
@@ -386,7 +389,7 @@ export default function Buchungen() {
       </SectionHead>
       {belege.length === 0 ? (
         <p className="border-b border-ink/[0.08] py-3 text-sm text-ink/60">
-          Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen und später in Ruhe verbuchen.
+          Leer. Belege (PDF/JPG/PNG, E-Rechnungs-XML) hochladen oder mit der Kamera scannen und später in Ruhe verbuchen.
         </p>
       ) : (
         belege.map((b) => {

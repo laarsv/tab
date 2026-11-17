@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { IconX } from './Icons.jsx';
 
 // Dialog im Recap-Stil (DESIGN.md §6): weiße Karte, Radius 16, Schatten nur hier (schwebend);
@@ -10,6 +10,10 @@ import { IconX } from './Icons.jsx';
 // Zeile und die Kinder. So lassen sich bestehende Dialoge als Bereich eines größeren Fensters wiederverwenden.
 export const Eingebettet = createContext(false);
 export const useEingebettet = () => useContext(Eingebettet);
+
+// Offene Dialoge, oberster zuletzt: ESC schließt nur den obersten (Belegscanner im Buchungsfenster),
+// und die Seite scrollt erst wieder, wenn der letzte zu ist.
+const offen = [];
 
 export default function Modal(props) {
   const eingebettet = useEingebettet();
@@ -34,20 +38,25 @@ function ModalFenster({
   flush = false,
 }) {
   const [shown, setShown] = useState(false);
+  const schliessen = useRef(onClose);
+  schliessen.current = onClose;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setShown(true));
+    const ich = {};
+    offen.push(ich);
     function onKey(e) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && offen[offen.length - 1] === ich) schliessen.current();
     }
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      offen.splice(offen.indexOf(ich), 1);
+      if (!offen.length) document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div

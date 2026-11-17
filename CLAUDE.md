@@ -765,6 +765,23 @@ der Mapping-Version des Jahres aufgelöst.
   erstes aktives) → Redirect `?geteilt=ok|fehler` (Toast in Buchungen). SW macht
   bewusst KEIN Caching. Android/Chrome only — iOS kann kein Share-Target (Mail-Weg).
   Datei-Validierung/XML-Fälligkeit zentral in `beleg_store` (Upload nutzt es auch).
+  (3) **Belegscanner (2026-11-17, `components/BelegScanner.jsx`, `lib/scan.js`, `services/beleg_scan.py`,
+  `POST /api/belege/scan`):** Kamera über `<input type="file" accept="image/*" capture="environment">` (iOS + Android,
+  kein `getUserMedia`). Hook `useBelegScanner({gewerbeId, buchungId?, onGespeichert})` → `starten()` öffnet die Kamera
+  sofort (Klick = Nutzergeste), erst das Foto öffnet den Dialog (per Portal, damit er auch im BuchungModal fix
+  liegt). **Aufbereitung nur im Browser, ohne Bibliothek:** Bild über `<img>` laden (EXIF-Drehung macht der Browser),
+  auf 2000 px verkleinern, Blattkanten per Otsu-Schwelle + größter heller Fläche erkennen (Papier vor dunklerem
+  Hintergrund; auf hellem Tisch → ganzes Bild, Ecken von Hand ziehen), perspektivisch entzerren (Homographie,
+  bilinear), Drehen in 90°-Schritten, „Als Dokument aufbereiten“ (Standard an: Hintergrund blockweise schätzen und
+  herausrechnen, Graustufen, Kontrast). Jede Seite als JPEG an den Server; **der Server fügt sie mit PyMuPDF zu EINER
+  PDF** (A4-Breite, Höhe nach Seitenverhältnis, Pillow prüft jedes Bild, EXIF-Drehung, max. 30 Seiten, Summe der
+  Seiten ≤ `MAX_UPLOAD_MB`) und speichert über `speichere_beleg` (Quota, Größenlimit) — mit `buchung_id` direkt an der
+  Buchung, sonst im Eingang; die OCR läuft danach wie bei jeder Scan-PDF (`_text_aus_pdf`). Einstiege: Kamera in der
+  Royal-Leiste oben (Handy), neben „Neue Buchung“ in der Seitenleiste (`scanBeleg` im Layout-Context), Kopf des
+  Beleg-Eingangs, BuchungModal („Beleg scannen“, neue Buchung: gescannter Beleg wird beim Speichern angehängt) und
+  `BelegeManager` („Scannen“ an einer bestehenden Buchung). `Modal` hält jetzt einen Stapel: ESC schließt nur den
+  obersten Dialog. Nicht gebaut: Live-Kamera mit Kantenerkennung im Sucher, Text-Ebene in der PDF, Speichern ohne
+  Netz.
 - **Kontakte (`routes/kontakte.py`, Tabelle `kontakt`):** Rechnungsempfänger je Gewerbe,
   Name case-insensitiv eindeutig. **Füllen sich automatisch**: Rechnung/Abo anlegen
   upsertet den Empfänger (`upsert_kontakt` — nur nicht-leere Felder überschreiben).

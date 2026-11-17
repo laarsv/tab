@@ -9,7 +9,8 @@ import NeuigkeitenModal from './NeuigkeitenModal.jsx';
 import { OAUTH_ZURUECK } from '../pages/OAuthFreigabe.jsx';
 import Sidebar from './Sidebar.jsx';
 import Wordmark from './Wordmark.jsx';
-import { IconChecklist, IconGrid, IconInbox, IconList, IconMenu, IconReceipt, IconX } from './Icons.jsx';
+import { IconCamera, IconChecklist, IconGrid, IconInbox, IconList, IconMenu, IconReceipt, IconX } from './Icons.jsx';
+import { useBelegScanner } from './BelegScanner.jsx';
 import { countOffeneTopics, loadCheckState } from '../lib/jahresCheck.js';
 import { syncGelesen, ungelesene } from '../lib/neuigkeiten.js';
 import { ACCEPT } from '../lib/belege.js';
@@ -183,6 +184,15 @@ export default function Layout() {
     }
   }
 
+  // Belegscanner (Kamera): Seitenleiste, Kopfleiste am Handy und Buchungen-Seite teilen ihn.
+  const scanner = useBelegScanner({
+    gewerbeId,
+    onGespeichert: () => {
+      setEingangTick((t) => t + 1);
+      loadBadges(gewerbeId, jahr);
+    },
+  });
+
   const ctx = {
     gewerbeId,
     jahr: Number(jahr),
@@ -198,6 +208,7 @@ export default function Layout() {
     uploadBelege,
     uploading,
     eingangTick,
+    scanBeleg: scanner.starten,
   };
 
   function doLogout() {
@@ -243,6 +254,10 @@ export default function Layout() {
       navigate(`/buchungen?neu=${Date.now()}`);
     },
     onUpload: () => uploadRef.current?.click(),
+    onScan: () => {
+      setDrawer(false);
+      scanner.starten();
+    },
     onAbarbeiten: () => {
       setDrawer(false);
       navigate(`/buchungen?abarbeiten=${Date.now()}`);
@@ -267,6 +282,8 @@ export default function Layout() {
         }}
       />
 
+      {scanner.element}
+
       {/* Desktop: Royal-Seitenleiste fest links */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[262px] lg:block">
         <Sidebar {...sidebarProps} />
@@ -279,6 +296,15 @@ export default function Layout() {
             <Wordmark onRoyal className="text-xl leading-none" />
           </Link>
           <div className="flex-1" />
+          <button
+            type="button"
+            onClick={scanner.starten}
+            title="Beleg scannen"
+            aria-label="Beleg scannen"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl outline-none hover:bg-paper/10 focus-visible:ring-2 focus-visible:ring-paper/70"
+          >
+            <IconCamera className="h-[22px] w-[22px]" />
+          </button>
           {eingang.offen > 0 && (
             <button
               type="button"

@@ -363,3 +363,34 @@ export const IconKey = (p) => (
     <path d="M11 12l9-9M16 7l3 3M14 9l2 2" />
   </Svg>
 );
+
+// ── Belegscanner ─────────────────────────────────────────────────────────────
+export const IconCamera = (p) => (
+  <Svg {...p}>
+    <path d="M14.5 4h-5L7.5 6.5H4a2 2 0 0 0-2 2V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8.5a2 2 0 0 0-2-2h-3.5z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </Svg>
+);
+export const IconRotateLeft = (p) => (
+  <Svg {...p}>
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5" />
+  </Svg>
+);
+export const IconRotateRight = (p) => (
+  <Svg {...p}>
+    <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+    <path d="M21 3v5h-5" />
+  </Svg>
+);
+export const IconCrop = (p) => (
+  <Svg {...p}>
+    <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+    <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+  </Svg>
+);
+export const IconMaximize = (p) => (
+  <Svg {...p}>
+    <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+  </Svg>
+);

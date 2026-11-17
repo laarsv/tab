@@ -14,6 +14,7 @@ from ..auth.deps import check_gewerbe, get_current_user
 from ..config import settings
 from ..db import get_db
 from ..services.beleg_extract import vorschlag_fuer_beleg
+from ..services.beleg_scan import ScanAbgelehnt, bilder_zu_pdf
 from ..services.beleg_store import BelegAbgelehnt, default_gewerbe_id, speichere_beleg
 
 router = APIRouter(prefix="/api", tags=["belege"], dependencies=[Depends(get_current_user)])
@@ -81,6 +82,57 @@ def upload_beleg(
         raise HTTPException(400, str(e))
     db.commit()
     return _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone())
+
+
+@router.post("/belege/scan", status_code=201)
+def scan_beleg(
+    seiten: list[UploadFile],
+    gewerbe_id: int = Form(...),
+    buchung_id: int | None = Form(None),
+    name: str | None = Form(None),
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Belegscanner: fotografierte Seiten (im Browser aufbereitet) werden EINE PDF
+    und landen wie ein Upload im Eingang (oder direkt an der Buchung)."""
+    check_gewerbe(db, user, gewerbe_id)
+    if buchung_id is not None:
+        b = db.execute("SELECT gewerbe_id FROM buchung WHERE id = ?", (buchung_id,)).fetchone()
+        if b is None:
+            raise HTTPException(404, "Buchung nicht gefunden.")
+        if b["gewerbe_id"] != gewerbe_id:
+            raise HTTPException(400, "Buchung gehört zu einem anderen Gewerbe.")
+    roh = []
+    gesamt = 0
+    grenze = settings.MAX_UPLOAD_MB * 1024 * 1024
+    for f in seiten:
+        data = f.file.read(grenze + 1)
+        gesamt += len(data)
+        if gesamt > grenze:
+            raise HTTPException(400, f"Scan zu groß (max. {settings.MAX_UPLOAD_MB} MB).")
+        roh.append(data)
+    try:
+        pdf = bilder_zu_pdf(roh)
+    except ScanAbgelehnt as e:
+        raise HTTPException(400, str(e))
+    stempel = dt.datetime.now().strftime("%Y-%m-%d %H-%M")
+    titel = "".join(c for c in (name or "").strip() if c not in '\\/:*?"<>|')[:80].strip()
+    dateiname = f"{titel or 'Scan ' + stempel}.pdf"
+    try:
+        beleg_id = speichere_beleg(
+            db,
+            gewerbe_id=gewerbe_id,
+            original_name=dateiname,
+            data=pdf,
+            content_type="application/pdf",
+            buchung_id=buchung_id,
+        )
+    except BelegAbgelehnt as e:
+        raise HTTPException(400, str(e))
+    db.commit()
+    out = _beleg_dict(db.execute("SELECT * FROM beleg WHERE id = ?", (beleg_id,)).fetchone())
+    out["seiten"] = len(roh)
+    return out
 
 
 @router.post("/belege/share", status_code=201)

@@ -55,7 +55,8 @@ IDW PS 880). Diese Dokumentation beschreibt, wie Ordnungsmäßigkeit trotzdem si
    **Beleg-Eingang** ab.
 2. **Hochladen** im Browser (PDF, JPG, PNG, XML) in den Beleg-Eingang.
 3. **Teilen vom Handy** (installierte App, Android) in den Beleg-Eingang.
-4. **Papierbelege**: werden fotografiert oder gescannt und über Weg 2 oder 3 hochgeladen
+4. **Papierbelege**: werden mit dem **Belegscanner** in Tab fotografiert (Handy-Kamera, Android und iOS; mehrere
+   Seiten werden eine PDF) oder anderweitig fotografiert/gescannt und über Weg 2 oder 3 hochgeladen
    (ersetzendes Scannen, siehe 2.4).
 5. **E-Rechnungen** (XRechnung, ZUGFeRD): werden wie andere Dateien empfangen; Tab liest die strukturierten
    Daten aus. Die XML-Datei bzw. das PDF mit eingebetteter XML ist das Original und wird unverändert gespeichert.
@@ -99,15 +100,21 @@ zurückgenommen werden. Der Inhaber sieht die automatisch gebuchten Umsätze bei
 
 Papierbelege werden digitalisiert und danach nicht mehr in Papier aufbewahrt (GoBD Rz. 136 ff.).
 
-1. Der Inhaber digitalisiert den Beleg selbst, zeitnah nach Erhalt (Smartphone-Kamera oder Scanner),
-   vollständig (alle Seiten, Vorder- und Rückseite, wenn beschrieben) und farbig.
+1. Der Inhaber digitalisiert den Beleg selbst, zeitnah nach Erhalt (Belegscanner in Tab, Smartphone-Kamera oder
+   Scanner), vollständig (alle Seiten, Vorder- und Rückseite, wenn beschrieben) und farbig. Graustufen sind
+   zulässig, wenn die Farbe keine Bedeutung hat; trägt der Beleg farbige Stempel, Markierungen oder Vermerke,
+   schaltet der Inhaber im Belegscanner „Als Dokument aufbereiten“ aus (dann bleibt die Seite farbig).
 2. Er prüft am Bildschirm, dass Betrag, Datum, Aussteller und Leistung **lesbar** sind; ist das nicht der
    Fall, wird neu digitalisiert.
 3. Die Datei wird in Tab hochgeladen und bis zum Ende des Folgemonats verbucht.
 4. Nach dem Verbuchen darf das Papier vernichtet werden. **Ausnahmen, die im Original aufbewahrt werden:**
    Belege, bei denen das Gesetz das Original verlangt oder deren Beweiswert am Papier hängt (z. B.
    Zollbelege, notarielle Urkunden, Belege mit Siegel, Wertpapiere). **[ausfüllen: eigene Ausnahmen]**
-5. Eine nachträgliche Bearbeitung der Bilddatei (Zuschneiden, Retusche) findet nicht statt.
+5. Eine nachträgliche Bearbeitung der Bilddatei (Zuschneiden, Retusche) findet nicht statt. Der Belegscanner
+   schneidet die Seite beim Digitalisieren auf die Blattkanten zu, zieht sie gerade und verbessert auf Wunsch den
+   Kontrast — **vor** dem Speichern, auf dem Gerät des Inhabers, ohne fremden Dienst. Die gespeicherte PDF ist das
+   digitalisierte Original und wird danach nicht mehr verändert. Der Inhaber prüft vor dem Speichern in der
+   Ansicht „Ergebnis“, dass nichts vom Beleg abgeschnitten ist.
 
 ---
 
@@ -249,3 +256,4 @@ erklärten Jahre bleiben die Auswertungen des früheren Programms; Abweichungen 
 | 16.11.2026 | 3 | Bankabruf über Enable Banking als zweiter Weg für Bankumsätze (2.3) |
 | 16.11.2026 | 4 | Übernahme von Altdaten aus einem DATEV-Export (7.3) |
 | 16.11.2026 | 5 | Bilanz als Option je Jahr (1, 6) |
+| 17.11.2026 | 6 | Belegscanner in Tab als Weg für Papierbelege, Zuschnitt und Graustufen beim Digitalisieren (2.1, 2.4) |

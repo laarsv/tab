@@ -7,7 +7,8 @@ import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
 import BelegVorschau from './BelegVorschau.jsx';
 import { Schalter } from './DialogParts.jsx';
-import { IconSparkles, IconX } from './Icons.jsx';
+import { IconCamera, IconSparkles, IconX } from './Icons.jsx';
+import { useBelegScanner } from './BelegScanner.jsx';
 import { openBeleg } from '../lib/belege.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
 import { betrieblichCent, bpZuText, privatCent, textZuBp } from '../lib/privat.js';
@@ -171,6 +172,12 @@ export default function BuchungModal({
 }) {
   const isEdit = Boolean(buchung?.id);
   const outlet = useOutletContext() || {};
+  // Im Fenster gescannte Belege (liegen sofort im Eingang, werden beim Speichern angehängt).
+  const [gescannt, setGescannt] = useState([]);
+  const scanner = useBelegScanner({
+    gewerbeId,
+    onGespeichert: (beleg) => setGescannt((alt) => [...alt, beleg]),
+  });
   const gewerbeObj = (outlet.gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   // Split-View: genau ein Eingangs-Beleg wird verbucht -> Dokument links, Felder rechts.
   const einBeleg = !isEdit && preBelege.length === 1 ? preBelege[0] : null;
@@ -429,7 +436,7 @@ export default function BuchungModal({
           datum,
           beschreibung: beschreibung.trim() || null,
           positionen: payloadPos,
-          beleg_ids: preBelege.map((b) => b.id),
+          beleg_ids: [...preBelege, ...gescannt].map((b) => b.id),
           ...(offenMoeglich && offen ? { offen: true } : {}),
           ...(bilanz && !offen && rechnungsdatum && rechnungsdatum !== datum ? { rechnungsdatum } : {}),
           ...(rechnungId ? { rechnung_id: rechnungId } : {}),
@@ -859,10 +866,11 @@ export default function BuchungModal({
           <div className="pt-2 border-t border-ink/10">
             <BelegeManager buchungId={buchung.id} gewerbeId={gewerbeId} onChange={onSaved} />
           </div>
-        ) : einBeleg ? null : preBelege.length > 0 ? (
-          <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
+        ) : einBeleg ? null : preBelege.length + gescannt.length > 0 ? (
+          <div className="flex items-start gap-2 rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
+            <div className="min-w-0 flex-1">
             Wird angehängt:{' '}
-            {preBelege.map((b, i) => (
+            {[...preBelege, ...gescannt].map((b, i) => (
               <span key={b.id}>
                 {i > 0 && ', '}
                 <button
@@ -875,12 +883,18 @@ export default function BuchungModal({
                 </button>
               </span>
             ))}
+            </div>
+            <ScanKnopf onClick={scanner.starten} />
           </div>
         ) : (
-          <div className="rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/60">
-            Belege kannst du nach dem Speichern anhängen — oder vorab im Eingang hochladen.
+          <div className="flex items-center gap-2 rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/60">
+            <span className="min-w-0 flex-1">
+              Beleg jetzt mit der Kamera scannen — oder nach dem Speichern anhängen.
+            </span>
+            <ScanKnopf onClick={scanner.starten} />
           </div>
         )}
+        {!isEdit && scanner.element}
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -898,5 +912,13 @@ export default function BuchungModal({
       </form>
       </div>
     </Modal>
+  );
+}
+
+function ScanKnopf({ onClick }) {
+  return (
+    <button type="button" className="btn-outline btn-sm shrink-0 gap-1.5" onClick={onClick}>
+      <IconCamera className="h-4 w-4" /> Beleg scannen
+    </button>
   );
 }

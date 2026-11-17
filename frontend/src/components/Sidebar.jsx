@@ -23,6 +23,7 @@ import {
   IconSparkles,
   IconTrendDown,
   IconUpload,
+  IconCamera,
 } from './Icons.jsx';
 
 // Royal-Seitenleiste (Recap-Stil). Desktop: fest links; mobil: dieselbe Leiste als Schublade.
@@ -175,6 +176,7 @@ export default function Sidebar({
   onNavigate,
   onNeueBuchung,
   onUpload,
+  onScan,
   onAbarbeiten,
   onEinstellungen,
   onNews,
@@ -209,6 +211,15 @@ export default function Sidebar({
           className="inline-flex h-11 w-11 lg:h-10 lg:w-10 items-center justify-center rounded-[10px] bg-paper/[0.18] outline-none hover:bg-paper/25 focus-visible:ring-2 focus-visible:ring-paper/70"
         >
           <IconUpload className="h-[18px] w-[18px]" />
+        </button>
+        <button
+          type="button"
+          onClick={onScan}
+          title="Beleg scannen"
+          aria-label="Beleg scannen"
+          className="inline-flex h-11 w-11 lg:h-10 lg:w-10 items-center justify-center rounded-[10px] bg-paper/[0.18] outline-none hover:bg-paper/25 focus-visible:ring-2 focus-visible:ring-paper/70"
+        >
+          <IconCamera className="h-[18px] w-[18px]" />
         </button>
       </div>
 
