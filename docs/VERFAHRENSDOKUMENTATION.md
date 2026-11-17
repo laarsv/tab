@@ -60,6 +60,8 @@ IDW PS 880). Diese Dokumentation beschreibt, wie Ordnungsmäßigkeit trotzdem si
    (ersetzendes Scannen, siehe 2.4).
 5. **E-Rechnungen** (XRechnung, ZUGFeRD): werden wie andere Dateien empfangen; Tab liest die strukturierten
    Daten aus. Die XML-Datei bzw. das PDF mit eingebetteter XML ist das Original und wird unverändert gespeichert.
+6. **Eigenbelege**: Fehlt für eine Ausgabe der Fremdbeleg oder gab es nie einen, erstellt der Inhaber in Tab einen
+   digitalen Eigenbeleg (siehe 2.5).
 
 Tab nimmt nur PDF, JPG, PNG und XML an, mit Größenbegrenzung. Jede Datei wird unverändert unter einem
 zufälligen Namen gespeichert, der ursprüngliche Dateiname wird mitgeführt.
@@ -115,6 +117,32 @@ Papierbelege werden digitalisiert und danach nicht mehr in Papier aufbewahrt (Go
    Kontrast — **vor** dem Speichern, auf dem Gerät des Inhabers, ohne fremden Dienst. Die gespeicherte PDF ist das
    digitalisierte Original und wird danach nicht mehr verändert. Der Inhaber prüft vor dem Speichern in der
    Ansicht „Ergebnis“, dass nichts vom Beleg abgeschnitten ist.
+
+### 2.5 Eigenbelege
+
+Ist kein Fremdbeleg vorhanden, wird ein Eigenbeleg erstellt (GoBD Rz. 61). Das ist die **Ausnahme**: verlorene
+Quittung, Parkautomat ohne Quittung, Trinkgeld, Kleinbeträge. Vorher versucht der Inhaber, eine Rechnungskopie zu
+bekommen. **[anpassen: eigene Regel, z. B. ab welchem Betrag immer eine Kopie angefordert wird]**
+
+1. Der Inhaber erstellt den Eigenbeleg in Tab („Eigenbeleg erstellen“ im Beleg-Eingang oder im Buchungsfenster), zeitnah
+   zur Ausgabe. Pflichtangaben: Datum der Ausgabe, Betrag (brutto), Zahlungsempfänger, was bezahlt wurde, betrieblicher
+   Anlass, Grund für den fehlenden Fremdbeleg, Zahlungsart. Aussteller (Gewerbe mit Anschrift) und Erstellungszeitpunkt
+   setzt Tab.
+2. **Elektronische Freigabe statt Unterschrift:** Der angemeldete Inhaber bestätigt die Erklärung („betrieblich
+   angefallen, kein Originalbeleg“). Tab speichert dabei, wer bestätigt hat, den Zeitpunkt (auf die Sekunde) und einen
+   Prüfwert (SHA-256) der Angaben und erzeugt daraus ein PDF mit fortlaufender Nummer je Gewerbe und Jahr (EB-JJJJ-NNNN).
+3. Die Angaben lassen sich danach **nicht ändern**; ein falscher Eigenbeleg wird gelöscht und neu erstellt, beides steht
+   im Änderungsprotokoll. Das PDF ist ein normaler Beleg: Verknüpfung mit der Buchung, Jahres-Sperre, Siegel, Backup und
+   Jahresarchiv gelten wie bei jedem anderen Beleg.
+4. **Kein Vorsteuerabzug** aus Eigenbelegen (Rechnung nach § 14 UStG fehlt). Bei Regelbesteuerung wird die Ausgabe
+   brutto ohne Steuer gebucht; Tab weist darauf hin.
+5. **Bewirtung in einer Gaststätte:** Die maschinelle Rechnung des Restaurants bleibt Pflicht; ein Eigenbeleg ersetzt sie
+   nicht, sondern ergänzt nur Anlass und Teilnehmer.
+
+Die digitale Freigabe stützt sich auf das BMF-Schreiben vom 19.11.2025 zu Bewirtungskosten (Rn. 19 und 22: elektronische
+Unterschrift oder Genehmigung, Zeitpunkt aufgezeichnet, keine undokumentierte Änderung). Dieses Schreiben gilt
+ausdrücklich nur für Bewirtungsbelege. Für andere Eigenbelege gibt es keine eigene Verwaltungsanweisung; das Vorgehen
+überträgt diese Anforderungen. **[mit der Steuerberatung abstimmen]**
 
 ---
 
@@ -257,3 +285,4 @@ erklärten Jahre bleiben die Auswertungen des früheren Programms; Abweichungen 
 | 16.11.2026 | 4 | Übernahme von Altdaten aus einem DATEV-Export (7.3) |
 | 16.11.2026 | 5 | Bilanz als Option je Jahr (1, 6) |
 | 17.11.2026 | 6 | Belegscanner in Tab als Weg für Papierbelege, Zuschnitt und Graustufen beim Digitalisieren (2.1, 2.4) |
+| 17.11.2026 | 7 | Digitale Eigenbelege mit elektronischer Freigabe (2.1, 2.5) |

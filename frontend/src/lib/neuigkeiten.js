@@ -6,6 +6,13 @@ import { api } from '../api/client.js';
 
 export const NEUIGKEITEN = [
   {
+    id: 52,
+    datum: '2026-11-17',
+    titel: 'Eigenbeleg, wenn die Quittung fehlt',
+    text: 'Quittung verloren, Parkautomat ohne Beleg, Trinkgeld? Erstelle den Beleg direkt in Tab: Stift-Symbol im Beleg-Eingang oder „Eigenbeleg“ im Buchungsfenster. Du gibst Datum, Betrag, Empfänger, Anlass und den Grund an und bestätigst die Angaben. Tab macht daraus ein PDF mit Nummer und Zeitstempel, das wie jeder Beleg an der Buchung hängt. Eigenbelege sind die Ausnahme. Bei Regelbesteuerung gibt es daraus keine Vorsteuer, und die Restaurantrechnung bei einer Bewirtung ersetzen sie nicht.',
+    link: { to: '/buchungen', label: 'Zum Eingang' },
+  },
+  {
     id: 51,
     datum: '2026-11-17',
     titel: 'Belege mit der Kamera scannen',

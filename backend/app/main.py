@@ -29,6 +29,7 @@ from .routes import (
     belege,
     buchungen,
     dauerbelege,
+    eigenbelege,
     einstellungen,
     export,
     fahrten,
@@ -160,6 +161,7 @@ app.include_router(kategorien.router)
 app.include_router(kontakte.router)
 app.include_router(buchungen.router)
 app.include_router(belege.router)
+app.include_router(eigenbelege.router)
 app.include_router(afa.router)
 app.include_router(fahrten.router)
 app.include_router(rechnungen.router)

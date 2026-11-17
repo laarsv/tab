@@ -3,6 +3,7 @@ später einer Buchung zuordnen. buchung_id NULL = offen/Eingang."""
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import sqlite3
 
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from ..auth.deps import check_gewerbe, get_current_user
 from ..config import settings
 from ..db import get_db
-from ..services.beleg_extract import vorschlag_fuer_beleg
+from ..services.beleg_extract import _kategorie_vorschlag, vorschlag_fuer_beleg
 from ..services.beleg_scan import ScanAbgelehnt, bilder_zu_pdf
 from ..services.beleg_store import BelegAbgelehnt, default_gewerbe_id, speichere_beleg
 
@@ -38,6 +39,7 @@ def _beleg_dict(r: sqlite3.Row) -> dict:
         "created_at": r["created_at"],
         "faellig_am": r["faellig_am"],
         "offen": r["buchung_id"] is None,
+        "eigenbeleg": json.loads(r["eigenbeleg"]) if r["eigenbeleg"] else None,
     }
 
 
@@ -247,6 +249,8 @@ def patch_beleg(
     if body.gewerbe_id is not None and body.gewerbe_id != bel["gewerbe_id"]:
         if bel["buchung_id"] is not None:
             raise HTTPException(400, "Nur offene Eingangs-Belege können verschoben werden.")
+        if bel["eigenbeleg"]:
+            raise HTTPException(400, "Ein Eigenbeleg nennt sein Gewerbe als Aussteller — dort neu erstellen.")
         check_gewerbe(db, user, body.gewerbe_id)  # Ziel muss dem Nutzer gehören
         fields.append("gewerbe_id = ?"); values.append(body.gewerbe_id)
     if fields:
@@ -267,6 +271,13 @@ def beleg_vorschlag(
     path = os.path.join(settings.UPLOAD_ROOT, r["stored_name"])
     if not os.path.exists(path):
         raise HTTPException(410, "Datei nicht mehr vorhanden.")
+    if r["eigenbeleg"]:  # Eigenbeleg: Angaben sind bekannt, nichts raten
+        e = json.loads(r["eigenbeleg"])
+        text = f"{e['empfaenger']} {e['gegenstand']}"
+        return {"quelle": "eigenbeleg", "betrag_cent": e["betrag_cent"], "datum": e["datum"],
+                "faellig_am": None, "lieferant": e["empfaenger"],
+                "kategorie_id": _kategorie_vorschlag(db, r["gewerbe_id"], text, e["empfaenger"], "ausgabe"),
+                "richtung": "ausgabe", "richtung_erkannt": True}
     try:
         return vorschlag_fuer_beleg(db, r, path)
     except Exception:

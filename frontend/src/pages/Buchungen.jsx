@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { istRegel } from '../lib/besteuerung.js';
 import { api, apiError } from '../api/client.js';
 import BuchungModal from '../components/BuchungModal.jsx';
+import EigenbelegModal from '../components/EigenbelegModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {
   IconArrowIn,
@@ -99,6 +100,7 @@ export default function Buchungen() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // { buchung? } | null
   const [verbuchen, setVerbuchen] = useState(null); // einzelner Eingangs-Beleg
+  const [eigenOffen, setEigenOffen] = useState(false); // Eigenbeleg in den Eingang
   const [wizard, setWizard] = useState(null); // { queue: beleg[], i } — Abarbeiten-Modus
   const [query, setQuery] = useState('');
   const [filterKat, setFilterKat] = useState('');
@@ -379,6 +381,7 @@ export default function Buchungen() {
           </button>
         )}
         <IconButton icon={IconCamera} label="Beleg scannen" onClick={() => scanBeleg?.()} />
+        <IconButton icon={IconPencil} label="Eigenbeleg erstellen (kein Originalbeleg)" onClick={() => setEigenOffen(true)} />
         <IconButton
           icon={IconUpload}
           label="Belege hochladen"
@@ -405,7 +408,9 @@ export default function Buchungen() {
               sub={
                 <>
                   <span>
-                    Hochgeladen {kurz(b.created_at.slice(0, 10))} · {fileSize(b.size_bytes)}
+                    {b.eigenbeleg
+                      ? `Eigenbeleg · ${formatEuro(b.eigenbeleg.betrag_cent)} am ${kurz(b.eigenbeleg.datum)}`
+                      : `Hochgeladen ${kurz(b.created_at.slice(0, 10))} · ${fileSize(b.size_bytes)}`}
                   </span>
                   {PUNKT}
                   <FaelligZeile beleg={b} ueberfaellig={ueberfaellig} onChange={(d) => setFaellig(b, d)} />
@@ -414,7 +419,7 @@ export default function Buchungen() {
               actions={
                 <>
                   <IconButton icon={IconBookIn} variant="primary" label="Verbuchen" onClick={() => setVerbuchen(b)} />
-                  {andereGewerbe.length > 0 && (
+                  {andereGewerbe.length > 0 && !b.eigenbeleg && (
                     <Dropdown
                       variant="icon"
                       icon={IconMove}
@@ -555,6 +560,10 @@ export default function Buchungen() {
             })}
           </section>
         ))
+      )}
+
+      {eigenOffen && gewerbeId && (
+        <EigenbelegModal gewerbeId={gewerbeId} onClose={() => setEigenOffen(false)} onCreated={load} />
       )}
 
       {modal && (

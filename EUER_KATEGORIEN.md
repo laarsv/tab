@@ -294,6 +294,24 @@ für §8, deshalb passt die Summe der Voranmeldungen (bis auf Rundung je Anmeldu
 - **Nicht abgedeckt:** Sondervorauszahlung (Kz 39), § 13b (Kz 46/47, 84/85, 67), innergemeinschaftliche Lieferungen/
   Erwerbe (Kz 41/44/49/89/93/61), Einfuhrumsatzsteuer (62), § 15a (64), berichtigte Anmeldung (Kz 10), ELSTER-Versand.
 
+## 10. Eigenbelege (v42)
+
+- **Grundlage:** GoBD (BMF 28.11.2019, zuletzt geändert 14.07.2025) Rz. 61: „Ist kein Fremdbeleg vorhanden, muss ein
+  Eigenbeleg erstellt werden.“ Inhalte nach Rz. 77: eindeutige Belegnummer, Aussteller/Empfänger, Betrag, Belegdatum,
+  hinreichende Erläuterung, verantwortlicher Aussteller. Tab verlangt dazu den Grund für den fehlenden Fremdbeleg,
+  den betrieblichen Anlass und eine Erklärung mit Freigabe.
+- **Digital ohne Unterschrift:** Ausdrücklich geregelt nur im BMF-Schreiben vom 19.11.2025 zu Bewirtungskosten
+  (GZ IV C 6 - S 2145/00026/005/033), Rn. 19: Autorisierung „durch eine elektronische Unterschrift oder eine elektronische
+  Genehmigung“, Angaben „dürfen im Nachhinein nicht undokumentiert geändert werden“; Rn. 22: Zeitpunkt der Erstellung und
+  der Genehmigung elektronisch aufgezeichnet, elektronisch aufbewahrt, GoBD beachtet. Für andere Eigenbelege ist das eine
+  Übertragung, keine ausdrückliche Regel — Tab erfüllt dieselben Punkte (Freigabe durch den angemeldeten Inhaber mit
+  Sekunden-Zeitstempel, Prüfwert, keine Änderung, Löschen im Protokoll).
+- **Grenzen:** Kein gesetzlicher Höchstbetrag. Tab zeigt weiche Hinweise ab 150 € (`HOHER_BETRAG_CENT`) und ab 12
+  Eigenbelegen im Jahr (`VIELE_JE_JAHR`). **Kein Vorsteuerabzug** (§ 15 Abs. 1 Nr. 1 UStG braucht eine Rechnung nach
+  §§ 14, 14a UStG, GoBD Rz. 78) — Hinweis in Regel-Jahren. **Bewirtung in Gaststätten:** maschinelle Rechnung bleibt
+  Pflicht (§ 4 Abs. 5 Nr. 2 EStG), der Eigenbeleg ersetzt sie nicht. Nur für Ausgaben.
+- **Keine Kategorie, keine EÜR-Zeile:** Der Eigenbeleg ist nur der Beleg; gebucht wird wie immer über die Buchung.
+
 ---
 
 *Quelle: BMF-Schreiben „Anlage EÜR" 2025 und 2026 (Vordrucke + Anleitung). Dieses Dokument ist

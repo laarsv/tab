@@ -1049,6 +1049,14 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX idx_abschlussbuchung ON abschlussbuchung(gewerbe_id, datum);
         """,
     ),
+    Migration(
+        version=42,
+        sql="""
+        -- v42: digitale Eigenbelege (services/eigenbeleg.py). JSON der eingefrorenen Angaben (Nummer, Datum,
+        -- Betrag, Empfänger, Gegenstand, Anlass, Grund, Freigabe mit Zeitstempel, Prüfwert); NULL = normaler Beleg.
+        ALTER TABLE beleg ADD COLUMN eigenbeleg TEXT;
+        """,
+    ),
 ]
 
 

@@ -6,8 +6,9 @@ import Dropdown from './Dropdown.jsx';
 import Modal from './Modal.jsx';
 import BelegeManager from './BelegeManager.jsx';
 import BelegVorschau from './BelegVorschau.jsx';
+import EigenbelegModal from './EigenbelegModal.jsx';
 import { Schalter } from './DialogParts.jsx';
-import { IconCamera, IconSparkles, IconX } from './Icons.jsx';
+import { IconCamera, IconPencil, IconSparkles, IconX } from './Icons.jsx';
 import { useBelegScanner } from './BelegScanner.jsx';
 import { openBeleg } from '../lib/belege.js';
 import { formatEuro, formatDateDE, parseEuroToCent, centToInput, todayISO } from '../lib/format.js';
@@ -19,6 +20,7 @@ const QUELLE_LABEL = {
   'e-rechnung': 'E-Rechnung, exakt',
   'pdf-text': 'aus PDF-Text',
   ocr: 'Texterkennung/OCR',
+  eigenbeleg: 'Eigenbeleg, exakt',
 };
 
 const BELEG_PLACEHOLDER = {
@@ -178,6 +180,9 @@ export default function BuchungModal({
     gewerbeId,
     onGespeichert: (beleg) => setGescannt((alt) => [...alt, beleg]),
   });
+  // Eigenbeleg (kein Originalbeleg): landet im Eingang und wird wie ein gescannter Beleg beim Speichern angehängt.
+  const [eigenOffen, setEigenOffen] = useState(false);
+  const eigenVorlage = () => eigenVorlageAus(datum, beschreibung, positionen, katById);
   const gewerbeObj = (outlet.gewerbe || []).find((g) => String(g.id) === String(gewerbeId));
   // Split-View: genau ein Eingangs-Beleg wird verbucht -> Dokument links, Felder rechts.
   const einBeleg = !isEdit && preBelege.length === 1 ? preBelege[0] : null;
@@ -864,7 +869,12 @@ export default function BuchungModal({
 
         {isEdit ? (
           <div className="pt-2 border-t border-ink/10">
-            <BelegeManager buchungId={buchung.id} gewerbeId={gewerbeId} onChange={onSaved} />
+            <BelegeManager
+              buchungId={buchung.id}
+              gewerbeId={gewerbeId}
+              onChange={onSaved}
+              eigenVorlage={richtung !== 'einnahme' ? eigenVorlage() : null}
+            />
           </div>
         ) : einBeleg ? null : preBelege.length + gescannt.length > 0 ? (
           <div className="flex items-start gap-2 rounded-lg bg-royal-soft/10 p-3 text-sm text-ink/70">
@@ -884,6 +894,7 @@ export default function BuchungModal({
               </span>
             ))}
             </div>
+            {richtung !== 'einnahme' && <EigenKnopf onClick={() => setEigenOffen(true)} />}
             <ScanKnopf onClick={scanner.starten} />
           </div>
         ) : (
@@ -891,10 +902,19 @@ export default function BuchungModal({
             <span className="min-w-0 flex-1">
               Beleg jetzt mit der Kamera scannen — oder nach dem Speichern anhängen.
             </span>
+            {richtung !== 'einnahme' && <EigenKnopf onClick={() => setEigenOffen(true)} />}
             <ScanKnopf onClick={scanner.starten} />
           </div>
         )}
         {!isEdit && scanner.element}
+        {eigenOffen && (
+          <EigenbelegModal
+            gewerbeId={gewerbeId}
+            vorlage={eigenVorlage()}
+            onClose={() => setEigenOffen(false)}
+            onCreated={(beleg) => setGescannt((alt) => [...alt, beleg])}
+          />
+        )}
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -912,6 +932,26 @@ export default function BuchungModal({
       </form>
       </div>
     </Modal>
+  );
+}
+
+// Eigenbeleg aus den Feldern der Buchung vorbefüllen (Datum, Summe, Beschreibung, erste Kategorie).
+function eigenVorlageAus(datum, beschreibung, positionen, katById) {
+  const summe = positionen.reduce((s, p) => s + (parseEuroToCent(p.betragInput) || 0), 0);
+  const kat = katById[String(positionen[0]?.kategorie_id)];
+  return { datum, betragCent: summe || null, empfaenger: beschreibung.trim(), kategorieKey: kat?.key || null };
+}
+
+function EigenKnopf({ onClick }) {
+  return (
+    <button
+      type="button"
+      className="btn-outline btn-sm shrink-0 gap-1.5"
+      onClick={onClick}
+      title="Kein Originalbeleg? Eigenbeleg erstellen"
+    >
+      <IconPencil className="h-4 w-4" /> Eigenbeleg
+    </button>
   );
 }
 

@@ -4,16 +4,19 @@ import { api, apiError } from '../api/client.js';
 import Spinner from './Spinner.jsx';
 import { openBeleg, fileSize, ACCEPT } from '../lib/belege.js';
 import { useBelegScanner } from './BelegScanner.jsx';
-import { IconCamera } from './Icons.jsx';
+import { IconCamera, IconPencil } from './Icons.jsx';
+import EigenbelegModal from './EigenbelegModal.jsx';
 
 // Belege einer bestehenden Buchung: anzeigen, öffnen, hochladen, aus Eingang anhängen, entfernen.
-export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
+// eigenVorlage (nur Ausgaben): Knopf „Eigenbeleg“, vorbefüllt aus der Buchung.
+export default function BelegeManager({ buchungId, gewerbeId, onChange, eigenVorlage = null }) {
   const [attached, setAttached] = useState([]);
   const [inbox, setInbox] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const inputRef = useRef(null);
+  const [eigenOffen, setEigenOffen] = useState(false);
   const scanner = useBelegScanner({
     gewerbeId,
     buchungId,
@@ -99,6 +102,28 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
             <IconCamera className="h-4 w-4" /> Scannen
           </button>
           {scanner.element}
+          {eigenVorlage && (
+            <button
+              type="button"
+              className="btn-outline btn-sm gap-1.5"
+              onClick={() => setEigenOffen(true)}
+              title="Kein Originalbeleg? Eigenbeleg erstellen"
+            >
+              <IconPencil className="h-4 w-4" /> Eigenbeleg
+            </button>
+          )}
+          {eigenOffen && (
+            <EigenbelegModal
+              gewerbeId={gewerbeId}
+              buchungId={buchungId}
+              vorlage={eigenVorlage}
+              onClose={() => setEigenOffen(false)}
+              onCreated={async () => {
+                await load();
+                onChange?.();
+              }}
+            />
+          )}
           <button
             type="button"
             className="btn-outline btn-sm"
@@ -139,6 +164,7 @@ export default function BelegeManager({ buchungId, gewerbeId, onChange }) {
                 {b.original_name}
               </button>
               <div className="flex items-center gap-3 shrink-0">
+                {b.eigenbeleg && <span className="text-xs font-bold text-ink/60">Eigenbeleg</span>}
                 <span className="text-xs text-ink/50 tabular-nums">{fileSize(b.size_bytes)}</span>
                 <button
                   type="button"
