@@ -242,7 +242,7 @@ def uebersicht(
         "heute": heute,
         "gewerbe_id": gewerbe_id,
         "jahr": jahr,
-        "kennzahlen": {**kz.mit_ku_guard(aktuell), "vorjahr": vorjahr},
+        "kennzahlen": {**kz.mit_ku_guard(aktuell, vorjahr), "vorjahr": vorjahr},
         "forderungen": forderungen,
         "aufgaben": _aufgaben(db, user, gewerbe_id, heute, forderungen),
         "letzte_buchungen": _letzte_buchungen(db, gewerbe_id),

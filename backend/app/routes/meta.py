@@ -25,4 +25,8 @@ def kennzahlen(
     db: sqlite3.Connection = Depends(get_db),
 ):
     check_gewerbe(db, user, gewerbe_id)
-    return {"gewerbe_id": gewerbe_id, "jahr": jahr, **kz.mit_ku_guard(kz.summen(db, gewerbe_id, jahr))}
+    return {
+        "gewerbe_id": gewerbe_id,
+        "jahr": jahr,
+        **kz.mit_ku_guard(kz.summen(db, gewerbe_id, jahr), kz.summen(db, gewerbe_id, jahr - 1)),
+    }

@@ -147,7 +147,12 @@ der Mapping-Version des Jahres aufgelöst.
   zählt nicht in `ku_umsatz` (Vereinfachung, siehe EUER_KATEGORIEN.md §4.6).
 - **KU-Grenz-Guard (`/api/kennzahlen`):** Grenzvergleich (25.000/100.000 €) läuft über
   `ku_umsatz_cent` = nur Kategorie `einnahme_ku` — steuerfreie Courtage (§4 Nr. 11) und
-  Anlagenverkäufe bleiben nach §19 Abs. 2 UStG außer Ansatz.
+  Anlagenverkäufe bleiben nach §19 Abs. 2 UStG außer Ansatz. **Drei Warnungen** (`mit_ku_guard(werte, vorjahr)`):
+  `ku_warn_vorjahr` = **Gesamtumsatz des Vorjahres** (`gesamtumsatz_cent` = `einnahme_ku` + `einnahme_ust` netto) > 25.000 €
+  → KU gilt schon in diesem Jahr nicht; `ku_warn_folgejahr` = dieses Jahr > 25.000 € → kein KU im Folgejahr;
+  `ku_warn_laufend` = dieses Jahr > 100.000 €. Bis 24.11.2026 hieß die Folgejahr-Warnung `ku_warn_vorjahr` und das echte
+  Vorjahr wurde nicht geprüft. Grenze je Gewerbe — §19 meint den Unternehmer, bei mehreren Gewerben eines Inhabers
+  zählt die Summe (nicht gebaut).
 - **Mapping jahres-versioniert:** 2025 und 2026 gegen den amtlichen Vordruck verifiziert
   (BMF-Schreiben 29.08.2025 / 01.09.2026, `vorlaeufig=0`). Fehlt ein Mapping fürs Jahr **oder für
   eine bebuchte Kategorie** → `MappingMissingError` → 400 mit klarer Meldung (kein stilles
