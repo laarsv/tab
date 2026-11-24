@@ -56,7 +56,9 @@ KONTEN: dict[str, str | None] = {
     "4964": "software_hosting", "4970": "kontogebuehren",
     "480": "gwg",
     "8195": "einnahme_ku", "8200": "einnahme_ku", "2660": "einnahme_ku", "8700": "einnahme_ku",
-    "8510": "einnahme_steuerfrei", "8192": "einnahme_steuerfrei",
+    # 8192: Lexware bucht „Einnahmen als Kleinunternehmer" seit 2026 auf 8192 (vorher 8195) — kein §4 Nr. 11.
+    # Bis 24.11.2026 stand hier einnahme_steuerfrei; dadurch kamen KU-Rechnungen 2026 als Courtage in Tab.
+    "8510": "einnahme_steuerfrei", "8192": "einnahme_ku",
     "8924": "kfz_privatnutzung",
     # bewusst nicht
     "4830": None, "4855": None, "4320": None, "320": None, "420": None, "490": None, "2400": None, "3700": None,

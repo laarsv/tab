@@ -264,7 +264,9 @@ der Mapping-Version des Jahres aufgelöst.
   Für den Import vom 16.11.2026 wurden die Schlüssel per `--herkunft-nachtragen` nachgetragen. Am 16.11.2026 für Lars
   ausgeführt (2020–2026); Originale unter `UPLOAD_ROOT/archiv/`. Lexware bleibt bis 31.12.2026 führend → Anfang 2027
   Nachimport mit dem letzten Export (gleiche Optionen, ohne `--anlagen`/`--abschliessen-bis`).
-  Admins (`ALLOWED_EMAILS`) haben seitdem keine Beleg-Quota.
+  Admins (`ALLOWED_EMAILS`) haben seitdem keine Beleg-Quota. **Konto 8192** = Lexwares „Einnahmen als Kleinunternehmer“ ab
+  2026 (2025: 8195) → `einnahme_ku`; bis 24.11.2026 war es als steuerfrei gemappt, die betroffenen Buchungen 2026 sind von
+  Hand korrigiert.
 - **CSV-Import** (`POST /api/buchungen/import`): Semikolon-CSV
   `Datum;Betrag;Kategorie[;Beschreibung[;Beleg-Details]]`, Datum TT.MM.JJJJ oder ISO, Betrag
   deutsch, Kategorie = Key oder Name. **Alles-oder-nichts** — bei Fehlern 400 mit Zeilenliste.
